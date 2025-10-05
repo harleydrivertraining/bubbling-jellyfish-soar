@@ -68,7 +68,8 @@ const LessonNotes: React.FC = () => {
     let query = supabase
       .from("bookings")
       .select("id, title, description, targets_for_next_session, start_time, students(name)")
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .or("description.not.is.null,targets_for_next_session.not.is.null"); // Only fetch bookings with notes or targets
 
     if (studentId && studentId !== "all") {
       query = query.eq("student_id", studentId);
@@ -164,7 +165,7 @@ const LessonNotes: React.FC = () => {
       {filteredLessonNotes.length === 0 ? (
         <p className="text-muted-foreground">
           {allLessonNotes.length === 0
-            ? "No lesson notes found yet. Schedule some lessons to start adding notes!"
+            ? "No lesson notes found yet. Schedule some lessons and add notes to them!"
             : "No lesson notes match your current filters or search term."}
         </p>
       ) : (
