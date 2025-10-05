@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { PlusCircle, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge"; // Import Badge component
+import { Badge } from "@/components/ui/badge";
 
 interface Student {
   id: string;
@@ -34,19 +34,12 @@ interface Student {
   document_url?: string;
 }
 
-type SortKey = keyof Student;
-type SortDirection = "asc" | "desc" | null;
-
 const Students: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
-    key: "name",
-    direction: "asc",
-  });
 
   const fetchStudents = async () => {
     if (!user) {
@@ -81,49 +74,18 @@ const Students: React.FC = () => {
     setIsDialogOpen(false); // Close the dialog
   };
 
-  const handleSort = (key: SortKey) => {
-    let direction: SortDirection = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    } else if (sortConfig.key === key && sortConfig.direction === "desc") {
-      direction = null; // Cycle to no sort
-    }
-    setSortConfig({ key, direction });
-  };
-
-  const filteredAndSortedStudents = useMemo(() => {
-    let sortableStudents = [...students];
+  const filteredStudents = useMemo(() => {
+    let currentStudents = [...students];
 
     // Filter logic
     if (searchTerm) {
-      sortableStudents = sortableStudents.filter((student) =>
+      currentStudents = currentStudents.filter((student) =>
         student.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Sort logic
-    if (sortConfig.direction !== null) {
-      sortableStudents.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (aValue === null || aValue === undefined) return sortConfig.direction === "asc" ? 1 : -1;
-        if (bValue === null || bValue === undefined) return sortConfig.direction === "asc" ? -1 : 1;
-
-        if (typeof aValue === "string" && typeof bValue === "string") {
-          return sortConfig.direction === "asc"
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
-        }
-        // Fallback for other types, though name/status are strings
-        if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return sortableStudents;
-  }, [students, searchTerm, sortConfig]);
+    return currentStudents;
+  }, [students, searchTerm]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -177,33 +139,19 @@ const Students: React.FC = () => {
           <CardTitle>Student List</CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredAndSortedStudents.length === 0 && students.length > 0 && (
+          {filteredStudents.length === 0 && students.length > 0 && (
             <p className="text-muted-foreground">No students match your search.</p>
           )}
           {students.length === 0 && (
             <p className="text-muted-foreground">No students added yet. Click "Add Student" to get started!</p>
           )}
-          {filteredAndSortedStudents.length > 0 && (
+          {filteredStudents.length > 0 && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>
-                      <Button variant="ghost" onClick={() => handleSort("name")} className="p-0 h-auto">
-                        Name
-                        {sortConfig.key === "name" && sortConfig.direction === "asc" && <ArrowUp className="ml-2 h-4 w-4" />}
-                        {sortConfig.key === "name" && sortConfig.direction === "desc" && <ArrowDown className="ml-2 h-4 w-4" />}
-                        {sortConfig.key !== "name" && <ArrowUpDown className="ml-2 h-4 w-4" />}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button variant="ghost" onClick={() => handleSort("status")} className="p-0 h-auto">
-                        Status
-                        {sortConfig.key === "status" && sortConfig.direction === "asc" && <ArrowUp className="ml-2 h-4 w-4" />}
-                        {sortConfig.key === "status" && sortConfig.direction === "desc" && <ArrowDown className="ml-2 h-4 w-4" />}
-                        {sortConfig.key !== "status" && <ArrowUpDown className="ml-2 h-4 w-4" />}
-                      </Button>
-                    </TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>DOB</TableHead>
                     <TableHead>License No.</TableHead>
                     <TableHead>Phone</TableHead>
@@ -213,7 +161,7 @@ const Students: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSortedStudents.map((student) => (
+                  {filteredStudents.map((student) => (
                     <TableRow key={student.id}>
                       <TableCell className="font-medium">{student.name}</TableCell>
                       <TableCell>
