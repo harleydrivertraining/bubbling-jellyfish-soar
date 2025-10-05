@@ -26,7 +26,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion"; // New imports
+} from "@/components/ui/accordion";
 
 interface Student {
   id: string;
@@ -238,7 +238,7 @@ const Progress: React.FC = () => {
                       {student.progressEntries.length === 0 ? (
                         <p className="text-muted-foreground italic mt-2">No progress entries recorded yet for this student.</p>
                       ) : (
-                        <div className="space-y-3 mt-2">
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 mt-2"> {/* Changed to grid layout */}
                           {student.progressEntries.map((entry) => (
                             <ProgressEntryCard key={entry.id} entry={entry} />
                           ))}
