@@ -12,12 +12,12 @@ import Toolbar from 'react-big-calendar/lib/Toolbar';
 import { isWithinInterval, setHours, getHours, getMinutes, startOfDay, endOfDay } from 'date-fns';
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError, showSuccess } from "@/utils/toast"; // Added showSuccess
+import { showError, showSuccess } from "@/utils/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EditBookingForm from "@/components/EditBookingForm";
 import CalendarEventWrapper from "@/components/CalendarEventWrapper";
-import { Button } from "@/components/ui/button"; // Added Button import
-import { CheckCircle } from "lucide-react"; // Added CheckCircle icon
+import { Button } from "@/components/ui/button";
+import { CheckCircle } from "lucide-react";
 
 const locales = {
   'en-US': enUS,
@@ -95,12 +95,13 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
 };
 
 interface CalendarComponentProps {
+  events: BigCalendarEvent[];
+  onEventsRefetch: () => void;
   onSelectSlot: (start: Date, end: Date) => void;
 }
 
-const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) => {
-  const { user, isLoading: isSessionLoading } = useSession();
-  const [events, setEvents] = useState<BigCalendarEvent[]>([]);
+const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsRefetch, onSelectSlot }) => {
+  const { user } = useSession();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState('week'); // Default view
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
@@ -108,42 +109,6 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) =
 
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-
-  const fetchBookings = useCallback(async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("bookings")
-      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, students(name)") // Fetch all necessary fields
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("Error fetching bookings:", error);
-      showError("Failed to load bookings: " + error.message);
-      return;
-    }
-
-    const formattedEvents: BigCalendarEvent[] = data.map((booking) => ({
-      id: booking.id,
-      title: booking.students?.name || booking.title, // Use student name, fallback to booking title
-      start: new Date(booking.start_time),
-      end: new Date(booking.end_time),
-      resource: {
-        student_id: booking.student_id,
-        description: booking.description,
-        status: booking.status,
-        lesson_type: booking.lesson_type,
-        targets_for_next_session: booking.targets_for_next_session,
-      },
-    }));
-    setEvents(formattedEvents);
-  }, [user]);
-
-  useEffect(() => {
-    if (!isSessionLoading && user) {
-      fetchBookings();
-    }
-  }, [isSessionLoading, user, fetchBookings]);
 
   // Recalculate min/max whenever events, current date, or view changes
   useEffect(() => {
@@ -170,13 +135,13 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) =
   }, []);
 
   const handleBookingUpdated = () => {
-    fetchBookings(); // Refresh bookings after update
+    onEventsRefetch(); // Refresh bookings after update
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
 
   const handleBookingDeleted = () => {
-    fetchBookings(); // Refresh bookings after deletion
+    onEventsRefetch(); // Refresh bookings after deletion
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
@@ -222,9 +187,9 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) =
       showError("Failed to mark all bookings as completed: " + updateError.message);
     } else {
       showSuccess(`${bookingIdsToUpdate.length} booking(s) marked as completed for ${format(currentDate, "PPP")}!`);
-      fetchBookings(); // Refresh calendar events
+      onEventsRefetch(); // Refresh calendar events
     }
-  }, [user, currentDate, fetchBookings]);
+  }, [user, currentDate, onEventsRefetch]);
 
 
   return (
@@ -250,7 +215,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) =
             event: (props) => (
               <CalendarEventWrapper
                 {...props}
-                onEventStatusChange={fetchBookings}
+                onEventStatusChange={onEventsRefetch}
               />
             ),
           }}

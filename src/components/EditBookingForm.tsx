@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useForm } from "react-hook-form"; // Corrected import path
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -191,7 +191,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
       showError("Failed to update booking: " + error.message);
     } else {
       showSuccess("Booking updated successfully!");
-      onBookingUpdated();
+      onBookingUpdated(); // Call the prop to trigger calendar refresh
     }
   };
 
@@ -211,7 +211,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
       showError("Failed to delete booking: " + error.message);
     } else {
       showSuccess("Booking deleted successfully!");
-      onBookingDeleted();
+      onBookingDeleted(); // Call the prop to trigger calendar refresh
     }
   };
 

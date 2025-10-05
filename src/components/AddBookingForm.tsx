@@ -36,8 +36,8 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import DatePicker from "@/components/DatePicker"; // Import DatePicker
-import TimePicker from "@/components/TimePicker"; // Import the new TimePicker
+import DatePicker from "@/components/DatePicker";
+import TimePicker from "@/components/TimePicker";
 
 interface Student {
   id: string;
@@ -179,7 +179,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     } else {
       showSuccess("Booking(s) added successfully!");
       form.reset();
-      onBookingAdded();
+      onBookingAdded(); // Call the prop to trigger calendar refresh
       onClose();
     }
   };

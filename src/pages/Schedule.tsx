@@ -1,16 +1,72 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import CalendarComponent from "@/components/Calendar";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
 import { addMinutes } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/components/auth/SessionContextProvider";
+import { showError } from "@/utils/toast";
+import { Event as BigCalendarEvent } from 'react-big-calendar';
+
+interface CustomEventResource {
+  student_id: string;
+  description?: string;
+  status: "scheduled" | "completed" | "cancelled";
+  lesson_type: string;
+  targets_for_next_session?: string;
+}
 
 const Schedule: React.FC = () => {
+  const { user, isLoading: isSessionLoading } = useSession();
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
+  const [events, setEvents] = useState<BigCalendarEvent[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+
+  const fetchBookings = useCallback(async () => {
+    if (!user) {
+      setIsLoadingEvents(false);
+      return;
+    }
+
+    setIsLoadingEvents(true);
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, students(name)")
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error fetching bookings:", error);
+      showError("Failed to load bookings: " + error.message);
+      setEvents([]);
+    } else {
+      const formattedEvents: BigCalendarEvent[] = data.map((booking) => ({
+        id: booking.id,
+        title: booking.students?.name || booking.title,
+        start: new Date(booking.start_time),
+        end: new Date(booking.end_time),
+        resource: {
+          student_id: booking.student_id,
+          description: booking.description,
+          status: booking.status,
+          lesson_type: booking.lesson_type,
+          targets_for_next_session: booking.targets_for_next_session,
+        },
+      }));
+      setEvents(formattedEvents);
+    }
+    setIsLoadingEvents(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (!isSessionLoading) {
+      fetchBookings();
+    }
+  }, [isSessionLoading, fetchBookings]);
 
   const handleOpenAddBookingDialog = useCallback((start: Date, end: Date) => {
     setSelectedSlot({ start, end });
@@ -18,10 +74,10 @@ const Schedule: React.FC = () => {
   }, []);
 
   const handleBookingAdded = useCallback(() => {
+    fetchBookings(); // Refresh the list after a new booking is added
     setIsAddBookingDialogOpen(false);
     setSelectedSlot(null);
-    // The CalendarComponent will refetch its events internally
-  }, []);
+  }, [fetchBookings]);
 
   const handleCloseAddBookingDialog = useCallback(() => {
     setIsAddBookingDialogOpen(false);
@@ -39,6 +95,14 @@ const Schedule: React.FC = () => {
     handleOpenAddBookingDialog(defaultStartTime, defaultEndTime);
   };
 
+  if (isSessionLoading || isLoadingEvents) {
+    return (
+      <div className="flex flex-col space-y-6 h-full items-center justify-center">
+        <p>Loading schedule...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col space-y-6 h-full">
       <div className="flex items-center justify-between">
@@ -48,7 +112,11 @@ const Schedule: React.FC = () => {
         </Button>
       </div>
       <div className="flex-1 min-h-[600px]">
-        <CalendarComponent onSelectSlot={handleOpenAddBookingDialog} />
+        <CalendarComponent
+          events={events}
+          onEventsRefetch={fetchBookings}
+          onSelectSlot={handleOpenAddBookingDialog}
+        />
       </div>
 
       <Dialog open={isAddBookingDialogOpen} onOpenChange={handleCloseAddBookingDialog}>
