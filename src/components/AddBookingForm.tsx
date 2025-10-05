@@ -36,6 +36,8 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import DatePicker from "@/components/DatePicker"; // Import DatePicker
+import TimePicker from "@/components/TimePicker"; // Import the new TimePicker
 
 interface Student {
   id: string;
@@ -177,7 +179,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3"> {/* Reduced space-y */}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
         <FormField
           control={form.control}
           name="student_id"
@@ -251,7 +253,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        <div className="grid grid-cols-2 gap-3"> {/* Grouped Lesson Type and Length */}
+        <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
             name="lesson_type"
@@ -299,26 +301,53 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3"> {/* Grouped Start and End Time */}
-          <FormItem>
-            <FormLabel>Start Time</FormLabel>
-            <Input
-              type="text"
-              value={format(selectedStartTime, "PPP p")}
-              readOnly
-              className="bg-muted"
-            />
-          </FormItem>
-          <FormItem>
-            <FormLabel>End Time</FormLabel>
-            <Input
-              type="text"
-              value={format(form.getValues("end_time"), "PPP p")}
-              readOnly
-              className="bg-muted"
-            />
-          </FormItem>
-        </div>
+        {/* Start Time Field */}
+        <FormField
+          control={form.control}
+          name="start_time"
+          render={({ field }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel>Start Time</FormLabel>
+              <div className="flex gap-2">
+                <DatePicker
+                  date={field.value}
+                  setDate={field.onChange}
+                  placeholder="Select date"
+                />
+                <TimePicker
+                  date={field.value}
+                  onChange={field.onChange}
+                  label="Start Time"
+                />
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* End Time Field */}
+        <FormField
+          control={form.control}
+          name="end_time"
+          render={({ field }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel>End Time</FormLabel>
+              <div className="flex gap-2">
+                <DatePicker
+                  date={field.value}
+                  setDate={field.onChange}
+                  placeholder="Select date"
+                />
+                <TimePicker
+                  date={field.value}
+                  onChange={field.onChange}
+                  label="End Time"
+                />
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -348,7 +377,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        <div className="grid grid-cols-2 gap-3"> {/* Grouped Repeat Booking fields */}
+        <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
             name="repeat_booking"
