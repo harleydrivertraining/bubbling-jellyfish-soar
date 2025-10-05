@@ -8,7 +8,13 @@
 }
 
 .rbc-header {
-  @apply py-2.5 text-center font-bold text-sm border-b border-border; /* Increased padding and font-bold */
+  color: white;
+  font-size: 14px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px !important;
+  background: #17405d;
 }
 
 .rbc-month-row {
