@@ -25,7 +25,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { format } from "date-fns";
+import { format, addMinutes, addWeeks } from "date-fns"; // Import addMinutes and addWeeks
+import { Check, ChevronsUpDown } from "lucide-react"; // For searchable select
+import { cn } from "@/lib/utils"; // For searchable select
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // Define the schema for a student to be used in the select dropdown
 interface Student {
@@ -36,7 +46,16 @@ interface Student {
 const formSchema = z.object({
   student_id: z.string().min(1, { message: "Please select a student." }),
   title: z.string().min(2, { message: "Title must be at least 2 characters." }),
-  description: z.string().optional().nullable(),
+  description: z.string().optional().nullable(), // Lesson Notes
+  lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal"], {
+    message: "Please select a valid lesson type.",
+  }),
+  lesson_length: z.enum(["60", "90", "120"], {
+    message: "Please select a valid lesson length.",
+  }), // Length in minutes as string
+  targets_for_next_session: z.string().optional().nullable(),
+  repeat_booking: z.enum(["none", "weekly", "fortnightly"]),
+  repeat_count: z.number().min(1).max(12).optional(), // Max 12 repeats for now
   start_time: z.date({ required_error: "Start time is required." }),
   end_time: z.date({ required_error: "End time is required." }),
 });
@@ -57,6 +76,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   const { user } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+  const [openStudentSelect, setOpenStudentSelect] = useState(false); // For searchable student select
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -64,10 +84,28 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       student_id: "",
       title: "Driving Lesson",
       description: "",
+      lesson_type: "Driving lesson",
+      lesson_length: "60", // Default to 1 hour
+      targets_for_next_session: "",
+      repeat_booking: "none",
+      repeat_count: 1,
       start_time: initialStartTime,
       end_time: initialEndTime,
     },
   });
+
+  const selectedLessonLength = form.watch("lesson_length");
+  const selectedStartTime = form.watch("start_time");
+  const selectedRepeatBooking = form.watch("repeat_booking");
+
+  // Effect to update end_time when start_time or lesson_length changes
+  useEffect(() => {
+    if (selectedStartTime && selectedLessonLength) {
+      const lengthInMinutes = parseInt(selectedLessonLength, 10);
+      const newEndTime = addMinutes(selectedStartTime, lengthInMinutes);
+      form.setValue("end_time", newEndTime);
+    }
+  }, [selectedStartTime, selectedLessonLength, form]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -97,24 +135,42 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       return;
     }
 
-    const { data, error } = await supabase
-      .from("bookings")
-      .insert({
+    const bookingsToInsert = [];
+    const numRepeats = values.repeat_booking !== "none" ? (values.repeat_count || 1) : 1;
+    const interval = values.repeat_booking === "weekly" ? 1 : 2; // 1 week for weekly, 2 weeks for fortnightly
+
+    for (let i = 0; i < numRepeats; i++) {
+      let currentStartTime = values.start_time;
+      let currentEndTime = values.end_time;
+
+      if (i > 0 && values.repeat_booking !== "none") {
+        currentStartTime = addWeeks(values.start_time, i * interval);
+        currentEndTime = addWeeks(values.end_time, i * interval);
+      }
+
+      bookingsToInsert.push({
         user_id: user.id,
         student_id: values.student_id,
         title: values.title,
         description: values.description,
-        start_time: values.start_time.toISOString(),
-        end_time: values.end_time.toISOString(),
+        lesson_type: values.lesson_type,
+        targets_for_next_session: values.targets_for_next_session,
+        start_time: currentStartTime.toISOString(),
+        end_time: currentEndTime.toISOString(),
         status: "scheduled",
-      })
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .insert(bookingsToInsert)
       .select();
 
     if (error) {
-      console.error("Error adding booking:", error);
-      showError("Failed to add booking: " + error.message);
+      console.error("Error adding booking(s):", error);
+      showError("Failed to add booking(s): " + error.message);
     } else {
-      showSuccess("Booking added successfully!");
+      showSuccess("Booking(s) added successfully!");
       form.reset();
       onBookingAdded();
       onClose();
@@ -128,30 +184,61 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           control={form.control}
           name="student_id"
           render={({ field }) => (
-            <FormItem>
+            <FormItem className="flex flex-col">
               <FormLabel>Student</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger disabled={isLoadingStudents}>
-                    <SelectValue placeholder="Select a student" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {students.length === 0 && !isLoadingStudents ? (
-                    <SelectItem value="" disabled>No students available</SelectItem>
-                  ) : (
-                    students.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn(
+                        "w-full justify-between",
+                        !field.value && "text-muted-foreground"
+                      )}
+                      disabled={isLoadingStudents}
+                    >
+                      {field.value
+                        ? students.find((student) => student.id === field.value)?.name
+                        : "Select a student"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search student..." />
+                    <CommandEmpty>No student found.</CommandEmpty>
+                    <CommandGroup>
+                      {students.map((student) => (
+                        <CommandItem
+                          value={student.name}
+                          key={student.id}
+                          onSelect={() => {
+                            form.setValue("student_id", student.id);
+                            setOpenStudentSelect(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              student.id === field.value
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {student.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="title"
@@ -165,24 +252,58 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
-          name="description"
+          name="lesson_type"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., first lesson, highway practice" {...field} />
-              </FormControl>
+              <FormLabel>Lesson Type</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select lesson type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Driving lesson">Driving lesson</SelectItem>
+                  <SelectItem value="Driving Test">Driving Test</SelectItem>
+                  <SelectItem value="Personal">Personal</SelectItem>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="lesson_length"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Lesson Length</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select lesson length" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormItem>
           <FormLabel>Start Time</FormLabel>
           <Input
             type="text"
-            value={format(initialStartTime, "PPP p")}
+            value={format(selectedStartTime, "PPP p")}
             readOnly
             className="bg-muted"
           />
@@ -191,11 +312,86 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           <FormLabel>End Time</FormLabel>
           <Input
             type="text"
-            value={format(initialEndTime, "PPP p")}
+            value={format(form.getValues("end_time"), "PPP p")}
             readOnly
             className="bg-muted"
           />
         </FormItem>
+
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Lesson Notes (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="e.g., first lesson, highway practice" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="targets_for_next_session"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Targets for Next Session (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="e.g., practice parallel parking, focus on mirror checks" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="repeat_booking"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Repeat Booking</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select repeat option" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {selectedRepeatBooking !== "none" && (
+          <FormField
+            control={form.control}
+            name="repeat_count"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Number of Repeats</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 4"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                    min={1}
+                    max={12}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         <Button type="submit" className="w-full">Add Booking</Button>
       </form>
     </Form>
