@@ -7,20 +7,21 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Import Avatar components
 import {
   Car,
   Users,
   Settings,
   LayoutDashboard,
   CalendarDays,
-  BookOpen,        // New icon for Lessons
-  NotebookText,    // New icon for Lesson Notes
-  Target,          // New icon for Student Targets
-  TrendingUp,      // New icon for Progress
-  ClipboardCheck,  // New icon for Driving Tests
-  Hourglass,       // New icon for Pre-Paid Hours
-  Library,         // New icon for Resources
-  ListChecks,      // New icon for Manage Topics
+  BookOpen,
+  NotebookText,
+  Target,
+  TrendingUp,
+  ClipboardCheck,
+  Hourglass,
+  Library,
+  ListChecks,
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -59,9 +60,10 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed })
 
 interface SidebarProps {
   isCollapsed: boolean;
+  logoUrl: string | null; // New prop for logo URL
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/students", icon: Users, label: "Students" },
@@ -73,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     { to: "/driving-tests", icon: ClipboardCheck, label: "Driving Tests" },
     { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
     { to: "/resources", icon: Library, label: "Resources" },
-    { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" }, // New link
+    { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
 
@@ -85,7 +87,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
       )}
     >
       <div className="flex h-16 items-center justify-center p-4">
-        <Car className={cn("h-8 w-8 text-primary", isCollapsed ? "" : "mr-2")} />
+        {logoUrl ? (
+          <Avatar className={cn("h-10 w-10", isCollapsed ? "" : "mr-2")}>
+            <AvatarImage src={logoUrl} alt="User Logo" />
+            <AvatarFallback>
+              <Car className="h-6 w-6 text-primary" />
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <Car className={cn("h-8 w-8 text-primary", isCollapsed ? "" : "mr-2")} />
+        )}
         {!isCollapsed && (
           <h1 className="text-xl font-bold text-foreground">DriveApp</h1>
         )}

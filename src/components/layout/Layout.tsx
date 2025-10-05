@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
@@ -8,21 +8,49 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
+import { useSession } from "@/components/auth/SessionContextProvider"; // Import useSession
+import { supabase } from "@/integrations/supabase/client"; // Import supabase client
 
 const Layout: React.FC = () => {
   const isMobile = useIsMobile();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
+  const { user } = useSession(); // Get user from session
+  const [logoUrl, setLogoUrl] = useState<string | null>(null); // State for logo URL
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
   };
+
+  // Fetch logo URL when user is available
+  useEffect(() => {
+    const fetchLogo = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("logo_url")
+          .eq("id", user.id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching logo URL:", error);
+          setLogoUrl(null);
+        } else if (data) {
+          setLogoUrl(data.logo_url);
+        }
+      } else {
+        setLogoUrl(null); // Clear logo if user logs out
+      }
+    };
+
+    fetchLogo();
+  }, [user]); // Re-fetch when user changes
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {isMobile ? (
         <MobileSidebar />
       ) : (
-        <Sidebar isCollapsed={isCollapsed} />
+        <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} /> {/* Pass logoUrl to Sidebar */}
       )}
       <div className="flex flex-col flex-1">
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
