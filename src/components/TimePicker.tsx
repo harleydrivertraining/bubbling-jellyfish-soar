@@ -50,7 +50,7 @@ const TimePicker: React.FC<TimePickerProps> = ({ date, onChange, label, disabled
     <div className={cn("flex items-end gap-2", disabled && "opacity-50 cursor-not-allowed")}>
       {label && <Label className="sr-only">{label}</Label>}
       <div className="grid gap-1">
-        <Label htmlFor={`${label}-hour`}>Hour</Label>
+        {/* Removed "Hour" label */}
         <Select onValueChange={handleHourChange} value={hours.toString().padStart(2, '0')} disabled={disabled}>
           <SelectTrigger id={`${label}-hour`} className="w-[70px]">
             <SelectValue placeholder="HH" />
@@ -65,7 +65,7 @@ const TimePicker: React.FC<TimePickerProps> = ({ date, onChange, label, disabled
         </Select>
       </div>
       <div className="grid gap-1">
-        <Label htmlFor={`${label}-minute`}>Minute</Label>
+        {/* Removed "Minute" label */}
         <Select onValueChange={handleMinuteChange} value={minutes.toString().padStart(2, '0')} disabled={disabled}>
           <SelectTrigger id={`${label}-minute`} className="w-[70px]">
             <SelectValue placeholder="MM" />
