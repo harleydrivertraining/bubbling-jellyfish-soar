@@ -1,9 +1,9 @@
+@import 'react-big-calendar/lib/css/react-big-calendar.css';
+@import 'react-big-calendar/lib/addons/toolbar/toolbar.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import 'react-big-calendar/lib/css/react-big-calendar.css';
-@import 'react-big-calendar/lib/addons/toolbar/toolbar.css'; /* Re-enabled this import */
 
 @layer base {
   :root {
