@@ -1,19 +1,17 @@
-// Update this page (the content is just a fallback if you fail to update the page)
-
-import { MadeWithDyad } from "@/components/made-with-dyad";
+// This file is no longer needed as Dashboard is the default route.
+// It can be removed or kept as a redirect if necessary.
+// For now, I'll leave it as a simple redirect or blank.
+// The actual content is now in Dashboard.tsx
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">
-          Start building your amazing project here!
-        </p>
-      </div>
-      <MadeWithDyad />
-    </div>
-  );
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate("/dashboard"); // Redirect to the new Dashboard
+  }, [navigate]);
+
+  return null; // Or a loading spinner
 };
 
 export default Index;
