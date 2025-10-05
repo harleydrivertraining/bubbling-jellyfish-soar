@@ -15,6 +15,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EditBookingForm from "@/components/EditBookingForm"; // Import the new EditBookingForm
+import CalendarEventWrapper from "@/components/CalendarEventWrapper"; // New import
 
 const locales = {
   'en-US': enUS,
@@ -191,6 +192,12 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) =
         defaultView="week"
         components={{
           toolbar: Toolbar,
+          event: (props) => (
+            <CalendarEventWrapper
+              {...props}
+              onEventStatusChange={fetchBookings} // Inject the callback here
+            />
+          ),
         }}
         min={minTime} // Apply dynamic min time
         max={maxTime} // Apply dynamic max time

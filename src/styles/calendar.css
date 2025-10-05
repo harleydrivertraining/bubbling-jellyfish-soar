@@ -42,8 +42,12 @@
 }
 
 .rbc-event {
-  @apply bg-primary text-primary-foreground rounded-md px-2.5 py-1.5 text-sm leading-tight shadow-sm; /* Added shadow-sm, increased padding, text-sm */
+  @apply bg-primary text-primary-foreground rounded-md px-1 py-0.5 text-xs leading-tight shadow-sm; /* Adjusted padding and font size for button */
   /* Ensure events are readable and styled */
+  display: flex; /* Make it a flex container */
+  align-items: center; /* Vertically align content */
+  justify-content: space-between; /* Space out title and button */
+  overflow: hidden; /* Hide overflow if content is too long */
 }
 
 .rbc-toolbar {
