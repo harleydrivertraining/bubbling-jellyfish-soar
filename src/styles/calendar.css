@@ -97,7 +97,7 @@
 }
 
 .rbc-allday-cell {
-  @apply border-b border-border;
+	display: none;
 }
 
 .rbc-row-segment {
