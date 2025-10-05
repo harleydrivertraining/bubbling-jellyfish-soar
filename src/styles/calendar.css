@@ -119,10 +119,3 @@
 .rbc-day-slot .rbc-event {
   @apply border border-primary/50; /* Add a subtle border to events in day/week view */
 }
-
-/* Custom styles to hide elements in Agenda View */
-.rbc-agenda-view .rbc-agenda-date-cell,
-.rbc-agenda-view .rbc-agenda-time-cell,
-.rbc-agenda-view .rbc-agenda-event-cell {
-  display: none;
-}
