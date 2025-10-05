@@ -186,7 +186,10 @@ const LessonNotes: React.FC = () => {
                   <User className="mr-2 h-4 w-4 text-muted-foreground" />
                   {note.students?.name || "Unknown Student"}
                 </CardTitle>
-                {/* Removed the BookOpen icon and lesson title */}
+                <CardDescription className="flex items-center text-muted-foreground">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  <span>{note.title}</span>
+                </CardDescription>
                 <CardDescription className="flex items-center text-muted-foreground">
                   <CalendarDays className="mr-2 h-4 w-4" />
                   <span>{format(new Date(note.start_time), "PPP p")}</span>
@@ -199,17 +202,9 @@ const LessonNotes: React.FC = () => {
                     <p className="text-muted-foreground">{note.description}</p>
                   </div>
                 )}
-                {hasContent(note.targets_for_next_session) && (
-                  <div>
-                    <h3 className="font-semibold mb-1 flex items-center">
-                      <Target className="mr-2 h-4 w-4 text-muted-foreground" />
-                      Targets for Next Session:
-                    </h3>
-                    <p className="text-muted-foreground">{note.targets_for_next_session}</p>
-                  </div>
-                )}
-                {!hasContent(note.description) && !hasContent(note.targets_for_next_session) && (
-                  <p className="text-muted-foreground italic">No specific notes or targets recorded for this lesson.</p>
+                {/* Removed Targets for Next Session */}
+                {!hasContent(note.description) && (
+                  <p className="text-muted-foreground italic">No specific notes recorded for this lesson.</p>
                 )}
               </CardContent>
             </Card>
