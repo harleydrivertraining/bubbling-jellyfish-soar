@@ -17,6 +17,11 @@
   background: #17405d;
 }
 
+/* Remove rbc-header from agenda view */
+.rbc-agenda-view .rbc-header {
+  display: none;
+}
+
 .rbc-month-row {
   @apply border-b border-border;
 }
