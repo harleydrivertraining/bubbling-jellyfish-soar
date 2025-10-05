@@ -10,6 +10,11 @@ import getDay from 'date-fns/getDay';
 import enUS from 'date-fns/locale/en-US';
 import Toolbar from 'react-big-calendar/lib/Toolbar';
 import { isWithinInterval, setHours, getHours, getMinutes } from 'date-fns';
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/components/auth/SessionContextProvider";
+import { showError } from "@/utils/toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import AddBookingForm from "@/components/AddBookingForm"; // Will create this next
 
 const locales = {
   'en-US': enUS,
@@ -22,35 +27,6 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales,
 });
-
-// Dummy events for demonstration
-const initialEvents: BigCalendarEvent[] = [
-  {
-    title: 'Lesson with John Doe',
-    start: setHours(new Date(), 10, 0, 0, 0),
-    end: setHours(new Date(), 11, 0, 0, 0),
-  },
-  {
-    title: 'Early Lesson', // Event outside default range
-    start: setHours(new Date(), 7, 30, 0, 0),
-    end: setHours(new Date(), 8, 30, 0, 0),
-  },
-  {
-    title: 'Late Lesson', // Event outside default range
-    start: setHours(new Date(), 19, 0, 0, 0),
-    end: setHours(new Date(), 20, 0, 0, 0),
-  },
-  {
-    title: 'Lesson with Jane Smith',
-    start: setHours(new Date(new Date().setDate(new Date().getDate() + 2)), 14, 0, 0, 0),
-    end: setHours(new Date(new Date().setDate(new Date().getDate() + 2)), 15, 0, 0, 0),
-  },
-  {
-    title: 'Lesson with Mike Johnson',
-    start: setHours(new Date(new Date().setDate(new Date().getDate() + 4)), 16, 0, 0, 0),
-    end: setHours(new Date(new Date().setDate(new Date().getDate() + 4)), 17, 0, 0, 0),
-  },
-];
 
 const DEFAULT_MIN_HOUR = 9;
 const DEFAULT_MAX_HOUR = 18; // 6 PM
@@ -116,11 +92,49 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
 };
 
 const CalendarComponent: React.FC = () => {
-  const [events, setEvents] = useState<BigCalendarEvent[]>(initialEvents);
+  const { user, isLoading: isSessionLoading } = useSession();
+  const [events, setEvents] = useState<BigCalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState('week'); // Default view
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
   const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
+
+  const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
+
+  const fetchBookings = useCallback(async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("id, title, description, start_time, end_time, student_id, status")
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error fetching bookings:", error);
+      showError("Failed to load bookings: " + error.message);
+      return;
+    }
+
+    const formattedEvents: BigCalendarEvent[] = data.map((booking) => ({
+      id: booking.id,
+      title: booking.title,
+      start: new Date(booking.start_time),
+      end: new Date(booking.end_time),
+      resource: {
+        student_id: booking.student_id,
+        description: booking.description,
+        status: booking.status,
+      },
+    }));
+    setEvents(formattedEvents);
+  }, [user]);
+
+  useEffect(() => {
+    if (!isSessionLoading && user) {
+      fetchBookings();
+    }
+  }, [isSessionLoading, user, fetchBookings]);
 
   // Recalculate min/max whenever events, current date, or view changes
   useEffect(() => {
@@ -136,6 +150,17 @@ const CalendarComponent: React.FC = () => {
   const handleView = useCallback((newView: string) => {
     setCurrentView(newView);
   }, []);
+
+  const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
+    setSelectedSlot({ start, end });
+    setIsAddBookingDialogOpen(true);
+  }, []);
+
+  const handleBookingAdded = () => {
+    fetchBookings(); // Refresh bookings after a new one is added
+    setIsAddBookingDialogOpen(false);
+    setSelectedSlot(null);
+  };
 
   return (
     <div className="h-full">
@@ -157,7 +182,25 @@ const CalendarComponent: React.FC = () => {
         onView={handleView}
         date={currentDate} // Control the calendar's date
         view={currentView} // Control the calendar's view
+        selectable // Enable selection of time slots
+        onSelectSlot={handleSelectSlot} // Handle slot selection
       />
+
+      <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Booking</DialogTitle>
+          </DialogHeader>
+          {selectedSlot && (
+            <AddBookingForm
+              initialStartTime={selectedSlot.start}
+              initialEndTime={selectedSlot.end}
+              onBookingAdded={handleBookingAdded}
+              onClose={() => setIsAddBookingDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
