@@ -34,7 +34,7 @@
 }
 
 .rbc-today .rbc-date-cell {
-  color: var(--foreground) !important; /* Ensure the date number's color is explicitly foreground */
+  @apply text-foreground !important; /* Ensure the date number's color is explicitly foreground */
 }
 
 .rbc-current-time-indicator {
