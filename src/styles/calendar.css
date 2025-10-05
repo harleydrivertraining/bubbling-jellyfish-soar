@@ -100,6 +100,10 @@
   @apply border-r border-border;
 }
 
+.rbc-time-header-cell .rbc-today {
+  background-color: #04aa6d !important;
+}
+
 .rbc-allday-cell {
 	display: none;
 }
