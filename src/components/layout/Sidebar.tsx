@@ -20,6 +20,7 @@ import {
   ClipboardCheck,  // New icon for Driving Tests
   Hourglass,       // New icon for Pre-Paid Hours
   Library,         // New icon for Resources
+  ListChecks,      // New icon for Manage Topics
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -65,13 +66,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/students", icon: Users, label: "Students" },
     { to: "/schedule", icon: CalendarDays, label: "Schedule" },
-    { to: "/lessons", icon: BookOpen, label: "Lessons" }, // New link
-    { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" }, // New link
-    { to: "/student-targets", icon: Target, label: "Student Targets" }, // New link
-    { to: "/progress", icon: TrendingUp, label: "Progress" }, // New link
-    { to: "/driving-tests", icon: ClipboardCheck, label: "Driving Tests" }, // New link
-    { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" }, // New link
-    { to: "/resources", icon: Library, label: "Resources" }, // New link
+    { to: "/lessons", icon: BookOpen, label: "Lessons" },
+    { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
+    { to: "/student-targets", icon: Target, label: "Student Targets" },
+    { to: "/progress", icon: TrendingUp, label: "Progress" },
+    { to: "/driving-tests", icon: ClipboardCheck, label: "Driving Tests" },
+    { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
+    { to: "/resources", icon: Library, label: "Resources" },
+    { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" }, // New link
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
 

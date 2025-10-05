@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { PlusCircle, User, GraduationCap } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
@@ -15,7 +18,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import StudentProgressCard from "@/components/StudentProgressCard"; // Import the new component
+import { Badge } from "@/components/ui/badge";
+import ProgressEntryCard from "@/components/ProgressEntryCard"; // New import
+import AddProgressEntryForm from "@/components/AddProgressEntryForm"; // New import
 
 interface Student {
   id: string;
@@ -23,32 +28,29 @@ interface Student {
   status: "Beginner" | "Intermediate" | "Advanced";
 }
 
-interface Booking {
+interface ProgressEntry {
   id: string;
-  student_id: string;
-  start_time: string;
-  description?: string;
-  targets_for_next_session?: string;
-  status: "scheduled" | "completed" | "cancelled";
+  topic_name: string; // Joined from progress_topics
+  rating: number;
+  comment?: string;
+  targets?: string;
+  entry_date: string; // ISO string
 }
 
-interface StudentProgressData extends Student {
-  latestBookingInfo?: {
-    id: string;
-    start_time: string;
-    description?: string;
-    targets_for_next_session?: string;
-  };
+interface StudentWithProgress extends Student {
+  progressEntries: ProgressEntry[];
 }
 
 const Progress: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
-  const [allStudentsProgress, setAllStudentsProgress] = useState<StudentProgressData[]>([]);
+  const [allStudentsWithProgress, setAllStudentsWithProgress] = useState<StudentWithProgress[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [isAddEntryDialogOpen, setIsAddEntryDialogOpen] = useState(false);
+  const [selectedStudentForEntry, setSelectedStudentForEntry] = useState<Student | null>(null);
 
-  const fetchStudentProgress = useCallback(async () => {
+  const fetchStudentsWithProgress = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
@@ -64,68 +66,91 @@ const Progress: React.FC = () => {
     if (studentsError) {
       console.error("Error fetching students for progress:", studentsError);
       showError("Failed to load students: " + studentsError.message);
-      setAllStudentsProgress([]);
+      setAllStudentsWithProgress([]);
       setIsLoading(false);
       return;
     }
 
-    const studentsWithProgress: StudentProgressData[] = [];
+    const studentsWithEntries: StudentWithProgress[] = [];
 
     for (const student of studentsData || []) {
-      const { data: latestBooking, error: bookingError } = await supabase
-        .from("bookings")
-        .select("id, start_time, description, targets_for_next_session, status")
+      const { data: entriesData, error: entriesError } = await supabase
+        .from("student_progress_entries")
+        .select("*, progress_topics(name)")
         .eq("student_id", student.id)
         .eq("user_id", user.id)
-        .eq("status", "completed") // Only consider completed lessons for progress
-        .order("start_time", { ascending: false })
-        .limit(1)
-        .single();
+        .order("entry_date", { ascending: false });
 
-      studentsWithProgress.push({
-        ...student,
-        latestBookingInfo: latestBooking ? {
-          id: latestBooking.id,
-          start_time: latestBooking.start_time,
-          description: latestBooking.description,
-          targets_for_next_session: latestBooking.targets_for_next_session,
-        } : undefined,
-      });
+      if (entriesError) {
+        console.error(`Error fetching progress entries for student ${student.name}:`, entriesError);
+        showError(`Failed to load progress entries for ${student.name}: ` + entriesError.message);
+        studentsWithEntries.push({ ...student, progressEntries: [] });
+      } else {
+        const formattedEntries: ProgressEntry[] = (entriesData || []).map(entry => ({
+          id: entry.id,
+          topic_name: (entry.progress_topics as { name: string })?.name || "Unknown Topic",
+          rating: entry.rating,
+          comment: entry.comment,
+          targets: entry.targets,
+          entry_date: entry.entry_date,
+        }));
+        studentsWithEntries.push({ ...student, progressEntries: formattedEntries });
+      }
     }
 
-    setAllStudentsProgress(studentsWithProgress);
+    setAllStudentsWithProgress(studentsWithEntries);
     setIsLoading(false);
   }, [user]);
 
   useEffect(() => {
     if (!isSessionLoading) {
-      fetchStudentProgress();
+      fetchStudentsWithProgress();
     }
-  }, [isSessionLoading, fetchStudentProgress]);
+  }, [isSessionLoading, fetchStudentsWithProgress]);
+
+  const handleAddEntryClick = (student: Student) => {
+    setSelectedStudentForEntry(student);
+    setIsAddEntryDialogOpen(true);
+  };
+
+  const handleEntryAdded = () => {
+    fetchStudentsWithProgress(); // Refresh all data
+    setIsAddEntryDialogOpen(false);
+    setSelectedStudentForEntry(null);
+  };
+
+  const handleCloseAddEntryDialog = () => {
+    setIsAddEntryDialogOpen(false);
+    setSelectedStudentForEntry(null);
+  };
 
   const filteredStudentsProgress = useMemo(() => {
-    let currentProgress = [...allStudentsProgress];
+    let currentStudents = [...allStudentsWithProgress];
 
     // Filter by search term
     if (searchTerm) {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
-      currentProgress = currentProgress.filter(
+      currentStudents = currentStudents.filter(
         (student) =>
           student.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-          (student.latestBookingInfo?.description?.toLowerCase().includes(lowerCaseSearchTerm)) ||
-          (student.latestBookingInfo?.targets_for_next_session?.toLowerCase().includes(lowerCaseSearchTerm))
+          student.progressEntries.some(
+            (entry) =>
+              entry.topic_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+              (entry.comment && entry.comment.toLowerCase().includes(lowerCaseSearchTerm)) ||
+              (entry.targets && entry.targets.toLowerCase().includes(lowerCaseSearchTerm))
+          )
       );
     }
 
     // Filter by status
     if (selectedStatus !== "all") {
-      currentProgress = currentProgress.filter((student) =>
+      currentStudents = currentStudents.filter((student) =>
         student.status === selectedStatus
       );
     }
 
-    return currentProgress;
-  }, [allStudentsProgress, searchTerm, selectedStatus]);
+    return currentStudents;
+  }, [allStudentsWithProgress, searchTerm, selectedStatus]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -146,11 +171,11 @@ const Progress: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Student Progress</h1>
+      <h1 className="text-3xl font-bold">Student Progress Tracker</h1>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Input
-          placeholder="Search students or notes..."
+          placeholder="Search students, topics, comments, or targets..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
@@ -171,22 +196,65 @@ const Progress: React.FC = () => {
         </div>
       </div>
 
-      {filteredStudentsProgress.length === 0 && allStudentsProgress.length > 0 && (
+      {filteredStudentsProgress.length === 0 && allStudentsWithProgress.length > 0 && (
         <p className="text-muted-foreground col-span-full">No students match your search or filter criteria.</p>
       )}
-      {allStudentsProgress.length === 0 ? (
+      {allStudentsWithProgress.length === 0 ? (
         <p className="text-muted-foreground">No students added yet. Go to the Students page to add one!</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
           {filteredStudentsProgress.map((student) => (
-            <StudentProgressCard
-              key={student.id}
-              student={student}
-              latestBookingInfo={student.latestBookingInfo}
-            />
+            <Card key={student.id} className="flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xl font-semibold flex items-center">
+                  <User className="mr-2 h-5 w-5 text-muted-foreground" />
+                  {student.name}
+                </CardTitle>
+                <Badge variant={
+                  student.status === "Beginner" ? "secondary" :
+                  student.status === "Intermediate" ? "default" :
+                  "outline"
+                }>
+                  {student.status}
+                </Badge>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-4">
+                <Button onClick={() => handleAddEntryClick(student)} className="w-full">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Progress Entry
+                </Button>
+                <h3 className="text-lg font-semibold flex items-center mt-4">
+                  <GraduationCap className="mr-2 h-5 w-5 text-muted-foreground" />
+                  Progress History:
+                </h3>
+                {student.progressEntries.length === 0 ? (
+                  <p className="text-muted-foreground italic">No progress entries recorded yet for this student.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {student.progressEntries.map((entry) => (
+                      <ProgressEntryCard key={entry.id} entry={entry} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
+
+      <Dialog open={isAddEntryDialogOpen} onOpenChange={handleCloseAddEntryDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add Progress Entry for {selectedStudentForEntry?.name}</DialogTitle>
+          </DialogHeader>
+          {selectedStudentForEntry && (
+            <AddProgressEntryForm
+              studentId={selectedStudentForEntry.id}
+              onEntryAdded={handleEntryAdded}
+              onClose={handleCloseAddEntryDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
