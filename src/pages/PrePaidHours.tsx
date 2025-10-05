@@ -184,7 +184,7 @@ const PrePaidHours: React.FC = () => {
                         {pkg.amount_paid !== null && (
                           <div className="flex items-center text-muted-foreground mt-1">
                             <DollarSign className="mr-1 h-3 w-3" />
-                            <span>Paid: ${pkg.amount_paid.toFixed(2)}</span>
+                            <span>Paid: £{pkg.amount_paid.toFixed(2)}</span> {/* Changed $ to £ */}
                           </div>
                         )}
                         <div className="flex items-center text-muted-foreground mt-1">
