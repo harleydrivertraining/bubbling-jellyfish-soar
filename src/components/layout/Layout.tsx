@@ -11,7 +11,7 @@ import { MadeWithDyad } from "@/components/made-with-dyad";
 import { useSession } from "@/components/auth/SessionContextProvider"; // Import useSession
 import { supabase } from "@/integrations/supabase/client"; // Import supabase client
 
-const Layout: React.FC = () => {
+const Layout = () => { // Removed React.FC
   const isMobile = useIsMobile();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { user } = useSession(); // Get user from session
