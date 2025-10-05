@@ -15,6 +15,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
+import EditBookingForm from "@/components/EditBookingForm"; // Import the new EditBookingForm
 
 const locales = {
   'en-US': enUS,
@@ -102,12 +103,15 @@ const CalendarComponent: React.FC = () => {
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
 
+  const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+
   const fetchBookings = useCallback(async () => {
     if (!user) return;
 
     const { data, error } = await supabase
       .from("bookings")
-      .select("id, title, description, start_time, end_time, student_id, status, students(name)") // Fetch student name
+      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, students(name)") // Fetch all necessary fields
       .eq("user_id", user.id);
 
     if (error) {
@@ -125,6 +129,8 @@ const CalendarComponent: React.FC = () => {
         student_id: booking.student_id,
         description: booking.description,
         status: booking.status,
+        lesson_type: booking.lesson_type,
+        targets_for_next_session: booking.targets_for_next_session,
       },
     }));
     setEvents(formattedEvents);
@@ -156,10 +162,27 @@ const CalendarComponent: React.FC = () => {
     setIsAddBookingDialogOpen(true);
   }, []);
 
+  const handleSelectEvent = useCallback((event: BigCalendarEvent) => {
+    setSelectedBookingId(event.id as string);
+    setIsEditBookingDialogOpen(true);
+  }, []);
+
   const handleBookingAdded = () => {
     fetchBookings(); // Refresh bookings after a new one is added
     setIsAddBookingDialogOpen(false);
     setSelectedSlot(null);
+  };
+
+  const handleBookingUpdated = () => {
+    fetchBookings(); // Refresh bookings after update
+    setIsEditBookingDialogOpen(false);
+    setSelectedBookingId(null);
+  };
+
+  const handleBookingDeleted = () => {
+    fetchBookings(); // Refresh bookings after deletion
+    setIsEditBookingDialogOpen(false);
+    setSelectedBookingId(null);
   };
 
   return (
@@ -184,6 +207,7 @@ const CalendarComponent: React.FC = () => {
         view={currentView} // Control the calendar's view
         selectable // Enable selection of time slots
         onSelectSlot={handleSelectSlot} // Handle slot selection
+        onSelectEvent={handleSelectEvent} // Handle event selection
       />
 
       <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
@@ -197,6 +221,22 @@ const CalendarComponent: React.FC = () => {
               initialEndTime={selectedSlot.end}
               onBookingAdded={handleBookingAdded}
               onClose={() => setIsAddBookingDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditBookingDialogOpen} onOpenChange={setIsEditBookingDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Booking</DialogTitle>
+          </DialogHeader>
+          {selectedBookingId && (
+            <EditBookingForm
+              bookingId={selectedBookingId}
+              onBookingUpdated={handleBookingUpdated}
+              onBookingDeleted={handleBookingDeleted}
+              onClose={() => setIsEditBookingDialogOpen(false)}
             />
           )}
         </DialogContent>
