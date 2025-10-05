@@ -41,31 +41,11 @@ const PrePaidHours: React.FC = () => {
     }
 
     setIsLoading(true);
-    const { data: studentsData, error: studentsError } = await supabase
-      .from("students")
-      .select("id, name")
-      .eq("user_id", user.id);
 
-    if (studentsError) {
-      console.error("Error fetching students for pre-paid hours:", studentsError);
-      showError("Failed to load students: " + studentsError.message);
-      setIsLoading(false);
-      return;
-    }
-
-    const studentMap = new Map<string, StudentPrePaidHours>();
-    studentsData.forEach(student => {
-      studentMap.set(student.id, {
-        student_id: student.id,
-        student_name: student.name,
-        total_remaining_hours: 0,
-        packages: [],
-      });
-    });
-
+    // Fetch all pre_paid_hours for the user, including student details
     const { data: hoursData, error: hoursError } = await supabase
       .from("pre_paid_hours")
-      .select("id, student_id, package_hours, remaining_hours, amount_paid, purchase_date, notes")
+      .select("id, student_id, package_hours, remaining_hours, amount_paid, purchase_date, notes, students(id, name)")
       .eq("user_id", user.id)
       .order("purchase_date", { ascending: false });
 
@@ -76,15 +56,35 @@ const PrePaidHours: React.FC = () => {
       return;
     }
 
+    const studentPrePaidHoursMap = new Map<string, StudentPrePaidHours>();
+
     hoursData.forEach(hourPackage => {
-      const studentEntry = studentMap.get(hourPackage.student_id);
-      if (studentEntry) {
-        studentEntry.total_remaining_hours += hourPackage.remaining_hours;
-        studentEntry.packages.push(hourPackage);
+      const studentId = hourPackage.student_id;
+      // Ensure student data exists and has a name, fallback to "Unknown Student"
+      const studentName = hourPackage.students?.name || "Unknown Student"; 
+
+      if (!studentPrePaidHoursMap.has(studentId)) {
+        studentPrePaidHoursMap.set(studentId, {
+          student_id: studentId,
+          student_name: studentName,
+          total_remaining_hours: 0,
+          packages: [],
+        });
       }
+
+      const studentEntry = studentPrePaidHoursMap.get(studentId)!;
+      studentEntry.total_remaining_hours += hourPackage.remaining_hours;
+      studentEntry.packages.push({
+        id: hourPackage.id,
+        package_hours: hourPackage.package_hours,
+        remaining_hours: hourPackage.remaining_hours,
+        amount_paid: hourPackage.amount_paid,
+        purchase_date: hourPackage.purchase_date,
+        notes: hourPackage.notes,
+      });
     });
 
-    setStudentPrePaidHours(Array.from(studentMap.values()));
+    setStudentPrePaidHours(Array.from(studentPrePaidHoursMap.values()));
     setIsLoading(false);
   }, [user]);
 
