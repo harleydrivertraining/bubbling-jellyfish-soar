@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText } from "lucide-react";
+import { PlusCircle, FileText, Phone, CalendarDays, GraduationCap } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,14 +12,6 @@ import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
 interface Student {
@@ -134,74 +126,68 @@ const Students: React.FC = () => {
         className="max-w-sm"
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Student List</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredStudents.length === 0 && students.length > 0 && (
-            <p className="text-muted-foreground">No students match your search.</p>
-          )}
-          {students.length === 0 && (
-            <p className="text-muted-foreground">No students added yet. Click "Add Student" to get started!</p>
-          )}
-          {filteredStudents.length > 0 && (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>DOB</TableHead>
-                    <TableHead>License No.</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>Document</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell className="font-medium">{student.name}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          student.status === "Beginner" ? "secondary" :
-                          student.status === "Intermediate" ? "default" :
-                          "outline"
-                        }>
-                          {student.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {student.date_of_birth ? format(new Date(student.date_of_birth), "PPP") : "N/A"}
-                      </TableCell>
-                      <TableCell>{student.driving_license_number || "N/A"}</TableCell>
-                      <TableCell>{student.phone_number || "N/A"}</TableCell>
-                      <TableCell>{student.full_address || "N/A"}</TableCell>
-                      <TableCell>{student.notes || "N/A"}</TableCell>
-                      <TableCell>
-                        {student.document_url ? (
-                          <a
-                            href={student.document_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-blue-500 hover:underline"
-                          >
-                            <FileText className="h-4 w-4 mr-1" /> View
-                          </a>
-                        ) : (
-                          "N/A"
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filteredStudents.length === 0 && students.length > 0 && (
+          <p className="text-muted-foreground col-span-full">No students match your search.</p>
+        )}
+        {students.length === 0 && (
+          <p className="text-muted-foreground col-span-full">No students added yet. Click "Add Student" to get started!</p>
+        )}
+        {filteredStudents.map((student) => (
+          <Card key={student.id} className="flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
+              <Badge variant={
+                student.status === "Beginner" ? "secondary" :
+                student.status === "Intermediate" ? "default" :
+                "outline"
+              }>
+                {student.status}
+              </Badge>
+            </CardHeader>
+            <CardContent className="flex-1 space-y-2 text-sm">
+              {student.date_of_birth && (
+                <div className="flex items-center text-muted-foreground">
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  <span>DOB: {format(new Date(student.date_of_birth), "PPP")}</span>
+                </div>
+              )}
+              {student.phone_number && (
+                <div className="flex items-center text-muted-foreground">
+                  <Phone className="mr-2 h-4 w-4" />
+                  <span>{student.phone_number}</span>
+                </div>
+              )}
+              {student.driving_license_number && (
+                <div className="flex items-center text-muted-foreground">
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                  <span>License: {student.driving_license_number}</span>
+                </div>
+              )}
+              {student.full_address && (
+                <CardDescription className="text-muted-foreground">
+                  {student.full_address}
+                </CardDescription>
+              )}
+              {student.notes && (
+                <CardDescription className="text-muted-foreground italic">
+                  Notes: {student.notes}
+                </CardDescription>
+              )}
+              {student.document_url && (
+                <a
+                  href={student.document_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-blue-500 hover:underline mt-2"
+                >
+                  <FileText className="h-4 w-4 mr-1" /> View Document
+                </a>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
