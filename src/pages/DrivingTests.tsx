@@ -40,6 +40,7 @@ interface Student {
 }
 
 interface DrivingTestStats {
+  totalTests: number; // Added totalTests
   passRate: number;
   avgDrivingFaults: number;
   avgSeriousFaults: number;
@@ -119,6 +120,7 @@ const DrivingTests: React.FC = () => {
         const examinerActions = recentTests.filter(test => test.examiner_action).length;
 
         setStats({
+          totalTests: totalTests, // Set totalTests here
           passRate: (passedTests / totalTests) * 100,
           avgDrivingFaults: totalDrivingFaults / totalTests,
           avgSeriousFaults: totalSeriousFaults / totalTests,
@@ -126,6 +128,7 @@ const DrivingTests: React.FC = () => {
         });
       } else {
         setStats({
+          totalTests: 0, // Set to 0 if no recent tests
           passRate: 0,
           avgDrivingFaults: 0,
           avgSeriousFaults: 0,
@@ -203,7 +206,8 @@ const DrivingTests: React.FC = () => {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-6"> {/* Updated grid-cols to 5 */}
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
@@ -242,7 +246,15 @@ const DrivingTests: React.FC = () => {
       </div>
 
       {stats && (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-6"> {/* Updated grid-cols to 5 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Tests Taken (Last 12 Months)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{stats.totalTests}</p>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Pass Rate (Last 12 Months)</CardTitle>
