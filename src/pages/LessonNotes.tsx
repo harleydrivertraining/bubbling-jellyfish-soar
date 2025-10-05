@@ -186,10 +186,7 @@ const LessonNotes: React.FC = () => {
                   <User className="mr-2 h-4 w-4 text-muted-foreground" />
                   {note.students?.name || "Unknown Student"}
                 </CardTitle>
-                <CardDescription className="flex items-center text-muted-foreground">
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  <span>{note.title}</span>
-                </CardDescription>
+                {/* Removed the BookOpen icon and lesson title */}
                 <CardDescription className="flex items-center text-muted-foreground">
                   <CalendarDays className="mr-2 h-4 w-4" />
                   <span>{format(new Date(note.start_time), "PPP p")}</span>
