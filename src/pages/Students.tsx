@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, FileText, Phone, CalendarDays, GraduationCap } from "lucide-react";
@@ -13,6 +13,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface Student {
   id: string;
@@ -32,8 +40,9 @@ const Students: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all"); // New state for status filter
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
@@ -53,13 +62,13 @@ const Students: React.FC = () => {
       setStudents(data || []);
     }
     setIsLoading(false);
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!isSessionLoading) {
       fetchStudents();
     }
-  }, [user, isSessionLoading]);
+  }, [user, isSessionLoading, fetchStudents]);
 
   const handleStudentAdded = () => {
     fetchStudents(); // Refresh the list after a new student is added
@@ -69,15 +78,22 @@ const Students: React.FC = () => {
   const filteredStudents = useMemo(() => {
     let currentStudents = [...students];
 
-    // Filter logic
+    // Filter by search term
     if (searchTerm) {
       currentStudents = currentStudents.filter((student) =>
         student.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
+    // Filter by status
+    if (selectedStatus !== "all") {
+      currentStudents = currentStudents.filter((student) =>
+        student.status === selectedStatus
+      );
+    }
+
     return currentStudents;
-  }, [students, searchTerm]);
+  }, [students, searchTerm, selectedStatus]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -119,16 +135,32 @@ const Students: React.FC = () => {
         </Dialog>
       </div>
 
-      <Input
-        placeholder="Search students by name..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <Input
+          placeholder="Search students by name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+        />
+        <div className="flex items-center gap-2">
+          <Label htmlFor="status-filter">Status:</Label>
+          <Select onValueChange={setSelectedStatus} defaultValue={selectedStatus}>
+            <SelectTrigger id="status-filter" className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="Beginner">Beginner</SelectItem>
+              <SelectItem value="Intermediate">Intermediate</SelectItem>
+              <SelectItem value="Advanced">Advanced</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredStudents.length === 0 && students.length > 0 && (
-          <p className="text-muted-foreground col-span-full">No students match your search.</p>
+          <p className="text-muted-foreground col-span-full">No students match your search or filter criteria.</p>
         )}
         {students.length === 0 && (
           <p className="text-muted-foreground col-span-full">No students added yet. Click "Add Student" to get started!</p>
