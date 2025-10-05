@@ -14,7 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import AddBookingForm from "@/components/AddBookingForm";
 import EditBookingForm from "@/components/EditBookingForm"; // Import the new EditBookingForm
 
 const locales = {
@@ -92,16 +91,17 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
   return { min: minDate, max: maxDate };
 };
 
-const CalendarComponent: React.FC = () => {
+interface CalendarComponentProps {
+  onSelectSlot: (start: Date, end: Date) => void;
+}
+
+const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState('week'); // Default view
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
   const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
-
-  const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
 
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -158,20 +158,13 @@ const CalendarComponent: React.FC = () => {
   }, []);
 
   const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
-    setSelectedSlot({ start, end });
-    setIsAddBookingDialogOpen(true);
-  }, []);
+    onSelectSlot(start, end); // Call the prop function
+  }, [onSelectSlot]);
 
   const handleSelectEvent = useCallback((event: BigCalendarEvent) => {
     setSelectedBookingId(event.id as string);
     setIsEditBookingDialogOpen(true);
   }, []);
-
-  const handleBookingAdded = () => {
-    fetchBookings(); // Refresh bookings after a new one is added
-    setIsAddBookingDialogOpen(false);
-    setSelectedSlot(null);
-  };
 
   const handleBookingUpdated = () => {
     fetchBookings(); // Refresh bookings after update
@@ -209,22 +202,6 @@ const CalendarComponent: React.FC = () => {
         onSelectSlot={handleSelectSlot} // Handle slot selection
         onSelectEvent={handleSelectEvent} // Handle event selection
       />
-
-      <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Add New Booking</DialogTitle>
-          </DialogHeader>
-          {selectedSlot && (
-            <AddBookingForm
-              initialStartTime={selectedSlot.start}
-              initialEndTime={selectedSlot.end}
-              onBookingAdded={handleBookingAdded}
-              onClose={() => setIsAddBookingDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={isEditBookingDialogOpen} onOpenChange={setIsEditBookingDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
