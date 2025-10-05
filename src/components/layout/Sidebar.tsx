@@ -7,7 +7,20 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { Car, Users, Settings, LayoutDashboard, CalendarDays } from "lucide-react"; // Added CalendarDays
+import {
+  Car,
+  Users,
+  Settings,
+  LayoutDashboard,
+  CalendarDays,
+  BookOpen,        // New icon for Lessons
+  NotebookText,    // New icon for Lesson Notes
+  Target,          // New icon for Student Targets
+  TrendingUp,      // New icon for Progress
+  ClipboardCheck,  // New icon for Driving Tests
+  Hourglass,       // New icon for Pre-Paid Hours
+  Library,         // New icon for Resources
+} from "lucide-react";
 
 interface NavLinkProps {
   to: string;
@@ -51,7 +64,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/students", icon: Users, label: "Students" },
-    { to: "/schedule", icon: CalendarDays, label: "Schedule" }, // Added the new Schedule link
+    { to: "/schedule", icon: CalendarDays, label: "Schedule" },
+    { to: "/lessons", icon: BookOpen, label: "Lessons" }, // New link
+    { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" }, // New link
+    { to: "/student-targets", icon: Target, label: "Student Targets" }, // New link
+    { to: "/progress", icon: TrendingUp, label: "Progress" }, // New link
+    { to: "/driving-tests", icon: ClipboardCheck, label: "Driving Tests" }, // New link
+    { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" }, // New link
+    { to: "/resources", icon: Library, label: "Resources" }, // New link
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
 
