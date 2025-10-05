@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, UploadCloud } from "lucide-react";
+import { User as UserIcon, Link as LinkIcon } from "lucide-react"; // Changed UploadCloud to LinkIcon
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -28,7 +28,7 @@ const formSchema = z.object({
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
   ),
-  logo_file: typeof window === 'undefined' ? z.any().optional() : z.instanceof(FileList).optional().nullable(),
+  logo_url: z.string().url({ message: "Must be a valid URL." }).optional().nullable().or(z.literal("")), // Allow empty string
 });
 
 interface ProfileSettingsFormProps {
@@ -38,8 +38,6 @@ interface ProfileSettingsFormProps {
 const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,7 +45,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
       first_name: "",
       last_name: "",
       hourly_rate: null,
-      logo_file: null,
+      logo_url: "",
     },
   });
 
@@ -68,10 +66,8 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
         first_name: data.first_name || "",
         last_name: data.last_name || "",
         hourly_rate: data.hourly_rate,
-        logo_file: null, // Reset file input
+        logo_url: data.logo_url || "", // Set logo_url from fetched data
       });
-      setCurrentLogoUrl(data.logo_url);
-      setLogoPreview(null); // Clear preview when new profile data is loaded
     }
     setIsLoadingProfile(false);
   };
@@ -82,51 +78,10 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
     }
   }, [user]);
 
-  const handleLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      form.setValue("logo_file", files);
-      setLogoPreview(URL.createObjectURL(file));
-    } else {
-      form.setValue("logo_file", null);
-      setLogoPreview(null);
-    }
-  };
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) {
       showError("You must be logged in to update your profile.");
       return;
-    }
-
-    let newLogoUrl: string | null = currentLogoUrl;
-
-    if (values.logo_file && values.logo_file.length > 0) {
-      const file = values.logo_file[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      // Upload to 'profile-logos' bucket
-      const { error: uploadError } = await supabase.storage
-        .from('profile-logos')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error("Error uploading logo:", uploadError);
-        showError("Failed to upload logo: " + uploadError.message);
-        return;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('profile-logos')
-        .getPublicUrl(filePath);
-      
-      newLogoUrl = publicUrlData.publicUrl;
     }
 
     const { error } = await supabase
@@ -135,7 +90,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
         first_name: values.first_name,
         last_name: values.last_name,
         hourly_rate: values.hourly_rate,
-        logo_url: newLogoUrl,
+        logo_url: values.logo_url === "" ? null : values.logo_url, // Store null if empty string
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -145,7 +100,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
       showError("Failed to update profile: " + error.message);
     } else {
       showSuccess("Profile updated successfully!");
-      fetchProfile(); // Re-fetch to ensure latest data and clear file input
+      fetchProfile(); // Re-fetch to ensure latest data
       if (onProfileUpdated) {
         onProfileUpdated();
       }
@@ -169,27 +124,22 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="flex items-center space-x-4">
           <Avatar className="h-20 w-20">
-            <AvatarImage src={logoPreview || currentLogoUrl || undefined} alt="Logo" />
+            <AvatarImage src={form.watch("logo_url") || undefined} alt="Logo" />
             <AvatarFallback>
               <UserIcon className="h-10 w-10 text-muted-foreground" />
             </AvatarFallback>
           </Avatar>
           <FormField
             control={form.control}
-            name="logo_file"
-            render={({ field: { value, onChange, ...fieldProps } }) => (
-              <FormItem>
-                <FormLabel htmlFor="logo-upload" className="cursor-pointer flex items-center gap-2 text-primary hover:underline">
-                  <UploadCloud className="h-5 w-5" /> Upload New Logo
-                </FormLabel>
+            name="logo_url"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Logo URL</FormLabel>
                 <FormControl>
                   <Input
-                    id="logo-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleLogoFileChange}
-                    {...fieldProps}
+                    placeholder="https://example.com/your-logo.png"
+                    {...field}
+                    value={field.value || ""}
                   />
                 </FormControl>
                 <FormMessage />
