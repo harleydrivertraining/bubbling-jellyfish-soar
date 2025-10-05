@@ -24,21 +24,26 @@ interface PrePaidHoursPackage {
   };
 }
 
-interface Booking {
-  id: string;
-  title: string;
-  description?: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  lesson_type: string;
+interface BookingTransaction {
+  id: string; // Transaction ID
+  hours_deducted: number;
+  transaction_date: string;
+  bookings: {
+    id: string;
+    title: string;
+    description?: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    lesson_type: string;
+  };
 }
 
 const PrePaidHoursDetails: React.FC = () => {
   const { packageId } = useParams<{ packageId: string }>();
   const { user, isLoading: isSessionLoading } = useSession();
   const [prePaidPackage, setPrePaidPackage] = useState<PrePaidHoursPackage | null>(null);
-  const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
+  const [packageTransactions, setPackageTransactions] = useState<BookingTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,22 +71,21 @@ const PrePaidHoursDetails: React.FC = () => {
     if (packageData) {
       setPrePaidPackage(packageData);
 
-      // Now fetch bookings for this student after the package purchase date
-      const { data: bookingsData, error: bookingsError } = await supabase
-        .from("bookings")
-        .select("id, title, description, start_time, end_time, status, lesson_type")
-        .eq("student_id", packageData.student_id)
+      // Now fetch transactions for this specific pre-paid hours package
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from("pre_paid_hours_transactions")
+        .select("id, hours_deducted, transaction_date, bookings(id, title, description, start_time, end_time, status, lesson_type)")
+        .eq("pre_paid_hours_id", packageId)
         .eq("user_id", user.id)
-        .gte("start_time", packageData.purchase_date) // Filter bookings after purchase date
-        .order("start_time", { ascending: true });
+        .order("transaction_date", { ascending: true });
 
-      if (bookingsError) {
-        console.error("Error fetching student bookings:", bookingsError);
-        showError("Failed to load student bookings: " + bookingsError.message);
-        setError("Failed to load student bookings.");
-        setStudentBookings([]);
+      if (transactionsError) {
+        console.error("Error fetching package transactions:", transactionsError);
+        showError("Failed to load package transactions: " + transactionsError.message);
+        setError("Failed to load package transactions.");
+        setPackageTransactions([]);
       } else {
-        setStudentBookings(bookingsData || []);
+        setPackageTransactions(transactionsData || []);
       }
     } else {
       setError("Pre-paid hours package not found.");
@@ -183,33 +187,34 @@ const PrePaidHoursDetails: React.FC = () => {
         </CardContent>
       </Card>
 
-      <h2 className="text-2xl font-bold mt-8">Bookings for {prePaidPackage.students?.name || "this student"} (since package purchase)</h2>
-      {studentBookings.length === 0 ? (
-        <p className="text-muted-foreground">No bookings found for this student since the purchase date of this package.</p>
+      <h2 className="text-2xl font-bold mt-8">Bookings that used hours from this package</h2>
+      {packageTransactions.length === 0 ? (
+        <p className="text-muted-foreground">No bookings have used hours from this package yet.</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {studentBookings.map((booking) => (
-            <Card key={booking.id}>
+          {packageTransactions.map((transaction) => (
+            <Card key={transaction.id}>
               <CardHeader>
-                <CardTitle className="text-lg">{booking.title}</CardTitle>
+                <CardTitle className="text-lg">{transaction.bookings.title}</CardTitle>
                 <CardDescription className="flex items-center text-muted-foreground">
                   <BookOpen className="mr-2 h-4 w-4" />
-                  <span>{booking.lesson_type}</span>
+                  <span>{transaction.bookings.lesson_type}</span>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <div className="flex items-center text-muted-foreground">
                   <CalendarDays className="mr-2 h-4 w-4" />
-                  <span>{format(new Date(booking.start_time), "PPP")}</span>
+                  <span>{format(new Date(transaction.bookings.start_time), "PPP")}</span>
                 </div>
                 <div className="flex items-center text-muted-foreground">
                   <Clock className="mr-2 h-4 w-4" />
-                  <span>{format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}</span>
+                  <span>{format(new Date(transaction.bookings.start_time), "p")} - {format(new Date(transaction.bookings.end_time), "p")}</span>
                 </div>
-                {booking.description && (
-                  <p className="text-muted-foreground italic mt-2">Notes: {booking.description}</p>
+                {transaction.bookings.description && (
+                  <p className="text-muted-foreground italic mt-2">Notes: {transaction.bookings.description}</p>
                 )}
-                <p className="text-sm font-medium mt-2">Status: <span className="capitalize">{booking.status}</span></p>
+                <p className="text-sm font-medium mt-2">Status: <span className="capitalize">{transaction.bookings.status}</span></p>
+                <p className="text-sm font-medium text-primary mt-2">Hours Deducted: {transaction.hours_deducted.toFixed(1)}</p>
               </CardContent>
             </Card>
           ))}
