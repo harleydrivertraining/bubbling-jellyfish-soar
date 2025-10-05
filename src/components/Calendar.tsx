@@ -9,13 +9,15 @@ import endOfWeek from 'date-fns/endOfWeek';
 import getDay from 'date-fns/getDay';
 import enUS from 'date-fns/locale/en-US';
 import Toolbar from 'react-big-calendar/lib/Toolbar';
-import { isWithinInterval, setHours, getHours, getMinutes } from 'date-fns';
+import { isWithinInterval, setHours, getHours, getMinutes, startOfDay, endOfDay } from 'date-fns';
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast"; // Added showSuccess
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import EditBookingForm from "@/components/EditBookingForm"; // Import the new EditBookingForm
-import CalendarEventWrapper from "@/components/CalendarEventWrapper"; // New import
+import EditBookingForm from "@/components/EditBookingForm";
+import CalendarEventWrapper from "@/components/CalendarEventWrapper";
+import { Button } from "@/components/ui/button"; // Added Button import
+import { CheckCircle } from "lucide-react"; // Added CheckCircle icon
 
 const locales = {
   'en-US': enUS,
@@ -179,36 +181,90 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ onSelectSlot }) =
     setSelectedBookingId(null);
   };
 
+  const handleMarkAllDayBookingsAsCompleted = useCallback(async () => {
+    if (!user) {
+      showError("You must be logged in to update bookings.");
+      return;
+    }
+
+    const startOfCurrentDay = startOfDay(currentDate);
+    const endOfCurrentDay = endOfDay(currentDate);
+
+    // Fetch only scheduled bookings for the current day
+    const { data: bookingsToUpdate, error: fetchError } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "scheduled")
+      .gte("start_time", startOfCurrentDay.toISOString())
+      .lte("end_time", endOfCurrentDay.toISOString());
+
+    if (fetchError) {
+      console.error("Error fetching bookings to mark as completed:", fetchError);
+      showError("Failed to fetch bookings: " + fetchError.message);
+      return;
+    }
+
+    if (!bookingsToUpdate || bookingsToUpdate.length === 0) {
+      showError("No scheduled bookings found for this day to mark as completed.");
+      return;
+    }
+
+    const bookingIdsToUpdate = bookingsToUpdate.map(b => b.id);
+
+    const { error: updateError } = await supabase
+      .from("bookings")
+      .update({ status: "completed" })
+      .in("id", bookingIdsToUpdate);
+
+    if (updateError) {
+      console.error("Error marking all day bookings as completed:", updateError);
+      showError("Failed to mark all bookings as completed: " + updateError.message);
+    } else {
+      showSuccess(`${bookingIdsToUpdate.length} booking(s) marked as completed for ${format(currentDate, "PPP")}!`);
+      fetchBookings(); // Refresh calendar events
+    }
+  }, [user, currentDate, fetchBookings]);
+
+
   return (
-    <div className="h-full">
-      <Calendar
-        localizer={localizer}
-        events={events}
-        startAccessor="start"
-        endAccessor="end"
-        style={{ height: '100%' }}
-        className="bg-card p-4 rounded-lg shadow-sm"
-        views={['month', 'week', 'day', 'agenda']}
-        defaultView="week"
-        components={{
-          toolbar: Toolbar,
-          event: (props) => (
-            <CalendarEventWrapper
-              {...props}
-              onEventStatusChange={fetchBookings} // Inject the callback here
-            />
-          ),
-        }}
-        min={minTime} // Apply dynamic min time
-        max={maxTime} // Apply dynamic max time
-        onNavigate={handleNavigate}
-        onView={handleView}
-        date={currentDate} // Control the calendar's date
-        view={currentView} // Control the calendar's view
-        selectable // Enable selection of time slots
-        onSelectSlot={handleSelectSlot} // Handle slot selection
-        onSelectEvent={handleSelectEvent} // Handle event selection
-      />
+    <div className="h-full flex flex-col bg-card p-4 rounded-lg shadow-sm">
+      {currentView === 'day' && (
+        <div className="flex justify-end mb-4">
+          <Button onClick={handleMarkAllDayBookingsAsCompleted} variant="outline">
+            <CheckCircle className="mr-2 h-4 w-4" /> Mark All Day's Bookings as Completed
+          </Button>
+        </div>
+      )}
+      <div className="flex-1">
+        <Calendar
+          localizer={localizer}
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: '100%' }}
+          views={['month', 'week', 'day', 'agenda']}
+          defaultView="week"
+          components={{
+            toolbar: Toolbar,
+            event: (props) => (
+              <CalendarEventWrapper
+                {...props}
+                onEventStatusChange={fetchBookings}
+              />
+            ),
+          }}
+          min={minTime}
+          max={maxTime}
+          onNavigate={handleNavigate}
+          onView={handleView}
+          date={currentDate}
+          view={currentView}
+          selectable
+          onSelectSlot={handleSelectSlot}
+          onSelectEvent={handleSelectEvent}
+        />
+      </div>
 
       <Dialog open={isEditBookingDialogOpen} onOpenChange={setIsEditBookingDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
