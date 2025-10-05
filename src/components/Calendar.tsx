@@ -58,9 +58,10 @@ const DEFAULT_MAX_HOUR = 18; // 6 PM
 const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[], currentView: string) => {
   // Min/max only apply to week and day views
   if (currentView !== 'week' && currentView !== 'day') {
+    // Ensure minutes/seconds are zeroed out for default range
     return {
-      min: setHours(currentDate, DEFAULT_MIN_HOUR, 0, 0, 0),
-      max: setHours(currentDate, DEFAULT_MAX_HOUR, 0, 0, 0),
+      min: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0),
+      max: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0),
     };
   }
 
@@ -82,8 +83,8 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
   });
 
   if (eventsInCurrentWeek.length > 0) {
-    let earliestEventTime = setHours(currentDate, 23, 59, 59, 999); // Initialize to a very late time
-    let latestEventTime = setHours(currentDate, 0, 0, 0, 0); // Initialize to a very early time
+    let earliestEventTime = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59, 999); // Initialize to a very late time
+    let latestEventTime = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 0, 0, 0, 0); // Initialize to a very early time
 
     eventsInCurrentWeek.forEach(event => {
       const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
@@ -107,8 +108,9 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
     }
   }
 
-  const minDate = setHours(currentDate, minHour, 0, 0, 0);
-  const maxDate = setHours(currentDate, maxHour, 0, 0, 0);
+  // Explicitly create new Date objects with minutes, seconds, milliseconds set to 0
+  const minDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), minHour, 0, 0, 0);
+  const maxDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), maxHour, 0, 0, 0);
 
   return { min: minDate, max: maxDate };
 };
@@ -117,8 +119,8 @@ const CalendarComponent: React.FC = () => {
   const [events, setEvents] = useState<BigCalendarEvent[]>(initialEvents);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState('week'); // Default view
-  const [minTime, setMinTime] = useState(setHours(new Date(), DEFAULT_MIN_HOUR, 0, 0, 0));
-  const [maxTime, setMaxTime] = useState(setHours(new Date(), DEFAULT_MAX_HOUR, 0, 0, 0));
+  const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
+  const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
 
   // Recalculate min/max whenever events, current date, or view changes
   useEffect(() => {
