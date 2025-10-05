@@ -12,7 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription, // Added FormDescription import
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,6 +37,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 
 interface Student {
   id: string;
@@ -56,6 +57,7 @@ const formSchema = z.object({
     z.number().int().min(0, { message: "Serious faults cannot be negative." })
   ),
   examiner_action: z.boolean(),
+  notes: z.string().optional().nullable(), // New notes field
 });
 
 interface AddDrivingTestFormProps {
@@ -78,6 +80,7 @@ const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, on
       driving_faults: 0,
       serious_faults: 0,
       examiner_action: false,
+      notes: "", // Default for new notes field
     },
   });
 
@@ -120,6 +123,7 @@ const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, on
         driving_faults: values.driving_faults,
         serious_faults: values.serious_faults,
         examiner_action: values.examiner_action,
+        notes: values.notes, // Include notes in the insert
       })
       .select();
 
@@ -280,6 +284,20 @@ const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, on
                   onCheckedChange={field.onChange}
                 />
               </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="e.g., Student was nervous but performed well on maneuvers." {...field} />
+              </FormControl>
+              <FormMessage />
             </FormItem>
           )}
         />

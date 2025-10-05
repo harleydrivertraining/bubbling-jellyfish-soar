@@ -32,6 +32,7 @@ interface DrivingTest {
   driving_faults: number;
   serious_faults: number;
   examiner_action: boolean;
+  notes?: string; // New notes field
 }
 
 interface Student {
@@ -40,7 +41,7 @@ interface Student {
 }
 
 interface DrivingTestStats {
-  totalTests: number; // Added totalTests
+  totalTests: number;
   passRate: number;
   avgDrivingFaults: number;
   avgSeriousFaults: number;
@@ -105,6 +106,7 @@ const DrivingTests: React.FC = () => {
         driving_faults: test.driving_faults,
         serious_faults: test.serious_faults,
         examiner_action: test.examiner_action,
+        notes: test.notes, // Select the new notes field
       }));
       setAllDrivingTests(formattedTests);
       
@@ -120,7 +122,7 @@ const DrivingTests: React.FC = () => {
         const examinerActions = recentTests.filter(test => test.examiner_action).length;
 
         setStats({
-          totalTests: totalTests, // Set totalTests here
+          totalTests: totalTests,
           passRate: (passedTests / totalTests) * 100,
           avgDrivingFaults: totalDrivingFaults / totalTests,
           avgSeriousFaults: totalSeriousFaults / totalTests,
@@ -128,7 +130,7 @@ const DrivingTests: React.FC = () => {
         });
       } else {
         setStats({
-          totalTests: 0, // Set to 0 if no recent tests
+          totalTests: 0,
           passRate: 0,
           avgDrivingFaults: 0,
           avgSeriousFaults: 0,
@@ -183,7 +185,8 @@ const DrivingTests: React.FC = () => {
     if (searchTerm) {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       currentTests = currentTests.filter(
-        (test) => test.student_name.toLowerCase().includes(lowerCaseSearchTerm)
+        (test) => test.student_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+                  (test.notes && test.notes.toLowerCase().includes(lowerCaseSearchTerm)) // Search in notes
       );
     }
 
@@ -206,7 +209,7 @@ const DrivingTests: React.FC = () => {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-6"> {/* Updated grid-cols to 5 */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-6">
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
@@ -246,7 +249,7 @@ const DrivingTests: React.FC = () => {
       </div>
 
       {stats && (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-6"> {/* Updated grid-cols to 5 */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Tests Taken (Last 12 Months)</CardTitle>
@@ -292,7 +295,7 @@ const DrivingTests: React.FC = () => {
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Input
-          placeholder="Search by student name..."
+          placeholder="Search by student name or notes..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"

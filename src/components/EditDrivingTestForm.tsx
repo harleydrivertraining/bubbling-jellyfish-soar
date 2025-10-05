@@ -32,6 +32,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 
 interface Student {
   id: string;
@@ -51,6 +52,7 @@ const formSchema = z.object({
     z.number().int().min(0, { message: "Serious faults cannot be negative." })
   ),
   examiner_action: z.boolean(),
+  notes: z.string().optional().nullable(), // New notes field
 });
 
 interface EditDrivingTestFormProps {
@@ -81,6 +83,7 @@ const EditDrivingTestForm: React.FC<EditDrivingTestFormProps> = ({
       driving_faults: 0,
       serious_faults: 0,
       examiner_action: false,
+      notes: "", // Default for new notes field
     },
   });
 
@@ -124,6 +127,7 @@ const EditDrivingTestForm: React.FC<EditDrivingTestFormProps> = ({
           driving_faults: testData.driving_faults,
           serious_faults: testData.serious_faults,
           examiner_action: testData.examiner_action,
+          notes: testData.notes || "", // Populate notes field
         });
       }
       setIsLoadingTest(false);
@@ -147,6 +151,7 @@ const EditDrivingTestForm: React.FC<EditDrivingTestFormProps> = ({
         driving_faults: values.driving_faults,
         serious_faults: values.serious_faults,
         examiner_action: values.examiner_action,
+        notes: values.notes, // Include notes in update
       })
       .eq("id", testId)
       .eq("user_id", user.id);
@@ -333,13 +338,27 @@ const EditDrivingTestForm: React.FC<EditDrivingTestFormProps> = ({
                 <FormDescription>
                   Toggle if the examiner had to take any physical action during the test.
                 </FormDescription>
-              </div>
+              </div >
               <FormControl>
                 <Switch
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
               </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="e.g., Student was nervous but performed well on maneuvers." {...field} />
+              </FormControl>
+              <FormMessage />
             </FormItem>
           )}
         />
