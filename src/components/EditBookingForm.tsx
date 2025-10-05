@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useForm } from "react-hook-form";
+import { useForm } from "@hookform/react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,9 @@ const formSchema = z.object({
     message: "Please select a valid lesson length.",
   }),
   targets_for_next_session: z.string().optional().nullable(),
+  status: z.enum(["scheduled", "completed", "cancelled"], { // Added status field
+    message: "Please select a valid status.",
+  }),
   // Repeat booking fields are for creation, not typically edited on an existing single booking
   // Keeping them optional for schema consistency but won't be used for editing existing single events
   repeat_booking: z.enum(["none", "weekly", "fortnightly"]).optional(),
@@ -91,6 +94,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
       lesson_type: "Driving lesson",
       lesson_length: "60", // Default for calculation, will be overwritten
       targets_for_next_session: "",
+      status: "scheduled", // Default status
       start_time: new Date(),
       end_time: new Date(),
     },
@@ -151,6 +155,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           lesson_type: bookingData.lesson_type as "Driving lesson" | "Driving Test" | "Personal",
           lesson_length: duration.toString() as "60" | "90" | "120",
           targets_for_next_session: bookingData.targets_for_next_session || "",
+          status: bookingData.status as "scheduled" | "completed" | "cancelled", // Set status
           start_time: startTime,
           end_time: endTime,
         });
@@ -175,6 +180,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         description: values.description,
         lesson_type: values.lesson_type,
         targets_for_next_session: values.targets_for_next_session,
+        status: values.status, // Include status in update
         start_time: values.start_time.toISOString(),
         end_time: values.end_time.toISOString(),
       })
@@ -390,6 +396,29 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
               <FormControl>
                 <Textarea placeholder="e.g., practice parallel parking, focus on mirror checks" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Booking Status</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
