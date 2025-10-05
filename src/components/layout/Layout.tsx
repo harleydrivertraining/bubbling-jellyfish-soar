@@ -46,12 +46,12 @@ const Layout = () => {
   }, [user]); // Re-fetch when user changes
 
   return (
-    <>
+    <React.Fragment>
       <div className="flex min-h-screen bg-background text-foreground">
         {isMobile ? (
           <MobileSidebar />
         ) : (
-          <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} /> {/* Pass logoUrl to Sidebar */}
+          <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />
         )}
         <div className="flex flex-col flex-1">
           <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
@@ -83,7 +83,7 @@ const Layout = () => {
           <MadeWithDyad />
         </div>
       </div>
-    </>
+    </React.Fragment>
   );
 };
 
