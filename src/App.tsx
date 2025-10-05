@@ -7,6 +7,7 @@ import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import Settings from "./pages/Settings";
+import Schedule from "./pages/Schedule"; // Import the new Schedule page
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import { SessionContextProvider } from "./components/auth/SessionContextProvider";
@@ -25,7 +26,7 @@ const App = () => (
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="students" element={<Students />} />
-              {/* Removed: <Route path="schedule" element={<Schedule />} /> */}
+              <Route path="schedule" element={<Schedule />} /> {/* Add the new Schedule route */}
               <Route path="settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

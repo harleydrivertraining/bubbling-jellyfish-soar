@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { Car, Users, Settings, LayoutDashboard } from "lucide-react"; // Removed CalendarDays
+import { Car, Users, Settings, LayoutDashboard, CalendarDays } from "lucide-react"; // Added CalendarDays
 
 interface NavLinkProps {
   to: string;
@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/students", icon: Users, label: "Students" },
-    // Removed: { to: "/schedule", icon: CalendarDays, label: "Schedule" },
+    { to: "/schedule", icon: CalendarDays, label: "Schedule" }, // Added the new Schedule link
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
 
