@@ -22,6 +22,7 @@ import AddDrivingTestForm from "@/components/AddDrivingTestForm";
 import DrivingTestCard from "@/components/DrivingTestCard";
 import EditDrivingTestForm from "@/components/EditDrivingTestForm";
 import { subYears, isAfter } from "date-fns"; // Import subYears and isAfter
+import { cn } from "@/lib/utils"; // Import cn utility
 
 interface DrivingTest {
   id: string;
@@ -258,7 +259,9 @@ const DrivingTests: React.FC = () => {
               <p className="text-4xl font-bold">{stats.totalTests}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cn(
+            stats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
             <CardHeader>
               <CardTitle className="text-lg">Pass Rate (Last 12 Months)</CardTitle>
             </CardHeader>
@@ -266,7 +269,9 @@ const DrivingTests: React.FC = () => {
               <p className="text-4xl font-bold">{stats.passRate.toFixed(1)}%</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cn(
+            stats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
             <CardHeader>
               <CardTitle className="text-lg">Avg. Driving Faults</CardTitle>
             </CardHeader>
@@ -274,7 +279,9 @@ const DrivingTests: React.FC = () => {
               <p className="text-4xl font-bold">{stats.avgDrivingFaults.toFixed(1)}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cn(
+            stats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
             <CardHeader>
               <CardTitle className="text-lg">Avg. Serious Faults</CardTitle>
             </CardHeader>
@@ -282,7 +289,9 @@ const DrivingTests: React.FC = () => {
               <p className="text-4xl font-bold">{stats.avgSeriousFaults.toFixed(1)}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cn(
+            stats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
             <CardHeader>
               <CardTitle className="text-lg">Examiner Action Rate</CardTitle>
             </CardHeader>
