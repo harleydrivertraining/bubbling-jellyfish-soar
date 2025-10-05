@@ -19,8 +19,14 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import ProgressEntryCard from "@/components/ProgressEntryCard"; // New import
-import AddProgressEntryForm from "@/components/AddProgressEntryForm"; // New import
+import ProgressEntryCard from "@/components/ProgressEntryCard";
+import AddProgressEntryForm from "@/components/AddProgressEntryForm";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"; // New imports
 
 interface Student {
   id: string;
@@ -222,19 +228,25 @@ const Progress: React.FC = () => {
                 <Button onClick={() => handleAddEntryClick(student)} className="w-full">
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Progress Entry
                 </Button>
-                <h3 className="text-lg font-semibold flex items-center mt-4">
-                  <GraduationCap className="mr-2 h-5 w-5 text-muted-foreground" />
-                  Progress History:
-                </h3>
-                {student.progressEntries.length === 0 ? (
-                  <p className="text-muted-foreground italic">No progress entries recorded yet for this student.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {student.progressEntries.map((entry) => (
-                      <ProgressEntryCard key={entry.id} entry={entry} />
-                    ))}
-                  </div>
-                )}
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="progress-history">
+                    <AccordionTrigger className="text-lg font-semibold flex items-center">
+                      <GraduationCap className="mr-2 h-5 w-5 text-muted-foreground" />
+                      Progress History
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {student.progressEntries.length === 0 ? (
+                        <p className="text-muted-foreground italic mt-2">No progress entries recorded yet for this student.</p>
+                      ) : (
+                        <div className="space-y-3 mt-2">
+                          {student.progressEntries.map((entry) => (
+                            <ProgressEntryCard key={entry.id} entry={entry} />
+                          ))}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </CardContent>
             </Card>
           ))}
