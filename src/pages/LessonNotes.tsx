@@ -34,6 +34,11 @@ interface Student {
   name: string;
 }
 
+// Helper function to check if a string has meaningful content
+const hasContent = (text: string | null | undefined) => {
+  return text != null && text.trim().length > 0;
+};
+
 const LessonNotes: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [allLessonNotes, setAllLessonNotes] = useState<LessonNote[]>([]);
@@ -68,8 +73,8 @@ const LessonNotes: React.FC = () => {
     let query = supabase
       .from("bookings")
       .select("id, title, description, targets_for_next_session, start_time, students(name)")
-      .eq("user_id", user.id)
-      .or("description.not.is.null,targets_for_next_session.not.is.null"); // Only fetch bookings with notes or targets
+      .eq("user_id", user.id);
+      // Removed the .or() clause here to fetch all, then filter client-side more robustly
 
     if (studentId && studentId !== "all") {
       query = query.eq("student_id", studentId);
@@ -82,7 +87,11 @@ const LessonNotes: React.FC = () => {
       showError("Failed to load lesson notes: " + error.message);
       setAllLessonNotes([]);
     } else {
-      setAllLessonNotes(data || []);
+      // Client-side filter to ensure only bookings with actual content are shown
+      const filteredData = (data || []).filter(
+        (booking) => hasContent(booking.description) || hasContent(booking.targets_for_next_session)
+      );
+      setAllLessonNotes(filteredData);
     }
     setIsLoading(false);
   }, [user]);
@@ -108,8 +117,8 @@ const LessonNotes: React.FC = () => {
         (note) =>
           note.students?.name?.toLowerCase().includes(lowerCaseSearchTerm) ||
           note.title.toLowerCase().includes(lowerCaseSearchTerm) ||
-          note.description?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          note.targets_for_next_session?.toLowerCase().includes(lowerCaseSearchTerm)
+          hasContent(note.description) && note.description?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          hasContent(note.targets_for_next_session) && note.targets_for_next_session?.toLowerCase().includes(lowerCaseSearchTerm)
       );
     }
 
@@ -187,13 +196,13 @@ const LessonNotes: React.FC = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-1 space-y-3 text-sm">
-                {note.description && (
+                {hasContent(note.description) && (
                   <div>
                     <h3 className="font-semibold mb-1">Lesson Notes:</h3>
                     <p className="text-muted-foreground">{note.description}</p>
                   </div>
                 )}
-                {note.targets_for_next_session && (
+                {hasContent(note.targets_for_next_session) && (
                   <div>
                     <h3 className="font-semibold mb-1 flex items-center">
                       <Target className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -202,7 +211,7 @@ const LessonNotes: React.FC = () => {
                     <p className="text-muted-foreground">{note.targets_for_next_session}</p>
                   </div>
                 )}
-                {!note.description && !note.targets_for_next_session && (
+                {!hasContent(note.description) && !hasContent(note.targets_for_next_session) && (
                   <p className="text-muted-foreground italic">No specific notes or targets recorded for this lesson.</p>
                 )}
               </CardContent>
