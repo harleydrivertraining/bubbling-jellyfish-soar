@@ -7,6 +7,7 @@ import parse from 'date-fns/parse';
 import startOfWeek from 'date-fns/startOfWeek';
 import getDay from 'date-fns/getDay';
 import enUS from 'date-fns/locale/en-US';
+import Toolbar from 'react-big-calendar/lib/addons/toolbar'; // Import Toolbar
 
 const locales = {
   'en-US': enUS,
@@ -53,6 +54,9 @@ const CalendarComponent: React.FC = () => {
         className="bg-card p-4 rounded-lg shadow-sm"
         views={['month', 'week', 'day', 'agenda']} // Added views
         defaultView="month" // Set default view
+        components={{
+          toolbar: Toolbar, // Explicitly use the Toolbar
+        }}
       />
     </div>
   );
