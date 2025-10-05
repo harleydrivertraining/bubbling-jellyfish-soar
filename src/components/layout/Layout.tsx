@@ -70,8 +70,7 @@ const Layout = () => {
               </Button>
             )}
             <h2 className="text-lg font-semibold">
-              {/* Dynamic header based on route could go here */}
-              Driving Instructor App
+              HDT Instructor App
             </h2>
             <div className="ml-auto flex items-center gap-4">
               {/* User profile/settings could go here */}

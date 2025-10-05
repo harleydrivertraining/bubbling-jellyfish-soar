@@ -98,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
           <Car className={cn("h-8 w-8 text-primary", isCollapsed ? "" : "mr-2")} />
         )}
         {!isCollapsed && (
-          <h1 className="text-xl font-bold text-foreground">DriveApp</h1>
+          <h1 className="text-xl font-bold text-foreground">HDT App</h1>
         )}
       </div>
       <Separator className="bg-sidebar-border" />
@@ -117,7 +117,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
       </ScrollArea>
       <Separator className="bg-sidebar-border" />
       <div className="p-4 text-center text-xs text-muted-foreground">
-        {!isCollapsed && "© 2024 DriveApp"}
+        {!isCollapsed && "© 2024 HDT App"}
       </div>
     </div>
   );
