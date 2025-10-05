@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription, // Added FormDescription import
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -272,7 +273,7 @@ const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, on
                 <FormDescription>
                   Toggle if the examiner had to take any physical action during the test.
                 </FormDescription>
-              </div>
+              </div >
               <FormControl>
                 <Switch
                   checked={field.value}
