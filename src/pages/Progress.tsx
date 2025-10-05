@@ -21,12 +21,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import ProgressEntryCard from "@/components/ProgressEntryCard";
 import AddProgressEntryForm from "@/components/AddProgressEntryForm";
+import EditProgressEntryForm from "@/components/EditProgressEntryForm"; // New import
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion"; // New imports
+} from "@/components/ui/accordion";
 
 interface Student {
   id: string;
@@ -55,6 +56,9 @@ const Progress: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [isAddEntryDialogOpen, setIsAddEntryDialogOpen] = useState(false);
   const [selectedStudentForEntry, setSelectedStudentForEntry] = useState<Student | null>(null);
+
+  const [isEditEntryDialogOpen, setIsEditEntryDialogOpen] = useState(false); // New state for edit dialog
+  const [selectedEntryForEdit, setSelectedEntryForEdit] = useState<string | null>(null); // New state for entry being edited
 
   const fetchStudentsWithProgress = useCallback(async () => {
     if (!user) {
@@ -128,6 +132,28 @@ const Progress: React.FC = () => {
   const handleCloseAddEntryDialog = () => {
     setIsAddEntryDialogOpen(false);
     setSelectedStudentForEntry(null);
+  };
+
+  const handleEditEntryClick = (entryId: string) => {
+    setSelectedEntryForEdit(entryId);
+    setIsEditEntryDialogOpen(true);
+  };
+
+  const handleEntryUpdated = () => {
+    fetchStudentsWithProgress(); // Refresh all data
+    setIsEditEntryDialogOpen(false);
+    setSelectedEntryForEdit(null);
+  };
+
+  const handleEntryDeleted = () => {
+    fetchStudentsWithProgress(); // Refresh all data
+    setIsEditEntryDialogOpen(false);
+    setSelectedEntryForEdit(null);
+  };
+
+  const handleCloseEditEntryDialog = () => {
+    setIsEditEntryDialogOpen(false);
+    setSelectedEntryForEdit(null);
   };
 
   const filteredStudentsProgress = useMemo(() => {
@@ -240,7 +266,7 @@ const Progress: React.FC = () => {
                       ) : (
                         <div className="space-y-3 mt-2">
                           {student.progressEntries.map((entry) => (
-                            <ProgressEntryCard key={entry.id} entry={entry} />
+                            <ProgressEntryCard key={entry.id} entry={entry} onEdit={handleEditEntryClick} />
                           ))}
                         </div>
                       )}
@@ -263,6 +289,22 @@ const Progress: React.FC = () => {
               studentId={selectedStudentForEntry.id}
               onEntryAdded={handleEntryAdded}
               onClose={handleCloseAddEntryDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditEntryDialogOpen} onOpenChange={handleCloseEditEntryDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Progress Entry</DialogTitle>
+          </DialogHeader>
+          {selectedEntryForEdit && (
+            <EditProgressEntryForm
+              entryId={selectedEntryForEdit}
+              onEntryUpdated={handleEntryUpdated}
+              onEntryDeleted={handleEntryDeleted}
+              onClose={handleCloseEditEntryDialog}
             />
           )}
         </DialogContent>

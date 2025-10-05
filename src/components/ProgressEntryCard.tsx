@@ -17,13 +17,14 @@ interface ProgressEntry {
 
 interface ProgressEntryCardProps {
   entry: ProgressEntry;
+  onEdit: (entryId: string) => void; // New prop for edit functionality
 }
 
-const ProgressEntryCard: React.FC<ProgressEntryCardProps> = ({ entry }) => {
+const ProgressEntryCard: React.FC<ProgressEntryCardProps> = ({ entry, onEdit }) => {
   const hasContent = (text: string | null | undefined) => text != null && text.trim().length > 0;
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onEdit(entry.id)}>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">{entry.topic_name}</CardTitle>
         <CardDescription className="flex items-center text-muted-foreground text-sm">
