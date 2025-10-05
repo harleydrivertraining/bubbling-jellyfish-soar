@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import AddDrivingTestForm from "@/components/AddDrivingTestForm";
 import DrivingTestCard from "@/components/DrivingTestCard";
 import EditDrivingTestForm from "@/components/EditDrivingTestForm";
+import { subYears, isAfter } from "date-fns"; // Import subYears and isAfter
 
 interface DrivingTest {
   id: string;
@@ -38,6 +39,13 @@ interface Student {
   name: string;
 }
 
+interface DrivingTestStats {
+  passRate: number;
+  avgDrivingFaults: number;
+  avgSeriousFaults: number;
+  examinerActionPercentage: number;
+}
+
 const DrivingTests: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [allDrivingTests, setAllDrivingTests] = useState<DrivingTest[]>([]);
@@ -49,6 +57,7 @@ const DrivingTests: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
   const [selectedOutcome, setSelectedOutcome] = useState<string>("all"); // "all", "passed", "failed"
+  const [stats, setStats] = useState<DrivingTestStats | null>(null); // New state for statistics
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -84,6 +93,7 @@ const DrivingTests: React.FC = () => {
       console.error("Error fetching driving tests:", error);
       showError("Failed to load driving test records: " + error.message);
       setAllDrivingTests([]);
+      setStats(null);
     } else {
       const formattedTests: DrivingTest[] = (data || []).map(test => ({
         id: test.id,
@@ -96,6 +106,32 @@ const DrivingTests: React.FC = () => {
         examiner_action: test.examiner_action,
       }));
       setAllDrivingTests(formattedTests);
+      
+      // Calculate statistics for the past 12 months
+      const twelveMonthsAgo = subYears(new Date(), 1);
+      const recentTests = formattedTests.filter(test => isAfter(new Date(test.test_date), twelveMonthsAgo));
+
+      if (recentTests.length > 0) {
+        const totalTests = recentTests.length;
+        const passedTests = recentTests.filter(test => test.passed).length;
+        const totalDrivingFaults = recentTests.reduce((sum, test) => sum + test.driving_faults, 0);
+        const totalSeriousFaults = recentTests.reduce((sum, test) => sum + test.serious_faults, 0);
+        const examinerActions = recentTests.filter(test => test.examiner_action).length;
+
+        setStats({
+          passRate: (passedTests / totalTests) * 100,
+          avgDrivingFaults: totalDrivingFaults / totalTests,
+          avgSeriousFaults: totalSeriousFaults / totalTests,
+          examinerActionPercentage: (examinerActions / totalTests) * 100,
+        });
+      } else {
+        setStats({
+          passRate: 0,
+          avgDrivingFaults: 0,
+          avgSeriousFaults: 0,
+          examinerActionPercentage: 0,
+        });
+      }
     }
     setIsLoading(false);
   }, [user]);
@@ -167,6 +203,12 @@ const DrivingTests: React.FC = () => {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+        </div>
         <div className="flex items-center gap-4">
           <Skeleton className="h-8 w-24" />
           <Skeleton className="h-10 w-[180px]" />
@@ -198,6 +240,43 @@ const DrivingTests: React.FC = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {stats && (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Pass Rate (Last 12 Months)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{stats.passRate.toFixed(1)}%</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Avg. Driving Faults</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{stats.avgDrivingFaults.toFixed(1)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Avg. Serious Faults</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{stats.avgSeriousFaults.toFixed(1)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Examiner Action Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{stats.examinerActionPercentage.toFixed(1)}%</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Input
