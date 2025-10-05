@@ -8,6 +8,13 @@ import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { CalendarDays, Clock, User } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Booking {
   id: string;
@@ -21,23 +28,51 @@ interface Booking {
   };
 }
 
+interface Student {
+  id: string;
+  name: string;
+}
+
 const Lessons: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>("all"); // "all" for all students
 
-  const fetchBookings = useCallback(async () => {
+  const fetchStudents = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("students")
+      .select("id, name")
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error fetching students:", error);
+      showError("Failed to load students for filter: " + error.message);
+      setStudents([]);
+    } else {
+      setStudents(data || []);
+    }
+  }, [user]);
+
+  const fetchBookings = useCallback(async (studentId: string | null) => {
     if (!user) {
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("bookings")
       .select("id, title, description, start_time, end_time, status, students(name)")
-      .eq("user_id", user.id)
-      .order("start_time", { ascending: true });
+      .eq("user_id", user.id);
+
+    if (studentId && studentId !== "all") {
+      query = query.eq("student_id", studentId);
+    }
+
+    const { data, error } = await query.order("start_time", { ascending: true });
 
     if (error) {
       console.error("Error fetching bookings:", error);
@@ -51,9 +86,15 @@ const Lessons: React.FC = () => {
 
   useEffect(() => {
     if (!isSessionLoading) {
-      fetchBookings();
+      fetchStudents();
     }
-  }, [isSessionLoading, fetchBookings]);
+  }, [isSessionLoading, fetchStudents]);
+
+  useEffect(() => {
+    if (!isSessionLoading && user) {
+      fetchBookings(selectedStudentId);
+    }
+  }, [isSessionLoading, user, selectedStudentId, fetchBookings]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -84,8 +125,26 @@ const Lessons: React.FC = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Lessons</h1>
+
+      <div className="flex items-center gap-4">
+        <FormLabel>Filter by Student:</FormLabel>
+        <Select onValueChange={setSelectedStudentId} defaultValue={selectedStudentId}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select a student" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Students</SelectItem>
+            {students.map((student) => (
+              <SelectItem key={student.id} value={student.id}>
+                {student.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {bookings.length === 0 ? (
-        <p className="text-muted-foreground">No lessons scheduled yet. Go to the Schedule page to add one!</p>
+        <p className="text-muted-foreground">No lessons scheduled yet for the selected student(s). Go to the Schedule page to add one!</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {bookings.map((booking) => (
