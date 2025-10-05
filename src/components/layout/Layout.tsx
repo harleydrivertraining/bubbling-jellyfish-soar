@@ -46,7 +46,7 @@ const Layout = () => {
   }, [user]); // Re-fetch when user changes
 
   return (
-    <React.Fragment>
+    <> {/* Changed to shorthand fragment */}
       <div className="flex min-h-screen bg-background text-foreground">
         {isMobile ? (
           <MobileSidebar />
@@ -83,7 +83,7 @@ const Layout = () => {
           <MadeWithDyad />
         </div>
       </div>
-    </React.Fragment>
+    </> {/* Changed to shorthand fragment */}
   );
 };
 
