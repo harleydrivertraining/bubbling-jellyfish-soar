@@ -46,7 +46,7 @@ interface Student {
 
 const formSchema = z.object({
   student_id: z.string().min(1, { message: "Please select a student." }),
-  title: z.string().min(2, { message: "Title must be at least 2 characters." }),
+  // Title field removed from schema, will be generated
   description: z.string().optional().nullable(),
   lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal"], {
     message: "Please select a valid lesson type.",
@@ -83,7 +83,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       student_id: "",
-      title: "Driving Lesson",
+      // title: "Driving Lesson", // Removed default title
       description: "",
       lesson_type: "Driving lesson",
       lesson_length: "60",
@@ -98,6 +98,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   const selectedLessonLength = form.watch("lesson_length");
   const selectedStartTime = form.watch("start_time");
   const selectedRepeatBooking = form.watch("repeat_booking");
+  const selectedStudentId = form.watch("student_id"); // Watch student_id to generate title
 
   useEffect(() => {
     if (selectedStartTime && selectedLessonLength) {
@@ -135,6 +136,9 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       return;
     }
 
+    const studentName = students.find(s => s.id === values.student_id)?.name || "Unknown Student";
+    const generatedTitle = `${studentName} - ${values.lesson_type}`;
+
     const bookingsToInsert = [];
     const numRepeats = values.repeat_booking !== "none" ? (values.repeat_count || 1) : 1;
     const interval = values.repeat_booking === "weekly" ? 1 : 2;
@@ -151,7 +155,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       bookingsToInsert.push({
         user_id: user.id,
         student_id: values.student_id,
-        title: values.title,
+        title: generatedTitle, // Use the generated title
         description: values.description,
         lesson_type: values.lesson_type,
         targets_for_next_session: values.targets_for_next_session,
@@ -239,19 +243,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Title</FormLabel>
-              <FormControl>
-                <Input placeholder="Driving Lesson" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Title field removed */}
 
         <div className="grid grid-cols-2 gap-3">
           <FormField
@@ -420,7 +412,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                   </FormControl>
                   <FormMessage />
                 </FormItem>
-              )}
+            )}
             />
           )}
         </div>
