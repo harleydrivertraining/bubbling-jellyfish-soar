@@ -5,8 +5,11 @@ import CalendarComponent from "@/components/Calendar";
 
 const Schedule: React.FC = () => {
   return (
-    <div className="space-y-6 h-full">
-      <CalendarComponent />
+    <div className="flex flex-col space-y-6 h-full"> {/* Added flex flex-col */}
+      <h1 className="text-3xl font-bold">Schedule</h1> {/* Added a title for context */}
+      <div className="flex-1"> {/* This div will now take up remaining height */}
+        <CalendarComponent />
+      </div>
     </div>
   );
 };

@@ -7,7 +7,7 @@ import parse from 'date-fns/parse';
 import startOfWeek from 'date-fns/startOfWeek';
 import getDay from 'date-fns/getDay';
 import enUS from 'date-fns/locale/en-US';
-import Toolbar from 'react-big-calendar/lib/Toolbar'; // Corrected import path for Toolbar
+import Toolbar from 'react-big-calendar/lib/Toolbar';
 
 const locales = {
   'en-US': enUS,
@@ -44,7 +44,7 @@ const CalendarComponent: React.FC = () => {
   const [events, setEvents] = useState(initialEvents);
 
   return (
-    <div className="h-[calc(100vh-160px)]"> {/* Adjust height to fit the layout */}
+    <div className="h-full"> {/* Ensure this div takes full height of its parent */}
       <Calendar
         localizer={localizer}
         events={events}
@@ -52,10 +52,10 @@ const CalendarComponent: React.FC = () => {
         endAccessor="end"
         style={{ height: '100%' }}
         className="bg-card p-4 rounded-lg shadow-sm"
-        views={['month', 'week', 'day', 'agenda']} // Added views
-        defaultView="month" // Set default view
+        views={['month', 'week', 'day', 'agenda']}
+        defaultView="month"
         components={{
-          toolbar: Toolbar, // Explicitly use the Toolbar
+          toolbar: Toolbar,
         }}
       />
     </div>
