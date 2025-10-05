@@ -46,7 +46,6 @@ interface Student {
 
 const formSchema = z.object({
   student_id: z.string().min(1, { message: "Please select a student." }),
-  // Title field removed from schema, will be generated
   description: z.string().optional().nullable(),
   lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal"], {
     message: "Please select a valid lesson type.",
@@ -58,12 +57,12 @@ const formSchema = z.object({
   repeat_booking: z.enum(["none", "weekly", "fortnightly"]),
   repeat_count: z.number().min(1).max(12).optional(),
   start_time: z.date({ required_error: "Start time is required." }),
-  end_time: z.date({ required_error: "End time is required." }),
+  // end_time is now calculated, not directly input
 });
 
 interface AddBookingFormProps {
   initialStartTime: Date;
-  initialEndTime: Date;
+  initialEndTime: Date; // Still passed for initial calculation, but not directly used in form
   onBookingAdded: () => void;
   onClose: () => void;
 }
@@ -83,7 +82,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       student_id: "",
-      // title: "Driving Lesson", // Removed default title
       description: "",
       lesson_type: "Driving lesson",
       lesson_length: "60",
@@ -91,7 +89,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       repeat_booking: "none",
       repeat_count: 1,
       start_time: initialStartTime,
-      end_time: initialEndTime,
+      // end_time is derived, not a default value
     },
   });
 
@@ -100,13 +98,16 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   const selectedRepeatBooking = form.watch("repeat_booking");
   const selectedStudentId = form.watch("student_id"); // Watch student_id to generate title
 
+  // State to hold the calculated end time
+  const [calculatedEndTime, setCalculatedEndTime] = useState<Date>(initialEndTime);
+
   useEffect(() => {
     if (selectedStartTime && selectedLessonLength) {
       const lengthInMinutes = parseInt(selectedLessonLength, 10);
       const newEndTime = addMinutes(selectedStartTime, lengthInMinutes);
-      form.setValue("end_time", newEndTime);
+      setCalculatedEndTime(newEndTime);
     }
-  }, [selectedStartTime, selectedLessonLength, form]);
+  }, [selectedStartTime, selectedLessonLength]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -145,17 +146,19 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
 
     for (let i = 0; i < numRepeats; i++) {
       let currentStartTime = values.start_time;
-      let currentEndTime = values.end_time;
+      let currentEndTime = calculatedEndTime; // Use the calculated end time
 
       if (i > 0 && values.repeat_booking !== "none") {
         currentStartTime = addWeeks(values.start_time, i * interval);
-        currentEndTime = addWeeks(values.end_time, i * interval);
+        // Recalculate end time for repeated bookings based on the new start time
+        const lengthInMinutes = parseInt(values.lesson_length, 10);
+        currentEndTime = addMinutes(currentStartTime, lengthInMinutes);
       }
 
       bookingsToInsert.push({
         user_id: user.id,
         student_id: values.student_id,
-        title: generatedTitle, // Use the generated title
+        title: generatedTitle,
         description: values.description,
         lesson_type: values.lesson_type,
         targets_for_next_session: values.targets_for_next_session,
@@ -243,8 +246,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        {/* Title field removed */}
-
         <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
@@ -317,29 +318,16 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        {/* End Time Field */}
-        <FormField
-          control={form.control}
-          name="end_time"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>End Time</FormLabel>
-              <div className="flex gap-2">
-                <DatePicker
-                  date={field.value}
-                  setDate={field.onChange}
-                  placeholder="Select date"
-                />
-                <TimePicker
-                  date={field.value}
-                  onChange={field.onChange}
-                  label="End Time"
-                />
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Display calculated End Time */}
+        <FormItem className="flex flex-col">
+          <FormLabel>End Time</FormLabel>
+          <Input
+            type="text"
+            value={format(calculatedEndTime, "PPP p")}
+            readOnly
+            className="bg-muted"
+          />
+        </FormItem>
 
         <FormField
           control={form.control}
