@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText, ArrowUpDown } from "lucide-react";
+import { PlusCircle, FileText, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,16 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { Input } from "@/components/ui/input"; // Import Input for search
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge"; // Import Badge component
 
 interface Student {
   id: string;
@@ -176,42 +185,54 @@ const Students: React.FC = () => {
           )}
           {filteredAndSortedStudents.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full text-left table-auto">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 px-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
                       <Button variant="ghost" onClick={() => handleSort("name")} className="p-0 h-auto">
                         Name
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        {sortConfig.key === "name" && sortConfig.direction === "asc" && <ArrowUp className="ml-2 h-4 w-4" />}
+                        {sortConfig.key === "name" && sortConfig.direction === "desc" && <ArrowDown className="ml-2 h-4 w-4" />}
+                        {sortConfig.key !== "name" && <ArrowUpDown className="ml-2 h-4 w-4" />}
                       </Button>
-                    </th>
-                    <th className="py-2 px-4">
+                    </TableHead>
+                    <TableHead>
                       <Button variant="ghost" onClick={() => handleSort("status")} className="p-0 h-auto">
                         Status
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        {sortConfig.key === "status" && sortConfig.direction === "asc" && <ArrowUp className="ml-2 h-4 w-4" />}
+                        {sortConfig.key === "status" && sortConfig.direction === "desc" && <ArrowDown className="ml-2 h-4 w-4" />}
+                        {sortConfig.key !== "status" && <ArrowUpDown className="ml-2 h-4 w-4" />}
                       </Button>
-                    </th>
-                    <th className="py-2 px-4">DOB</th>
-                    <th className="py-2 px-4">License No.</th>
-                    <th className="py-2 px-4">Phone</th>
-                    <th className="py-2 px-4">Address</th>
-                    <th className="py-2 px-4">Notes</th>
-                    <th className="py-2 px-4">Document</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                    <TableHead>DOB</TableHead>
+                    <TableHead>License No.</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead>Document</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredAndSortedStudents.map((student) => (
-                    <tr key={student.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                      <td className="py-2 px-4">{student.name}</td>
-                      <td className="py-2 px-4">{student.status}</td>
-                      <td className="py-2 px-4">
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">{student.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          student.status === "Beginner" ? "secondary" :
+                          student.status === "Intermediate" ? "default" :
+                          "outline"
+                        }>
+                          {student.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         {student.date_of_birth ? format(new Date(student.date_of_birth), "PPP") : "N/A"}
-                      </td>
-                      <td className="py-2 px-4">{student.driving_license_number || "N/A"}</td>
-                      <td className="py-2 px-4">{student.phone_number || "N/A"}</td>
-                      <td className="py-2 px-4">{student.full_address || "N/A"}</td>
-                      <td className="py-2 px-4">{student.notes || "N/A"}</td>
-                      <td className="py-2 px-4">
+                      </TableCell>
+                      <TableCell>{student.driving_license_number || "N/A"}</TableCell>
+                      <TableCell>{student.phone_number || "N/A"}</TableCell>
+                      <TableCell>{student.full_address || "N/A"}</TableCell>
+                      <TableCell>{student.notes || "N/A"}</TableCell>
+                      <TableCell>
                         {student.document_url ? (
                           <a
                             href={student.document_url}
@@ -224,11 +245,11 @@ const Students: React.FC = () => {
                         ) : (
                           "N/A"
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
