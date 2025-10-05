@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Hourglass, DollarSign, FileText, CalendarDays } from "lucide-react";
+import { PlusCircle, Hourglass, PoundSterling, FileText, CalendarDays } from "lucide-react"; // Changed DollarSign to PoundSterling
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -183,8 +183,8 @@ const PrePaidHours: React.FC = () => {
                         </div>
                         {pkg.amount_paid !== null && (
                           <div className="flex items-center text-muted-foreground mt-1">
-                            <DollarSign className="mr-1 h-3 w-3" />
-                            <span>Paid: £{pkg.amount_paid.toFixed(2)}</span> {/* Changed $ to £ */}
+                            <PoundSterling className="mr-1 h-3 w-3" /> {/* Changed DollarSign to PoundSterling */}
+                            <span>Paid: £{pkg.amount_paid.toFixed(2)}</span>
                           </div>
                         )}
                         <div className="flex items-center text-muted-foreground mt-1">
