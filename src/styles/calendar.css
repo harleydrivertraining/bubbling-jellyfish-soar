@@ -1,0 +1,97 @@
+/* Custom styles for react-big-calendar to ensure visibility and proper layout */
+.rbc-calendar {
+  font-family: inherit; /* Use app's default font */
+  height: 100%; /* Ensure it takes full height of its container */
+  display: flex;
+  flex-direction: column;
+}
+
+.rbc-header {
+  padding: 8px 0;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.875rem; /* sm */
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.rbc-month-row {
+  border-bottom: 1px solid var(--border);
+}
+
+.rbc-day-bg {
+  border-left: 1px solid var(--border);
+}
+
+.rbc-off-range-bg {
+  background-color: var(--muted); /* Style for days outside the current month */
+}
+
+.rbc-date-cell {
+  padding: 8px;
+  text-align: right;
+  color: var(--foreground);
+}
+
+.rbc-current-time-indicator {
+  background-color: var(--primary); /* Style for current time line */
+}
+
+.rbc-event {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.rbc-toolbar button {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin: 0 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.rbc-toolbar button:hover {
+  background-color: var(--accent);
+}
+
+.rbc-toolbar button.rbc-active {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.rbc-toolbar-label {
+  font-size: 1.125rem; /* lg */
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Ensure the content area of the calendar takes available space */
+.rbc-time-content,
+.rbc-month-view,
+.rbc-agenda-view {
+  flex: 1;
+}
+
+.rbc-time-header-content {
+  border-bottom: 1px solid var(--border);
+}
+
+.rbc-time-slot {
+  border-top: 1px solid var(--border);
+}
+
+.rbc-label {
+  color: var(--muted-foreground);
+}
+
+.rbc-today {
+  background-color: var(--accent); /* Highlight today's date */
+}

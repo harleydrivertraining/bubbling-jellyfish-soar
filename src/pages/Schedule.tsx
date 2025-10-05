@@ -7,7 +7,7 @@ const Schedule: React.FC = () => {
   return (
     <div className="flex flex-col space-y-6 h-full">
       <h1 className="text-3xl font-bold">Schedule</h1>
-      <div className="flex-1"> {/* This div will take up remaining height */}
+      <div className="flex-1 min-h-[600px]"> {/* Added min-h-[600px] */}
         <CalendarComponent />
       </div>
     </div>
