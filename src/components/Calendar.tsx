@@ -51,7 +51,8 @@ const CalendarComponent: React.FC = () => {
         endAccessor="end"
         style={{ height: '100%' }}
         className="bg-card p-4 rounded-lg shadow-sm"
-        // You can add more props here like defaultView, views, etc.
+        views={['month', 'week', 'day', 'agenda']} // Added views
+        defaultView="month" // Set default view
       />
     </div>
   );
