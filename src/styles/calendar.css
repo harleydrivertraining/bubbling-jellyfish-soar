@@ -4,73 +4,58 @@
   height: 100%; /* Ensure it takes full height of its container */
   display: flex;
   flex-direction: column;
+  @apply text-foreground; /* Ensure text color is consistent */
 }
 
 .rbc-header {
-  padding: 8px 0;
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.875rem; /* sm */
-  border-bottom: 1px solid var(--border);
-  color: var(--foreground);
+  @apply py-2 text-center font-semibold text-sm border-b border-border;
 }
 
 .rbc-month-row {
-  border-bottom: 1px solid var(--border);
+  @apply border-b border-border;
 }
 
 .rbc-day-bg {
-  border-left: 1px solid var(--border);
+  @apply border-l border-border;
 }
 
 .rbc-off-range-bg {
-  background-color: var(--muted); /* Style for days outside the current month */
+  @apply bg-muted; /* Style for days outside the current month */
 }
 
 .rbc-date-cell {
-  padding: 8px;
-  text-align: right;
-  color: var(--foreground);
+  @apply p-2 text-right text-foreground;
 }
 
 .rbc-current-time-indicator {
-  background-color: var(--primary); /* Style for current time line */
+  @apply bg-primary; /* Style for current time line */
 }
 
 .rbc-event {
-  background-color: var(--primary);
-  color: var(--primary-foreground);
-  border-radius: 4px;
-  padding: 2px 5px;
-  font-size: 0.8rem;
-  line-height: 1.2;
+  @apply bg-primary text-primary-foreground rounded-md px-2 py-1 text-xs leading-tight;
+  /* Ensure events are readable and styled */
+}
+
+.rbc-toolbar {
+  @apply flex justify-between items-center mb-4 px-2;
 }
 
 .rbc-toolbar button {
-  background-color: var(--secondary);
-  color: var(--secondary-foreground);
-  border: 1px solid var(--border);
-  padding: 6px 12px;
-  border-radius: 4px;
-  margin: 0 4px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
+  @apply inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50
+         bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 px-3 py-2;
+  /* Apply shadcn button styles */
 }
 
 .rbc-toolbar button:hover {
-  background-color: var(--accent);
+  @apply bg-accent text-accent-foreground;
 }
 
 .rbc-toolbar button.rbc-active {
-  background-color: var(--primary);
-  color: var(--primary-foreground);
-  border-color: var(--primary);
+  @apply bg-primary text-primary-foreground hover:bg-primary/90;
 }
 
 .rbc-toolbar-label {
-  font-size: 1.125rem; /* lg */
-  font-weight: 600;
-  color: var(--foreground);
+  @apply text-lg font-bold text-foreground;
 }
 
 /* Ensure the content area of the calendar takes available space */
@@ -81,17 +66,42 @@
 }
 
 .rbc-time-header-content {
-  border-bottom: 1px solid var(--border);
+  @apply border-b border-border;
 }
 
 .rbc-time-slot {
-  border-top: 1px solid var(--border);
+  @apply border-t border-border;
 }
 
 .rbc-label {
-  color: var(--muted-foreground);
+  @apply text-muted-foreground;
 }
 
 .rbc-today {
-  background-color: var(--accent); /* Highlight today's date */
+  @apply bg-accent/50; /* Highlight today's date with a lighter accent */
+}
+
+/* Specific adjustments for week and day view headers */
+.rbc-time-header {
+  @apply border-b border-border;
+}
+
+.rbc-time-header-cell {
+  @apply border-r border-border;
+}
+
+.rbc-allday-cell {
+  @apply border-b border-border;
+}
+
+.rbc-row-segment {
+  @apply border-b border-border;
+}
+
+.rbc-day-slot .rbc-event {
+  @apply border border-primary/50; /* Add a subtle border to events in day/week view */
+}
+
+.rbc-current-time-indicator {
+  @apply bg-red-500; /* Make current time indicator more prominent */
 }
