@@ -3,15 +3,23 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Hourglass, PoundSterling, FileText, CalendarDays } from "lucide-react"; // Changed DollarSign to PoundSterling
+import { PlusCircle, Hourglass, PoundSterling, FileText, CalendarDays } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import AddPrePaidHoursForm from "@/components/AddPrePaidHoursForm"; // Import the new form
+import AddPrePaidHoursForm from "@/components/AddPrePaidHoursForm";
 import { format } from "date-fns";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface StudentPrePaidHours {
   student_id: string;
@@ -27,12 +35,35 @@ interface StudentPrePaidHours {
   }>;
 }
 
+interface Student {
+  id: string;
+  name: string;
+}
+
 const PrePaidHours: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
-  const [studentPrePaidHours, setStudentPrePaidHours] = useState<StudentPrePaidHours[]>([]);
+  const [allStudentPrePaidHours, setAllStudentPrePaidHours] = useState<StudentPrePaidHours[]>([]);
+  const [students, setStudents] = useState<Student[]>([]); // State to hold all students for the filter dropdown
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState<string>("all"); // New state for student filter
+
+  const fetchStudents = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("students")
+      .select("id, name")
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error fetching students:", error);
+      showError("Failed to load students for filter: " + error.message);
+      setStudents([]);
+    } else {
+      setStudents(data || []);
+    }
+  }, [user]);
 
   const fetchPrePaidHours = useCallback(async () => {
     if (!user) {
@@ -42,7 +73,6 @@ const PrePaidHours: React.FC = () => {
 
     setIsLoading(true);
 
-    // Fetch all pre_paid_hours for the user, including student details
     const { data: hoursData, error: hoursError } = await supabase
       .from("pre_paid_hours")
       .select("id, student_id, package_hours, remaining_hours, amount_paid, purchase_date, notes, students(id, name)")
@@ -60,7 +90,6 @@ const PrePaidHours: React.FC = () => {
 
     hoursData.forEach(hourPackage => {
       const studentId = hourPackage.student_id;
-      // Ensure student data exists and has a name, fallback to "Unknown Student"
       const studentName = hourPackage.students?.name || "Unknown Student"; 
 
       if (!studentPrePaidHoursMap.has(studentId)) {
@@ -84,24 +113,33 @@ const PrePaidHours: React.FC = () => {
       });
     });
 
-    setStudentPrePaidHours(Array.from(studentPrePaidHoursMap.values()));
+    setAllStudentPrePaidHours(Array.from(studentPrePaidHoursMap.values()));
     setIsLoading(false);
   }, [user]);
 
   useEffect(() => {
     if (!isSessionLoading) {
+      fetchStudents();
       fetchPrePaidHours();
     }
-  }, [isSessionLoading, fetchPrePaidHours]);
+  }, [isSessionLoading, fetchStudents, fetchPrePaidHours]);
 
   const handleHoursAdded = () => {
-    fetchPrePaidHours(); // Refresh the list after new hours are added
-    setIsDialogOpen(false); // Close the dialog
+    fetchPrePaidHours();
+    setIsDialogOpen(false);
   };
 
-  const filteredStudents = useMemo(() => {
-    let currentStudents = [...studentPrePaidHours];
+  const filteredStudentsPrePaidHours = useMemo(() => {
+    let currentStudents = [...allStudentPrePaidHours];
 
+    // Filter by selected student from dropdown
+    if (selectedStudentId !== "all") {
+      currentStudents = currentStudents.filter((student) =>
+        student.student_id === selectedStudentId
+      );
+    }
+
+    // Filter by search term
     if (searchTerm) {
       currentStudents = currentStudents.filter((student) =>
         student.student_name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -109,7 +147,7 @@ const PrePaidHours: React.FC = () => {
     }
 
     return currentStudents;
-  }, [studentPrePaidHours, searchTerm]);
+  }, [allStudentPrePaidHours, searchTerm, selectedStudentId]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -146,21 +184,39 @@ const PrePaidHours: React.FC = () => {
         </Dialog>
       </div>
 
-      <Input
-        placeholder="Search students by name..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <Input
+          placeholder="Search students by name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+        />
+        <div className="flex items-center gap-2">
+          <Label htmlFor="student-filter">Student:</Label>
+          <Select onValueChange={setSelectedStudentId} defaultValue={selectedStudentId}>
+            <SelectTrigger id="student-filter" className="w-[180px]">
+              <SelectValue placeholder="Filter by student" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Students</SelectItem>
+              {students.map((student) => (
+                <SelectItem key={student.id} value={student.id}>
+                  {student.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-      {filteredStudents.length === 0 && studentPrePaidHours.length > 0 && (
-        <p className="text-muted-foreground col-span-full">No students match your search.</p>
+      {filteredStudentsPrePaidHours.length === 0 && allStudentPrePaidHours.length > 0 && (
+        <p className="text-muted-foreground col-span-full">No students match your search or filter criteria.</p>
       )}
-      {studentPrePaidHours.length === 0 ? (
+      {allStudentPrePaidHours.length === 0 ? (
         <p className="text-muted-foreground">No pre-paid hours recorded yet. Click "Add Hours" to get started!</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredStudents.map((student) => (
+          {filteredStudentsPrePaidHours.map((student) => (
             <Card key={student.student_id} className="flex flex-col">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-lg font-semibold">{student.student_name}</CardTitle>
@@ -183,7 +239,7 @@ const PrePaidHours: React.FC = () => {
                         </div>
                         {pkg.amount_paid !== null && (
                           <div className="flex items-center text-muted-foreground mt-1">
-                            <PoundSterling className="mr-1 h-3 w-3" /> {/* Changed DollarSign to PoundSterling */}
+                            <PoundSterling className="mr-1 h-3 w-3" />
                             <span>Paid: £{pkg.amount_paid.toFixed(2)}</span>
                           </div>
                         )}
