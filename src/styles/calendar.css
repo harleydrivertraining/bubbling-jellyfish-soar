@@ -8,7 +8,7 @@
 }
 
 .rbc-header {
-  @apply py-2 text-center font-semibold text-sm border-b border-border;
+  @apply py-2.5 text-center font-bold text-sm border-b border-border; /* Increased padding and font-bold */
 }
 
 .rbc-month-row {
@@ -20,24 +20,24 @@
 }
 
 .rbc-off-range-bg {
-  @apply bg-muted; /* Style for days outside the current month */
+  @apply bg-muted/50; /* Slightly lighter muted background for off-range days */
 }
 
 .rbc-date-cell {
-  @apply p-2 text-right text-foreground;
+  @apply p-2 text-right text-foreground font-medium; /* Added font-medium */
 }
 
 .rbc-current-time-indicator {
-  @apply bg-primary; /* Style for current time line */
+  @apply bg-destructive; /* Using destructive color for current time indicator */
 }
 
 .rbc-event {
-  @apply bg-primary text-primary-foreground rounded-md px-2 py-1 text-xs leading-tight;
+  @apply bg-primary text-primary-foreground rounded-md px-2.5 py-1.5 text-sm leading-tight shadow-sm; /* Added shadow-sm, increased padding, text-sm */
   /* Ensure events are readable and styled */
 }
 
 .rbc-toolbar {
-  @apply flex justify-between items-center mb-4 px-2;
+  @apply flex justify-between items-center mb-4 px-2 gap-2; /* Added gap-2 for spacing */
 }
 
 .rbc-toolbar button {
@@ -55,7 +55,7 @@
 }
 
 .rbc-toolbar-label {
-  @apply text-lg font-bold text-foreground;
+  @apply text-xl font-bold text-foreground; /* Increased font size and weight */
 }
 
 /* Ensure the content area of the calendar takes available space */
@@ -100,8 +100,4 @@
 
 .rbc-day-slot .rbc-event {
   @apply border border-primary/50; /* Add a subtle border to events in day/week view */
-}
-
-.rbc-current-time-indicator {
-  @apply bg-red-500; /* Make current time indicator more prominent */
 }
