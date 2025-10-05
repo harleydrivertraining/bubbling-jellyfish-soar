@@ -14,6 +14,7 @@ import StudentTargets from "./pages/StudentTargets";
 import Progress from "./pages/Progress";
 import DrivingTests from "./pages/DrivingTests";
 import PrePaidHours from "./pages/PrePaidHours";
+import PrePaidHoursDetails from "./pages/PrePaidHoursDetails"; // New import
 import Resources from "./pages/Resources";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
@@ -40,8 +41,9 @@ const App = () => (
               <Route path="progress" element={<Progress />} />
               <Route path="driving-tests" element={<DrivingTests />} />
               <Route path="pre-paid-hours" element={<PrePaidHours />} />
+              <Route path="pre-paid-hours/:packageId" element={<PrePaidHoursDetails />} /> {/* New route */}
               <Route path="resources" element={<Resources />} />
-              <Route path="settings" element={<Settings />} /> {/* Added missing route for Settings */}
+              <Route path="settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Route>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Hourglass, PoundSterling, FileText, CalendarDays } from "lucide-react";
+import { PlusCircle, Hourglass, PoundSterling, FileText, CalendarDays, Eye } from "lucide-react"; // Added Eye icon
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Link } from "react-router-dom"; // Import Link
 
 interface StudentPrePaidHours {
   student_id: string;
@@ -252,6 +253,11 @@ const PrePaidHours: React.FC = () => {
                             Notes: {pkg.notes}
                           </CardDescription>
                         )}
+                        <Button variant="outline" size="sm" className="mt-2 w-full" asChild>
+                          <Link to={`/pre-paid-hours/${pkg.id}`}>
+                            <Eye className="mr-2 h-4 w-4" /> View Details
+                          </Link>
+                        </Button>
                       </li>
                     ))}
                   </ul>
