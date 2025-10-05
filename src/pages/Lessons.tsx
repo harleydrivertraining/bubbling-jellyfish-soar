@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FormLabel } from "@/components/ui/form"; // <--- Added this import
+import { Label } from "@/components/ui/label"; // Corrected import: using Label instead of FormLabel
 
 interface Booking {
   id: string;
@@ -128,7 +128,7 @@ const Lessons: React.FC = () => {
       <h1 className="text-3xl font-bold">Lessons</h1>
 
       <div className="flex items-center gap-4">
-        <FormLabel>Filter by Student:</FormLabel>
+        <Label>Filter by Student:</Label> {/* Corrected: using Label instead of FormLabel */}
         <Select onValueChange={setSelectedStudentId} defaultValue={selectedStudentId}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select a student" />
