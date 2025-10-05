@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import AddBookingForm from "@/components/AddBookingForm"; // Will create this next
+import AddBookingForm from "@/components/AddBookingForm";
 
 const locales = {
   'en-US': enUS,
@@ -107,7 +107,7 @@ const CalendarComponent: React.FC = () => {
 
     const { data, error } = await supabase
       .from("bookings")
-      .select("id, title, description, start_time, end_time, student_id, status")
+      .select("id, title, description, start_time, end_time, student_id, status, students(name)") // Fetch student name
       .eq("user_id", user.id);
 
     if (error) {
@@ -118,7 +118,7 @@ const CalendarComponent: React.FC = () => {
 
     const formattedEvents: BigCalendarEvent[] = data.map((booking) => ({
       id: booking.id,
-      title: booking.title,
+      title: booking.students?.name || booking.title, // Use student name, fallback to booking title
       start: new Date(booking.start_time),
       end: new Date(booking.end_time),
       resource: {
