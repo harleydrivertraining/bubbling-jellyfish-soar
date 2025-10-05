@@ -23,7 +23,7 @@ const locales = {
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek,
+  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 1, locale: locales['en-US'] }), // Set weekStartsOn to 1 for Monday
   getDay,
   locales,
 });
@@ -44,8 +44,8 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
   let minHour = DEFAULT_MIN_HOUR;
   let maxHour = DEFAULT_MAX_HOUR;
 
-  const weekStart = startOfWeek(currentDate, { locale: locales['en-US'] });
-  const weekEnd = endOfWeek(currentDate, { locale: locales['en-US'] });
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1, locale: locales['en-US'] }); // Use Monday as start of week
+  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1, locale: locales['en-US'] }); // Use Monday as start of week
 
   const eventsInCurrentWeek = events.filter(event => {
     const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
