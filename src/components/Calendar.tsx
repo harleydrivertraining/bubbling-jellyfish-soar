@@ -7,7 +7,7 @@ import parse from 'date-fns/parse';
 import startOfWeek from 'date-fns/startOfWeek';
 import getDay from 'date-fns/getDay';
 import enUS from 'date-fns/locale/en-US';
-import Toolbar from 'react-big-calendar/lib/addons/toolbar'; // Import Toolbar
+import Toolbar from 'react-big-calendar/lib/Toolbar'; // Corrected import path for Toolbar
 
 const locales = {
   'en-US': enUS,
