@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FormLabel } from "@/components/ui/form"; // <--- Added this import
 
 interface Booking {
   id: string;
