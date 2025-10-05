@@ -2,9 +2,7 @@
 
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import ProfileSettingsForm from "@/components/ProfileSettingsForm"; // Import the new component
 
 const Settings: React.FC = () => {
   return (
@@ -15,17 +13,10 @@ const Settings: React.FC = () => {
           <CardTitle>Profile Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="name">Instructor Name</Label>
-            <Input id="name" defaultValue="Your Name" />
-          </div>
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" defaultValue="your.email@example.com" />
-          </div>
-          <Button>Save Changes</Button>
+          <ProfileSettingsForm />
         </CardContent>
       </Card>
+      {/* Other settings cards can go here */}
     </div>
   );
 };
