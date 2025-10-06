@@ -1,8 +1,10 @@
+"use client";
+
 import * as React from "react";
 
 const MOBILE_BREAKPOINT = 768;
 
-export function useIsMobile() {
+export function useIsMobile(): boolean | undefined { // Changed return type
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
     undefined,
   );
@@ -17,5 +19,5 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  return !!isMobile;
+  return isMobile; // Return isMobile directly
 }

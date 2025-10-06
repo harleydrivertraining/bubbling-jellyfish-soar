@@ -103,20 +103,30 @@ interface CalendarComponentProps {
 
 const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsRefetch, onSelectSlot }) => {
   const { user } = useSession();
-  const isMobile = useIsMobile(); // Use the hook to detect mobile
+  const isMobile = useIsMobile(); // This can now be boolean | undefined
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState(isMobile ? 'day' : 'week'); // Default view based on mobile
+  const [currentView, setCurrentView] = useState<'month' | 'week' | 'day' | 'agenda' | null>(null); // Initialize to null
+
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
   const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
 
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
+  // Effect to set the initial view based on isMobile once it's determined
+  useEffect(() => {
+    if (isMobile !== undefined && currentView === null) { // Only set once when isMobile is determined
+      setCurrentView(isMobile ? 'day' : 'week');
+    }
+  }, [isMobile, currentView]);
+
   // Recalculate min/max whenever events, current date, or view changes
   useEffect(() => {
-    const { min, max } = calculateDynamicTimeRange(currentDate, events, currentView);
-    setMinTime(min);
-    setMaxTime(max);
+    if (currentView) { // Only calculate if currentView is set
+      const { min, max } = calculateDynamicTimeRange(currentDate, events, currentView);
+      setMinTime(min);
+      setMaxTime(max);
+    }
   }, [events, currentDate, currentView]);
 
   const handleNavigate = useCallback((newDate: Date) => {
@@ -124,7 +134,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
   }, []);
 
   const handleView = useCallback((newView: string) => {
-    setCurrentView(newView);
+    setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda'); // Cast to valid view type
   }, []);
 
   const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
@@ -193,6 +203,13 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
     }
   }, [user, currentDate, onEventsRefetch]);
 
+  if (currentView === null) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p>Loading calendar view...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-card p-4 rounded-lg shadow-sm">
@@ -211,7 +228,8 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
           endAccessor="end"
           style={{ height: '100%' }}
           views={['month', 'week', 'day', 'agenda']}
-          defaultView={isMobile ? 'day' : 'week'} // Set default view based on mobile
+          view={currentView} // Now controlled by state
+          onView={handleView}
           components={{
             toolbar: Toolbar,
             event: (props) => (
@@ -224,9 +242,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
           min={minTime}
           max={maxTime}
           onNavigate={handleNavigate}
-          onView={handleView}
           date={currentDate}
-          view={currentView}
           selectable
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
