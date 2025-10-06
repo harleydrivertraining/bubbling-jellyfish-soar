@@ -21,7 +21,7 @@ const MobileMenuButton: React.FC<MobileMenuButtonProps> = ({ logoUrl }) => {
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="p-0 w-[240px]">
-        <Sidebar isCollapsed={false} logoUrl={logoUrl} />
+        <Sidebar isCollapsed={false} logoUrl={logoUrl} onLinkClick={() => setIsOpen(false)} />
       </SheetContent>
     </Sheet>
   );

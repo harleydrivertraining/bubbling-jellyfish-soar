@@ -30,9 +30,10 @@ interface NavLinkProps {
   icon: React.ElementType;
   label: string;
   isCollapsed: boolean;
+  onLinkClick?: () => void; // New prop
 }
 
-const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed }) => {
+const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed, onLinkClick }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
 
@@ -48,7 +49,7 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed })
           )}
           asChild
         >
-          <Link to={to}>
+          <Link to={to} onClick={onLinkClick}> {/* Call onLinkClick when link is clicked */}
             <Icon className={cn("h-5 w-5", isCollapsed ? "" : "mr-3")} />
             {!isCollapsed && label}
           </Link>
@@ -62,9 +63,10 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed })
 interface SidebarProps {
   isCollapsed: boolean;
   logoUrl: string | null;
+  onLinkClick?: () => void; // New prop
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/students", icon: Users, label: "Students" },
@@ -114,6 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
               icon={item.icon}
               label={item.label}
               isCollapsed={isCollapsed}
+              onLinkClick={onLinkClick} // Pass the onLinkClick prop
             />
           ))}
         </nav>
