@@ -42,7 +42,7 @@ const formSchema = z.object({
   status: z.enum(["Beginner", "Intermediate", "Advanced"], {
     message: "Please select a valid status.",
   }),
-  document: typeof window === 'undefined' ? z.any().optional() : z.instanceof(FileList).optional().nullable(),
+  document: z.any().optional().nullable(), // Simplified for debugging
   existing_document_url: z.string().url().optional().nullable(), // To display existing document
 });
 
