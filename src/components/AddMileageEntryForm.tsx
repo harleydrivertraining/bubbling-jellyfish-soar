@@ -42,8 +42,8 @@ const formSchema = z.object({
   car_id: z.string().min(1, { message: "Please select a car." }),
   entry_date: z.date({ required_error: "Entry date is required." }),
   current_mileage: z.preprocess(
-    (val) => Number(val),
-    z.number().min(0, { message: "Current mileage cannot be negative." })
+    (val) => (val === "" ? null : Number(val)), // Allow empty string for optional number
+    z.number().min(0, { message: "Current mileage cannot be negative." }).nullable()
   ),
   notes: z.string().optional().nullable(),
 });
@@ -66,7 +66,7 @@ const AddMileageEntryForm: React.FC<AddMileageEntryFormProps> = ({ onEntryAdded,
     defaultValues: {
       car_id: initialCarId || "",
       entry_date: initialDate || new Date(),
-      current_mileage: 0,
+      current_mileage: null, // Changed default to null
       notes: "",
     },
   });
@@ -97,6 +97,10 @@ const AddMileageEntryForm: React.FC<AddMileageEntryFormProps> = ({ onEntryAdded,
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) {
       showError("You must be logged in to add a mileage entry.");
+      return;
+    }
+    if (values.current_mileage === null) {
+      form.setError("current_mileage", { message: "Current mileage is required." });
       return;
     }
 
@@ -215,7 +219,8 @@ const AddMileageEntryForm: React.FC<AddMileageEntryFormProps> = ({ onEntryAdded,
                   min="0"
                   placeholder="e.g., 12345.6"
                   {...field}
-                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                  value={field.value === null ? "" : field.value} // Display empty string for null
+                  onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
                 />
               </FormControl>
               <FormMessage />
