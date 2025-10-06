@@ -519,9 +519,8 @@ const MileageTracker: React.FC = () => {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5 mb-6">
                 {/* Car Image Display Card - spans two rows */}
                 <Card className="lg:col-span-1 lg:row-span-2 flex flex-col items-center justify-center p-4">
-                  {/* Removed CardHeader */}
                   <CardContent className="flex-1 flex flex-col items-center justify-center p-0"> {/* Removed padding here */}
-                    <Avatar className="h-full w-full rounded-lg border-2 border-dashed border-muted-foreground/20">
+                    <Avatar className="h-full w-full rounded-lg"> {/* Removed border-2 border-dashed border-muted-foreground/20 */}
                       <AvatarImage src={currentCar.car_image_url || undefined} alt={`${currentCar.make} ${currentCar.model} image`} className="object-cover h-full w-full" />
                       <AvatarFallback className="rounded-lg flex flex-col items-center justify-center text-muted-foreground text-center p-2 h-full w-full">
                         <Car className="h-16 w-16 mb-2" />
