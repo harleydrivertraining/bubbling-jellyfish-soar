@@ -203,7 +203,7 @@ const Dashboard: React.FC = () => {
         const { data: completedBookings, error: completedBookingsError } = await supabase
           .from("bookings")
           .select("start_time, end_time")
-          .eq("user_id", user.id) // Corrected from "user.id" to "user_id"
+          .eq("user_id", user.id)
           .eq("status", "completed")
           .gte("start_time", startDate.toISOString())
           .lte("end_time", endDate.toISOString());
@@ -721,10 +721,10 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* New Grid for the remaining three cards */}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-3"> {/* Changed to lg:grid-cols-3 */}
             {/* Miles Until Next Service Card */}
             <Card className={cn(
-              "lg:col-span-2", // This will make it span the full width within this new grid
+              "lg:col-span-1", // Changed to lg:col-span-1
               milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
             )}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -754,7 +754,7 @@ const Dashboard: React.FC = () => {
 
             {/* Pre-Paid Hours Summary Card */}
             <Card className={cn(
-              "lg:col-span-2",
+              "lg:col-span-1", // Changed to lg:col-span-1
               totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
             )}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -791,7 +791,7 @@ const Dashboard: React.FC = () => {
             </Card>
 
             {/* New Card: Booked Hours for Selected Week */}
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-1"> {/* Changed to lg:col-span-1 */}
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
