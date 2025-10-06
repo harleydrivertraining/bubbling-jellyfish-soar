@@ -63,9 +63,10 @@ const Dashboard: React.FC = () => {
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [upcomingLessonsCount, setUpcomingLessonsCount] = useState<number | null>(null);
   const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
-  const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null); // Renamed state
+  const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null);
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
+  const [nextDrivingTestBookings, setNextDrivingTestBookings] = useState<Booking[]>([]); // New state for next 2 driving test bookings
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
@@ -197,6 +198,24 @@ const Dashboard: React.FC = () => {
         setUpcomingDrivingTestBookingsCount(upcomingTestBookingsCount);
       }
 
+      // Fetch Next 2 Driving Test Bookings
+      const { data: nextDrivingTestsData, error: nextDrivingTestsError } = await supabase
+        .from("bookings")
+        .select("id, title, description, start_time, end_time, status, students(name)")
+        .eq("user_id", user.id)
+        .eq("lesson_type", "Driving Test")
+        .eq("status", "scheduled")
+        .gte("start_time", now.toISOString())
+        .order("start_time", { ascending: true })
+        .limit(2);
+
+      if (nextDrivingTestsError) {
+        console.error("Error fetching next driving test bookings:", nextDrivingTestsError);
+        showError("Failed to load next driving test bookings.");
+      } else {
+        setNextDrivingTestBookings(nextDrivingTestsData || []);
+      }
+
       // Fetch Driving Test Stats (Last 12 Months) - still from driving_tests table for historical records
       const { data: allTestsData, error: allTestsError } = await supabase
         .from("driving_tests")
@@ -273,6 +292,11 @@ const Dashboard: React.FC = () => {
         </div>
         <Skeleton className="h-8 w-48" />
         <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
+        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new section title */}
+        <div className="grid gap-4 md:grid-cols-2"> {/* Skeleton for the new section cards */}
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
+        </div>
       </div>
     );
   }
@@ -403,53 +427,53 @@ const Dashboard: React.FC = () => {
             </Button>
           </div>
           {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5"> {/* Adjusted grid for 5 columns */}
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Tests Taken</CardTitle> {/* Reduced font size */}
+                  <CardTitle className="text-sm">Tests Taken</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p> {/* Reduced font size */}
+                  <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p>
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-sm">Pass Rate</CardTitle> {/* Reduced font size */}
+                  <CardTitle className="text-sm">Pass Rate</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p> {/* Reduced font size */}
+                  <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-sm">Avg. Driving Faults</CardTitle> {/* Reduced font size */}
+                  <CardTitle className="text-sm">Avg. Driving Faults</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p> {/* Reduced font size */}
+                  <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-sm">Avg. Serious Faults</CardTitle> {/* Reduced font size */}
+                  <CardTitle className="text-sm">Avg. Serious Faults</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p> {/* Reduced font size */}
+                  <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-sm">Examiner Action Rate</CardTitle> {/* Reduced font size */}
+                  <CardTitle className="text-sm">Examiner Action Rate</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p> {/* Reduced font size */}
+                  <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
                 </CardContent>
               </Card>
             </div>
@@ -457,6 +481,52 @@ const Dashboard: React.FC = () => {
             <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
           )}
         </div>
+      </div>
+
+      {/* New section for Next 2 Driving Test Bookings */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Next Driving Tests</h2>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/driving-test-bookings">
+              View All <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+        {nextDrivingTestBookings.length === 0 ? (
+          <p className="text-muted-foreground">No upcoming driving test bookings found. Go to the Schedule page to add one!</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {nextDrivingTestBookings.map((booking) => (
+              <Card key={booking.id} className="flex flex-col">
+                <CardHeader>
+                  <CardTitle className="text-lg">{booking.title}</CardTitle>
+                  {booking.students?.name && (
+                    <CardDescription className="flex items-center text-muted-foreground">
+                      <Users className="mr-2 h-4 w-4" />
+                      <span>Student: {booking.students.name}</span>
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="flex-1 space-y-2 text-sm">
+                  {booking.description && (
+                    <p className="text-muted-foreground italic">{booking.description}</p>
+                  )}
+                  <div className="flex items-center text-muted-foreground">
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    <span>{format(new Date(booking.start_time), "PPP")}</span>
+                  </div>
+                  <div className="flex items-center text-muted-foreground">
+                    <Clock className="mr-2 h-4 w-4" />
+                    <span>
+                      {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
