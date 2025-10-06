@@ -516,9 +516,9 @@ const MileageTracker: React.FC = () => {
 
           {currentCar ? (
             <>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-6">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5 mb-6">
                 {/* Car Image Display Card - spans two rows */}
-                <Card className="md:row-span-2 lg:row-span-2 xl:row-span-2 flex flex-col items-center justify-center p-4">
+                <Card className="lg:col-span-1 lg:row-span-2 flex flex-col items-center justify-center p-4">
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center">
                       <Car className="mr-2 h-5 w-5 text-muted-foreground" />
@@ -538,78 +538,78 @@ const MileageTracker: React.FC = () => {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Current Total Mileage</CardTitle>
+                    <CardTitle className="text-base">Current Total Mileage</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">
+                    <p className="text-3xl font-bold">
                       {currentTotalMileage.toFixed(1)}
-                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Miles This Week</CardTitle>
+                    <CardTitle className="text-base">Miles This Week</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">
+                    <p className="text-3xl font-bold">
                       {totalMilesThisWeek.toFixed(1)}
-                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Miles This Month</CardTitle>
+                    <CardTitle className="text-base">Miles This Month</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">
+                    <p className="text-3xl font-bold">
                       {totalMilesThisMonth.toFixed(1)}
-                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Miles This Year</CardTitle>
+                    <CardTitle className="text-base">Miles This Year</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">
+                    <p className="text-3xl font-bold">
                       {totalMilesThisYear.toFixed(1)}
-                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Total Miles (Since Acquisition)</CardTitle>
+                    <CardTitle className="text-base">Total Miles (Since Acquisition)</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">
+                    <p className="text-3xl font-bold">
                       {totalMilesSinceAcquisition.toFixed(1)}
-                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Avg. Weekly Miles</CardTitle>
+                    <CardTitle className="text-base">Avg. Weekly Miles</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">
+                    <p className="text-3xl font-bold">
                       {averageWeeklyMiles.toFixed(1)}
-                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Avg. Monthly Miles</CardTitle>
+                    <CardTitle className="text-base">Avg. Monthly Miles</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">
+                    <p className="text-3xl font-bold">
                       {averageMonthlyMiles.toFixed(1)}
-                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
                 </Card>
@@ -617,13 +617,13 @@ const MileageTracker: React.FC = () => {
                   milesUntilNextService !== null && milesUntilNextService < 1000 ? "bg-orange-100 text-orange-800" : ""
                 )}>
                   <CardHeader>
-                    <CardTitle className="text-lg">Miles Until Next Service</CardTitle>
+                    <CardTitle className="text-base">Miles Until Next Service</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {milesUntilNextService !== null && currentCar.service_interval_miles ? (
-                      <p className="text-4xl font-bold">
+                      <p className="text-3xl font-bold">
                         {milesUntilNextService.toFixed(0)}
-                        <span className="text-xl text-muted-foreground ml-2">miles</span>
+                        <span className="text-lg text-muted-foreground ml-2">miles</span>
                       </p>
                     ) : (
                       <p className="text-sm text-muted-foreground">
