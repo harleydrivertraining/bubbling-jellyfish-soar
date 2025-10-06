@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
+import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear, differenceInDays } from "date-fns";
 import { enUS } from 'date-fns/locale';
 import AddMileageEntryForm from "@/components/AddMileageEntryForm";
 import AddCarForm from "@/components/AddCarForm";
@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils"; // Import cn utility
+import { cn } from "@/lib/utils";
 
 interface Car {
   id: string;
@@ -292,7 +292,7 @@ const MileageTracker: React.FC = () => {
 
   const currentCar = useMemo(() => cars.find(car => car.id === selectedCarId), [cars, selectedCarId]);
 
-  const { groupedAndFilteredEntries, totalMilesThisWeek, totalMilesThisMonth, totalMilesThisYear, totalMilesSinceAcquisition, currentTotalMileage, milesUntilNextService } = useMemo(() => {
+  const { groupedAndFilteredEntries, totalMilesThisWeek, totalMilesThisMonth, totalMilesThisYear, totalMilesSinceAcquisition, currentTotalMileage, milesUntilNextService, averageWeeklyMiles, averageMonthlyMiles } = useMemo(() => {
     const now = new Date();
     const currentWeekStart = startOfWeek(now, { weekStartsOn: 1, locale: enUS });
     const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1, locale: enUS });
@@ -307,6 +307,8 @@ const MileageTracker: React.FC = () => {
     let totalMilesSinceAcquisition = 0;
     let currentTotalMileage = currentCar ? currentCar.initial_mileage : 0;
     let milesUntilNextService: number | null = null;
+    let averageWeeklyMiles = 0;
+    let averageMonthlyMiles = 0;
 
     const grouped: { [key: string]: WeeklySummary } = {};
 
@@ -371,6 +373,19 @@ const MileageTracker: React.FC = () => {
       grouped[weekKey].entries.push(entry);
     });
 
+    // Calculate average weekly and monthly mileage
+    if (currentCar && sortedEntriesForCalculation.length > 0) {
+      const firstEntryDate = parseISO(currentCar.acquisition_date);
+      const lastEntryDate = parseISO(sortedEntriesForCalculation[sortedEntriesForCalculation.length - 1].entry_date);
+      const totalDaysTracked = differenceInDays(lastEntryDate, firstEntryDate);
+
+      if (totalDaysTracked > 0) {
+        const averageDailyMiles = totalMilesSinceAcquisition / totalDaysTracked;
+        averageWeeklyMiles = averageDailyMiles * 7;
+        averageMonthlyMiles = averageDailyMiles * (365.25 / 12); // Approximate average days per month
+      }
+    }
+
     // Sort weeks from most recent to oldest
     const sortedWeeks = Object.values(grouped).sort((a, b) => {
       return parseISO(b.weekStart).getTime() - parseISO(a.weekStart).getTime();
@@ -384,6 +399,8 @@ const MileageTracker: React.FC = () => {
       totalMilesSinceAcquisition,
       currentTotalMileage,
       milesUntilNextService,
+      averageWeeklyMiles,
+      averageMonthlyMiles,
     };
   }, [allMileageEntries, searchTerm, currentCar]);
 
@@ -544,11 +561,22 @@ const MileageTracker: React.FC = () => {
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Total Miles (Since Acquisition)</CardTitle>
+                    <CardTitle className="text-lg">Avg. Weekly Miles</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-4xl font-bold">
-                      {totalMilesSinceAcquisition.toFixed(1)}
+                      {averageWeeklyMiles.toFixed(1)}
+                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Avg. Monthly Miles</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {averageMonthlyMiles.toFixed(1)}
                       <span className="text-xl text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
