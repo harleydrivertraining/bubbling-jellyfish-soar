@@ -7,7 +7,6 @@ import MobileSidebar from "./MobileSidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { MadeWithDyad } from "@/components/made-with-dyad";
 import { useSession } from "@/components/auth/SessionContextProvider"; // Import useSession
 import { supabase } from "@/integrations/supabase/client"; // Import supabase client
 
@@ -79,7 +78,9 @@ const Layout = () => {
           <main className="flex-1 overflow-auto p-4 lg:p-6">
             <Outlet />
           </main>
-          <MadeWithDyad />
+          <footer className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            Harley Driver Training
+          </footer>
         </div>
       </div>
     </React.Fragment>
