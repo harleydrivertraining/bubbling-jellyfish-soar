@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Car, CalendarDays, Gauge, MessageSquareText, ChevronDown, Pencil } from "lucide-react"; // Added Pencil icon
+import { PlusCircle, Car, CalendarDays, Gauge, MessageSquareText, ChevronDown, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -13,7 +13,7 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, startOfMont
 import { enUS } from 'date-fns/locale';
 import AddMileageEntryForm from "@/components/AddMileageEntryForm";
 import AddCarForm from "@/components/AddCarForm";
-import EditCarForm from "@/components/EditCarForm"; // New import
+import EditCarForm from "@/components/EditCarForm";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label"; // Import Label
+import { Label } from "@/components/ui/label";
 
 interface Car {
   id: string;
@@ -33,6 +33,7 @@ interface Car {
   year: number;
   acquisition_date: string; // YYYY-MM-DD
   initial_mileage: number;
+  service_interval_miles?: number; // New field
 }
 
 interface MileageEntry {
@@ -56,17 +57,17 @@ const MileageTracker: React.FC = () => {
   const [cars, setCars] = useState<Car[]>([]);
   const [selectedCarId, setSelectedCarId] = useState<string | null>(null);
   const [allMileageEntries, setAllMileageEntries] = useState<MileageEntry[]>([]);
-  const [isLoadingCars, setIsLoadingCars] = useState(true); // Separate loading for cars
-  const [isLoadingEntries, setIsLoadingEntries] = useState(false); // Separate loading for entries
+  const [isLoadingCars, setIsLoadingCars] = useState(true);
+  const [isLoadingEntries, setIsLoadingEntries] = useState(false);
   const [isAddEntryDialogOpen, setIsAddEntryDialogOpen] = useState(false);
   const [isAddCarDialogOpen, setIsAddCarDialogOpen] = useState(false);
-  const [isEditCarDialogOpen, setIsEditCarDialogOpen] = useState(false); // New state for edit car dialog
+  const [isEditCarDialogOpen, setIsEditCarDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   // Effect to fetch cars and set initial selectedCarId
   useEffect(() => {
     const fetchCarsData = async () => {
-      if (isSessionLoading) return; // Wait for session to load
+      if (isSessionLoading) return;
 
       setIsLoadingCars(true);
       if (!user) {
@@ -78,7 +79,7 @@ const MileageTracker: React.FC = () => {
 
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -89,7 +90,6 @@ const MileageTracker: React.FC = () => {
         setSelectedCarId(null);
       } else {
         setCars(data || []);
-        // Only set selectedCarId if it's currently null or the previously selected one no longer exists
         if (!selectedCarId || !data.some(car => car.id === selectedCarId)) {
           setSelectedCarId(data.length > 0 ? data[0].id : null);
         }
@@ -98,14 +98,14 @@ const MileageTracker: React.FC = () => {
     };
 
     fetchCarsData();
-  }, [isSessionLoading, user, selectedCarId]); // selectedCarId is a dependency to re-evaluate if the selected car is still valid
+  }, [isSessionLoading, user, selectedCarId]);
 
   // Effect to fetch mileage entries when selectedCarId changes
   useEffect(() => {
     const fetchMileageEntriesData = async () => {
       if (isSessionLoading || !user || !selectedCarId) {
         setAllMileageEntries([]);
-        setIsLoadingEntries(false); // Ensure loading is false if no car selected or no user
+        setIsLoadingEntries(false);
         return;
       }
 
@@ -115,7 +115,7 @@ const MileageTracker: React.FC = () => {
         .select("id, entry_date, current_mileage, notes")
         .eq("user_id", user.id)
         .eq("car_id", selectedCarId)
-        .order("entry_date", { ascending: true }); // Order ascending to calculate differences
+        .order("entry_date", { ascending: true });
 
       if (error) {
         console.error("Error fetching mileage entries:", error);
@@ -130,11 +130,9 @@ const MileageTracker: React.FC = () => {
           const entryDate = parseISO(entry.entry_date);
           let milesDriven = 0;
 
-          // Calculate miles driven since the last entry or car acquisition
           if (previousEntryDate && entryDate > previousEntryDate) {
             milesDriven = entry.current_mileage - previousMileage;
           } else if (!previousEntryDate && carDetails) {
-            // This case handles the very first entry if acquisition_date is not set or earlier
             milesDriven = entry.current_mileage - carDetails.initial_mileage;
           }
           
@@ -143,7 +141,7 @@ const MileageTracker: React.FC = () => {
 
           return {
             ...entry,
-            miles_driven: Math.max(0, milesDriven), // Ensure miles driven is not negative
+            miles_driven: Math.max(0, milesDriven),
           };
         });
         setAllMileageEntries(formattedEntries);
@@ -152,11 +150,9 @@ const MileageTracker: React.FC = () => {
     };
 
     fetchMileageEntriesData();
-  }, [isSessionLoading, user, selectedCarId, cars]); // `cars` is a dependency because `carDetails` depends on it.
+  }, [isSessionLoading, user, selectedCarId, cars]);
 
   const handleEntryAdded = () => {
-    // Re-fetch entries for the currently selected car
-    // This will trigger the the useEffect for entries due to selectedCarId dependency
     if (selectedCarId) {
       const fetchEntriesForSelectedCar = async () => {
         if (user && selectedCarId) {
@@ -210,14 +206,12 @@ const MileageTracker: React.FC = () => {
   };
 
   const handleCarAdded = () => {
-    // Re-fetch cars to update the dropdown and potentially set a new selectedCarId
-    // This will trigger the first useEffect due to user dependency
     const fetchCarsAfterAdd = async () => {
       if (!user) return;
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -227,7 +221,6 @@ const MileageTracker: React.FC = () => {
         setCars([]);
       } else {
         setCars(data || []);
-        // If no car was selected before, or the new car is the first, select it
         if (!selectedCarId && data.length > 0) {
           setSelectedCarId(data[0].id);
         }
@@ -243,14 +236,12 @@ const MileageTracker: React.FC = () => {
   };
 
   const handleCarUpdated = () => {
-    // Re-fetch cars to update the dropdown and potentially set a new selectedCarId
-    // This will trigger the first useEffect due to user dependency
     const fetchCarsAfterUpdate = async () => {
       if (!user) return;
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -260,7 +251,6 @@ const MileageTracker: React.FC = () => {
         setCars([]);
       } else {
         setCars(data || []);
-        // Ensure the currently selected car is still valid, or select the first one
         if (!selectedCarId || !data.some(car => car.id === selectedCarId)) {
           setSelectedCarId(data.length > 0 ? data[0].id : null);
         }
@@ -272,13 +262,12 @@ const MileageTracker: React.FC = () => {
   };
 
   const handleCarDeleted = () => {
-    // Re-fetch cars to update the dropdown and select a new car if the current one was deleted
     const fetchCarsAfterDelete = async () => {
       if (!user) return;
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -288,7 +277,6 @@ const MileageTracker: React.FC = () => {
         setCars([]);
       } else {
         setCars(data || []);
-        // If the deleted car was selected, select the first available car, or null if none
         setSelectedCarId(data.length > 0 ? data[0].id : null);
       }
       setIsLoadingCars(false);
@@ -303,7 +291,7 @@ const MileageTracker: React.FC = () => {
 
   const currentCar = useMemo(() => cars.find(car => car.id === selectedCarId), [cars, selectedCarId]);
 
-  const { groupedAndFilteredEntries, totalMilesThisWeek, totalMilesThisMonth, totalMilesThisYear, totalMilesSinceAcquisition } = useMemo(() => {
+  const { groupedAndFilteredEntries, totalMilesThisWeek, totalMilesThisMonth, totalMilesThisYear, totalMilesSinceAcquisition, currentTotalMileage, milesUntilNextService } = useMemo(() => {
     const now = new Date();
     const currentWeekStart = startOfWeek(now, { weekStartsOn: 1, locale: enUS });
     const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1, locale: enUS });
@@ -316,6 +304,8 @@ const MileageTracker: React.FC = () => {
     let totalMilesThisMonth = 0;
     let totalMilesThisYear = 0;
     let totalMilesSinceAcquisition = 0;
+    let currentTotalMileage = currentCar ? currentCar.initial_mileage : 0;
+    let milesUntilNextService: number | null = null;
 
     const grouped: { [key: string]: WeeklySummary } = {};
 
@@ -330,7 +320,22 @@ const MileageTracker: React.FC = () => {
     });
 
     // Sort entries by date descending for display, but ascending for calculation
+    const sortedEntriesForCalculation = [...allMileageEntries].sort((a, b) => parseISO(a.entry_date).getTime() - parseISO(b.entry_date).getTime());
     const sortedEntriesForDisplay = [...filtered].sort((a, b) => parseISO(b.entry_date).getTime() - parseISO(a.entry_date).getTime());
+
+    // Calculate currentTotalMileage from the latest entry
+    if (sortedEntriesForCalculation.length > 0) {
+      currentTotalMileage = sortedEntriesForCalculation[sortedEntriesForCalculation.length - 1].current_mileage;
+    }
+
+    // Calculate miles until next service
+    if (currentCar && currentCar.service_interval_miles && currentCar.service_interval_miles > 0) {
+      const serviceInterval = currentCar.service_interval_miles;
+      const currentMiles = currentTotalMileage;
+      const intervalsPassed = Math.floor(currentMiles / serviceInterval);
+      const nextServiceMiles = (intervalsPassed + 1) * serviceInterval;
+      milesUntilNextService = nextServiceMiles - currentMiles;
+    }
 
     sortedEntriesForDisplay.forEach(entry => {
       const entryDate = parseISO(entry.entry_date);
@@ -376,8 +381,10 @@ const MileageTracker: React.FC = () => {
       totalMilesThisMonth,
       totalMilesThisYear,
       totalMilesSinceAcquisition,
+      currentTotalMileage,
+      milesUntilNextService,
     };
-  }, [allMileageEntries, searchTerm]);
+  }, [allMileageEntries, searchTerm, currentCar]);
 
   const isLoadingPage = isSessionLoading || isLoadingCars || isLoadingEntries;
 
@@ -489,7 +496,18 @@ const MileageTracker: React.FC = () => {
 
           {currentCar ? (
             <>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6"> {/* Adjusted grid layout */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Current Total Mileage</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {currentTotalMileage.toFixed(1)}
+                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                    </p>
+                  </CardContent>
+                </Card>
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Miles This Week</CardTitle>
@@ -532,6 +550,23 @@ const MileageTracker: React.FC = () => {
                       {totalMilesSinceAcquisition.toFixed(1)}
                       <span className="text-xl text-muted-foreground ml-2">miles</span>
                     </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Miles Until Next Service</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {milesUntilNextService !== null && currentCar.service_interval_miles ? (
+                      <p className="text-4xl font-bold">
+                        {milesUntilNextService.toFixed(0)}
+                        <span className="text-xl text-muted-foreground ml-2">miles</span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Set a <span className="font-medium">service interval</span> for this car to track.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>

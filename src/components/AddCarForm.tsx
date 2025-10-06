@@ -32,6 +32,10 @@ const formSchema = z.object({
     (val) => Number(val),
     z.number().min(0, { message: "Initial mileage cannot be negative." })
   ),
+  service_interval_miles: z.preprocess( // New field
+    (val) => (val === "" ? null : Number(val)),
+    z.number().min(1, { message: "Service interval must be at least 1 mile." }).nullable().optional()
+  ),
 });
 
 interface AddCarFormProps {
@@ -50,6 +54,7 @@ const AddCarForm: React.FC<AddCarFormProps> = ({ onCarAdded, onClose }) => {
       year: new Date().getFullYear(),
       acquisition_date: new Date(),
       initial_mileage: 0,
+      service_interval_miles: 10000, // Default service interval
     },
   });
 
@@ -68,6 +73,7 @@ const AddCarForm: React.FC<AddCarFormProps> = ({ onCarAdded, onClose }) => {
         year: values.year,
         acquisition_date: format(values.acquisition_date, "yyyy-MM-dd"),
         initial_mileage: values.initial_mileage,
+        service_interval_miles: values.service_interval_miles, // Include new field
       })
       .select();
 
@@ -155,6 +161,27 @@ const AddCarForm: React.FC<AddCarFormProps> = ({ onCarAdded, onClose }) => {
                   placeholder="e.g., 1000.0"
                   {...field}
                   onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="service_interval_miles"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Service Interval (miles)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="e.g., 10000"
+                  {...field}
+                  value={field.value === null ? "" : field.value}
+                  onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
                 />
               </FormControl>
               <FormMessage />

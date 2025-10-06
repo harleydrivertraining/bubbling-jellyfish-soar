@@ -34,6 +34,10 @@ const formSchema = z.object({
     (val) => Number(val),
     z.number().min(0, { message: "Initial mileage cannot be negative." })
   ),
+  service_interval_miles: z.preprocess( // New field
+    (val) => (val === "" ? null : Number(val)),
+    z.number().min(1, { message: "Service interval must be at least 1 mile." }).nullable().optional()
+  ),
 });
 
 interface EditCarFormProps {
@@ -55,6 +59,7 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
       year: new Date().getFullYear(),
       acquisition_date: new Date(),
       initial_mileage: 0,
+      service_interval_miles: 10000, // Default for new field
     },
   });
 
@@ -64,7 +69,7 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
       setIsLoadingCar(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("make, model, year, acquisition_date, initial_mileage")
+        .select("make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
         .eq("id", carId)
         .eq("user_id", user.id)
         .single();
@@ -80,6 +85,7 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
           year: data.year,
           acquisition_date: new Date(data.acquisition_date),
           initial_mileage: data.initial_mileage,
+          service_interval_miles: data.service_interval_miles, // Set new field
         });
       }
       setIsLoadingCar(false);
@@ -102,6 +108,7 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
         year: values.year,
         acquisition_date: format(values.acquisition_date, "yyyy-MM-dd"),
         initial_mileage: values.initial_mileage,
+        service_interval_miles: values.service_interval_miles, // Include new field
       })
       .eq("id", carId)
       .eq("user_id", user.id);
@@ -222,6 +229,27 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
                   placeholder="e.g., 1000.0"
                   {...field}
                   onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="service_interval_miles"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Service Interval (miles)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="e.g., 10000"
+                  {...field}
+                  value={field.value === null ? "" : field.value}
+                  onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
                 />
               </FormControl>
               <FormMessage />
