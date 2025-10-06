@@ -338,19 +338,21 @@ const Dashboard: React.FC = () => {
             <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
             <Car className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="flex flex-col justify-between h-full"> {/* Added flex-col, justify-between, h-full */}
-            <div className="text-2xl font-bold mb-4">{upcomingDrivingTestBookingsCount !== null ? upcomingDrivingTestBookingsCount : <Skeleton className="h-6 w-1/4" />}</div>
-            <Button asChild className="w-full">
-              <Link to="/driving-test-bookings"> {/* Link to the new page */}
-                View Test Bookings <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+          <CardContent>
+            <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount !== null ? upcomingDrivingTestBookingsCount : <Skeleton className="h-6 w-1/4" />}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Last 12 months Driving Test Overview Cards */}
-      <h2 className="text-2xl font-bold mt-8">Driving Test Overview (Last 12 Months)</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</h2>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/driving-test-bookings">
+            View All <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
       {drivingTestStats && drivingTestStats.totalTests > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
           <Card>
