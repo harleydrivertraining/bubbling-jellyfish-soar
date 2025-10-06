@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight } from "lucide-react"; // Added ArrowRight icon
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom"; // Import Link for navigation
 import {
@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button"; // Import Button
 
 interface Student {
   id: string;
@@ -67,7 +68,7 @@ const Dashboard: React.FC = () => {
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
-  const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly"); // Changed default to "weekly"
+  const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -335,8 +336,13 @@ const Dashboard: React.FC = () => {
             <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
             <Car className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{upcomingDrivingTestsCount !== null ? upcomingDrivingTestsCount : <Skeleton className="h-6 w-1/4" />}</div>
+          <CardContent className="flex flex-col justify-between h-full"> {/* Added flex-col and justify-between */}
+            <div className="text-2xl font-bold mb-4">{upcomingDrivingTestsCount !== null ? upcomingDrivingTestsCount : <Skeleton className="h-6 w-1/4" />}</div>
+            <Button asChild className="w-full">
+              <Link to="/driving-tests">
+                View All Tests <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
