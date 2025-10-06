@@ -123,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
       </ScrollArea>
       <Separator className="bg-sidebar-border" />
       <div className="p-4 text-center text-xs text-muted-foreground">
-        {!isCollapsed && "© 2024 HDT App"}
+        {!isCollapsed && "© 2025 HDT App"}
       </div>
     </div>
   );
