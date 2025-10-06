@@ -483,93 +483,210 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">{getGreeting()}, {displayInstructorName}</h1>
+    <React.Fragment>
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">{getGreeting()}, {displayInstructorName}</h1>
 
-      {/* Row of 4 Key Metric Cards */}
-      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalStudents !== null ? totalStudents : <Skeleton className="h-6 w-1/4" />}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Upcoming Lessons</CardTitle>
-            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{upcomingLessonsCount !== null ? upcomingLessonsCount : <Skeleton className="h-6 w-1/4" />}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm font-medium">Income</CardTitle>
-              <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                <SelectTrigger className="w-[100px] h-7 text-xs">
-                  <SelectValue placeholder="Timeframe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <PoundSterling className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {currentHourlyRate === null || currentHourlyRate === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                Set your <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> in settings to calculate revenue.
+        {/* Row of 4 Key Metric Cards */}
+        <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalStudents !== null ? totalStudents : <Skeleton className="h-6 w-1/4" />}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Upcoming Lessons</CardTitle>
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{upcomingLessonsCount !== null ? upcomingLessonsCount : <Skeleton className="h-6 w-1/4" />}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium">Income</CardTitle>
+                <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
+                  <SelectTrigger className="w-[100px] h-7 text-xs">
+                    <SelectValue placeholder="Timeframe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">£{currentRevenue !== null ? currentRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
-                <p className="text-xs text-muted-foreground">
-                  (from completed lessons this period)
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
-              <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
-                <Link to="/driving-test-bookings">
-                  View All <ArrowRight className="ml-1 h-3 w-3" />
-                </Link>
-              </Button>
-            </div>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount !== null ? upcomingDrivingTestBookingsCount : <Skeleton className="h-6 w-1/4" />}</div>
-          </CardContent>
-        </Card>
-      </div>
+              <PoundSterling className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {currentHourlyRate === null || currentHourlyRate === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  Set your <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> in settings to calculate revenue.
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">£{currentRevenue !== null ? currentRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
+                  <p className="text-xs text-muted-foreground">
+                    (from completed lessons this period)
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
+                <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+                  <Link to="/driving-test-bookings">
+                    View All <ArrowRight className="ml-1 h-3 w-3" />
+                  </Link>
+                </Button>
+              </div>
+              <Car className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount !== null ? upcomingDrivingTestBookingsCount : <Skeleton className="h-6 w-1/4" />}</div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Combined section for Driving Test Overview and Upcoming Lessons */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Upcoming Lessons Section */}
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">Upcoming Lessons</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1">
-            {upcomingLessons.length === 0 ? (
-              <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
-            ) : (
-              <ScrollArea className="h-96 pr-4">
-                <div className="grid gap-4">
-                  {upcomingLessons.map((booking) => (
+        {/* Combined section for Driving Test Overview and Upcoming Lessons */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Upcoming Lessons Section */}
+          <Card className="flex flex-col">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold">Upcoming Lessons</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1">
+              {upcomingLessons.length === 0 ? (
+                <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
+              ) : (
+                <ScrollArea className="h-96 pr-4">
+                  <div className="grid gap-4">
+                    {upcomingLessons.map((booking) => (
+                      <Card key={booking.id} className="flex flex-col">
+                        <CardHeader>
+                          <CardTitle className="text-lg">{booking.title}</CardTitle>
+                          {booking.students?.name && (
+                            <CardDescription className="flex items-center text-muted-foreground">
+                              <Users className="mr-2 h-4 w-4" />
+                              <span>Student: {booking.students.name}</span>
+                            </CardDescription>
+                          )}
+                        </CardHeader>
+                        <CardContent className="flex-1 space-y-2 text-sm">
+                          {booking.description && (
+                            <p className="text-muted-foreground italic">{booking.description}</p>
+                          )}
+                          <div className="flex items-center text-muted-foreground">
+                            <CalendarDays className="mr-2 h-4 w-4" />
+                            <span>{format(new Date(booking.start_time), "PPP")}</span>
+                          </div>
+                          <div className="flex items-center text-muted-foreground">
+                            <Clock className="mr-2 h-4 w-4" />
+                            <span>
+                              {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Right column: Driving Test Overview and Next Driving Tests */}
+          <Card className="flex flex-col p-6 space-y-6">
+            {/* Driving Test Overview Section */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <CardTitle className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</CardTitle>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/driving-tests">
+                    View All <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+              {drivingTestStats && drivingTestStats.totalTests > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Tests Taken</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className={cn(
+                    drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                  )}>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Pass Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
+                    </CardContent>
+                  </Card>
+                  <Card className={cn(
+                    drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                  )}>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Avg. Driving Faults</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className={cn(
+                    drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                  )}>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Avg. Serious Faults</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className={cn(
+                    drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                  )}>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Examiner Action Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
+              )}
+            </div>
+
+            {/* Next 2 Driving Test Bookings Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-2xl font-bold">Next Driving Tests</CardTitle>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/driving-test-bookings">
+                    View All <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+              {nextDrivingTestBookings.length === 0 ? (
+                <p className="text-muted-foreground">No upcoming driving test bookings found. Go to the Schedule page to add one!</p>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {nextDrivingTestBookings.map((booking) => (
                     <Card key={booking.id} className="flex flex-col">
                       <CardHeader>
                         <CardTitle className="text-lg">{booking.title}</CardTitle>
@@ -581,260 +698,144 @@ const Dashboard: React.FC = () => {
                         )}
                       </CardHeader>
                       <CardContent className="flex-1 space-y-2 text-sm">
-                        {booking.description && (
-                          <p className="text-muted-foreground italic">{booking.description}</p>
-                        )}
-                        <div className="flex items-center text-muted-foreground">
-                          <CalendarDays className="mr-2 h-4 w-4" />
-                          <span>{format(new Date(booking.start_time), "PPP")}</span>
-                        </div>
-                        <div className="flex items-center text-muted-foreground">
-                          <Clock className="mr-2 h-4 w-4" />
-                          <span>
-                            {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Right column: Driving Test Overview and Next Driving Tests */}
-        <Card className="flex flex-col p-6 space-y-6">
-          {/* Driving Test Overview Section */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <CardTitle className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</CardTitle>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/driving-tests">
-                  View All <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-            {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Tests Taken</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p>
-                  </CardContent>
-                </Card>
-                <Card className={cn(
-                  drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                )}>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Pass Rate</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
-                  </CardContent>
-                </Card>
-                <Card className={cn(
-                  drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                )}>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Avg. Driving Faults</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
-                  </CardContent>
-                </Card>
-                <Card className={cn(
-                  drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                )}>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Avg. Serious Faults</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
-                  </CardContent>
-                </Card>
-                <Card className={cn(
-                  drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                )}>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Examiner Action Rate</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
-                  </CardContent>
-                </Card>
+                          {booking.description && (
+                            <p className="text-muted-foreground italic">{booking.description}</p>
+                          )}
+                          <div className="flex items-center text-muted-foreground">
+                            <CalendarDays className="mr-2 h-4 w-4" />
+                            <span>{format(new Date(booking.start_time), "PPP")}</span>
+                          </div>
+                          <div className="flex items-center text-muted-foreground">
+                            <Clock className="mr-2 h-4 w-4" />
+                            <span>
+                              {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
-            ) : (
-              <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
-            )}
+            </Card>
           </div>
 
-          {/* Next 2 Driving Test Bookings Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-2xl font-bold">Next Driving Tests</CardTitle>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/driving-test-bookings">
-                  View All <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-            {nextDrivingTestBookings.length === 0 ? (
-              <p className="text-muted-foreground">No upcoming driving test bookings found. Go to the Schedule page to add one!</p>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {nextDrivingTestBookings.map((booking) => (
-                  <Card key={booking.id} className="flex flex-col">
-                    <CardHeader>
-                      <CardTitle className="text-lg">{booking.title}</CardTitle>
-                      {booking.students?.name && (
-                        <CardDescription className="flex items-center text-muted-foreground">
-                          <Users className="mr-2 h-4 w-4" />
-                          <span>Student: {booking.students.name}</span>
-                        </CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="flex-1 space-y-2 text-sm">
-                        {booking.description && (
-                          <p className="text-muted-foreground italic">{booking.description}</p>
-                        )}
-                        <div className="flex items-center text-muted-foreground">
-                          <CalendarDays className="mr-2 h-4 w-4" />
-                          <span>{format(new Date(booking.start_time), "PPP")}</span>
-                        </div>
-                        <div className="flex items-center text-muted-foreground">
-                          <Clock className="mr-2 h-4 w-4" />
-                          <span>
-                            {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+          {/* New Grid for the remaining three cards */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Miles Until Next Service Card */}
+            <Card className={cn(
+              "lg:col-span-2", // This will make it span the full width within this new grid
+              milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
+            )}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
+                <Gauge className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {milesUntilNextServiceDashboard !== null ? (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {milesUntilNextServiceDashboard.toFixed(0)}
+                      <span className="text-lg text-muted-foreground ml-2">miles</span>
+                    </div>
+                    {carNeedingService && (
+                      <p className="text-xs text-muted-foreground">
+                        ({carNeedingService} needs service soonest)
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Pre-Paid Hours Summary Card */}
+            <Card className={cn(
+              "lg:col-span-2",
+              totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
+            )}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
+                <Hourglass className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
+                      <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
+                    </div>
+                    {studentsWithLowPrePaidHours.length > 0 && (
+                      <p className="text-sm text-orange-800 mt-2">
+                        <span className="font-semibold">Low hours for:</span> {studentsWithLowPrePaidHours.join(", ")}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total hours purchased across all students.
+                    </p>
+                    <Button asChild variant="outline" size="sm" className="mt-4">
+                      <Link to="/pre-paid-hours">
+                        View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* New Card: Booked Hours for Selected Week */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
+                  <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
+                    <SelectTrigger className="w-[180px] h-7 text-xs">
+                      <SelectValue placeholder="Select Week" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {generateWeekOptions.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-            </div>
-          </Card>
-        </div>
-
-        {/* New Grid for the remaining three cards */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Miles Until Next Service Card */}
-          <Card className={cn(
-            "lg:col-span-2", // This will make it span the full width within this new grid
-            milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
-          )}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
-              <Gauge className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {milesUntilNextServiceDashboard !== null ? (
-                <>
-                  <div className="text-2xl font-bold">
-                    {milesUntilNextServiceDashboard.toFixed(0)}
-                    <span className="text-lg text-muted-foreground ml-2">miles</span>
-                  </div>
-                  {carNeedingService && (
-                    <p className="text-xs text-muted-foreground">
-                      ({carNeedingService} needs service soonest)
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {totalBookedHoursForSelectedWeek !== null ? (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {totalBookedHoursForSelectedWeek.toFixed(1)}
+                      <span className="text-lg text-muted-foreground ml-2">hours</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total scheduled bookings for {selectedWeekLabel}.
                     </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Pre-Paid Hours Summary Card */}
-          <Card className={cn(
-            "lg:col-span-2",
-            totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
-          )}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
-              <Hourglass className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
-                <>
-                  <div className="text-2xl font-bold">
-                    {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
-                    <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
-                  </div>
-                  {studentsWithLowPrePaidHours.length > 0 && (
-                    <p className="text-sm text-orange-800 mt-2">
-                      <span className="font-semibold">Low hours for:</span> {studentsWithLowPrePaidHours.join(", ")}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Total hours purchased across all students.
+                    <Button asChild variant="outline" size="sm" className="mt-4">
+                      <Link to="/schedule">
+                        View Schedule <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No scheduled bookings found for {selectedWeekLabel}.
                   </p>
-                  <Button asChild variant="outline" size="sm" className="mt-4">
-                    <Link to="/pre-paid-hours">
-                      View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* New Card: Booked Hours for Selected Week */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
-                <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                  <SelectTrigger className="w-[180px] h-7 text-xs">
-                    <SelectValue placeholder="Select Week" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {generateWeekOptions.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {totalBookedHoursForSelectedWeek !== null ? (
-                <>
-                  <div className="text-2xl font-bold">
-                    {totalBookedHoursForSelectedWeek.toFixed(1)}
-                    <span className="text-lg text-muted-foreground ml-2">hours</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Total scheduled bookings for {selectedWeekLabel}.
-                  </p>
-                  <Button asChild variant="outline" size="sm" className="mt-4">
-                    <Link to="/schedule">
-                      View Schedule <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No scheduled bookings found for {selectedWeekLabel}.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
-    </div>
+    </React.Fragment>
   );
 };
 
