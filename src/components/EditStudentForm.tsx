@@ -67,7 +67,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       phone_number: "",
       full_address: "",
       notes: "",
-      status: "Beginner",
+      status: "Beginner", // Default to a valid enum value
       document: null,
       existing_document_url: null,
     },
@@ -89,6 +89,12 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         showError("Failed to load student details: " + error.message);
         onClose();
       } else if (data) {
+        // Ensure status is one of the valid enum values, fallback if not
+        const validStatuses = ["Beginner", "Intermediate", "Advanced"];
+        const studentStatus = validStatuses.includes(data.status as "Beginner" | "Intermediate" | "Advanced")
+          ? data.status as "Beginner" | "Intermediate" | "Advanced"
+          : "Beginner"; // Fallback to 'Beginner' if status is invalid
+
         form.reset({
           name: data.name,
           date_of_birth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
@@ -96,8 +102,8 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           phone_number: data.phone_number || "",
           full_address: data.full_address || "",
           notes: data.notes || "",
-          status: data.status as "Beginner" | "Intermediate" | "Advanced",
-          document: null, // File input should always be reset
+          status: studentStatus, // Use the validated status
+          document: null,
           existing_document_url: data.document_url,
         });
         setCurrentDocumentUrl(data.document_url);
