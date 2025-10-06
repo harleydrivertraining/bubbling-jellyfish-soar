@@ -67,7 +67,7 @@ const Dashboard: React.FC = () => {
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
-  const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("monthly");
+  const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly"); // Changed default to "weekly"
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
