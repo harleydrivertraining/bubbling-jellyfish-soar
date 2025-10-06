@@ -353,6 +353,45 @@ const Dashboard: React.FC = () => {
 
       {/* Combined section for Driving Test Overview and Upcoming Lessons */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Upcoming Lessons Section */}
+        <div>
+          <h2 className="text-2xl font-bold mb-4">Upcoming Lessons</h2>
+          {upcomingLessons.length === 0 ? (
+            <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
+          ) : (
+            <div className="grid gap-4"> {/* Removed md:grid-cols-2 lg:grid-cols-3 to make it single column within its half-page */}
+              {upcomingLessons.map((booking) => (
+                <Card key={booking.id} className="flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{booking.title}</CardTitle>
+                    {booking.students?.name && (
+                      <CardDescription className="flex items-center text-muted-foreground">
+                        <Users className="mr-2 h-4 w-4" />
+                        <span>Student: {booking.students.name}</span>
+                      </CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent className="flex-1 space-y-2 text-sm">
+                    {booking.description && (
+                      <p className="text-muted-foreground italic">{booking.description}</p>
+                    )}
+                    <div className="flex items-center text-muted-foreground">
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      <span>{format(new Date(booking.start_time), "PPP")}</span>
+                    </div>
+                    <div className="flex items-center text-muted-foreground">
+                      <Clock className="mr-2 h-4 w-4" />
+                      <span>
+                        {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Driving Test Overview Section */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -416,45 +455,6 @@ const Dashboard: React.FC = () => {
             </div>
           ) : (
             <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
-          )}
-        </div>
-
-        {/* Upcoming Lessons Section */}
-        <div>
-          <h2 className="text-2xl font-bold mb-4">Upcoming Lessons</h2>
-          {upcomingLessons.length === 0 ? (
-            <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
-          ) : (
-            <div className="grid gap-4"> {/* Removed md:grid-cols-2 lg:grid-cols-3 to make it single column within its half-page */}
-              {upcomingLessons.map((booking) => (
-                <Card key={booking.id} className="flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{booking.title}</CardTitle>
-                    {booking.students?.name && (
-                      <CardDescription className="flex items-center text-muted-foreground">
-                        <Users className="mr-2 h-4 w-4" />
-                        <span>Student: {booking.students.name}</span>
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="flex-1 space-y-2 text-sm">
-                    {booking.description && (
-                      <p className="text-muted-foreground italic">{booking.description}</p>
-                    )}
-                    <div className="flex items-center text-muted-foreground">
-                      <CalendarDays className="mr-2 h-4 w-4" />
-                      <span>{format(new Date(booking.start_time), "PPP")}</span>
-                    </div>
-                    <div className="flex items-center text-muted-foreground">
-                      <Clock className="mr-2 h-4 w-4" />
-                      <span>
-                        {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
           )}
         </div>
       </div>
