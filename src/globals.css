@@ -101,3 +101,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom color for purple-600/80 */
+.bg-purple-600\/80 {
+  background-color: rgba(126, 34, 206, 0.8); /* A shade of purple with 80% opacity */
+}

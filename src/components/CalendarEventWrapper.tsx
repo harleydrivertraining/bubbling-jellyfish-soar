@@ -27,6 +27,7 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
   const { user } = useSession();
   const isCompleted = event.resource?.status === 'completed';
   const isCancelled = event.resource?.status === 'cancelled';
+  const isDrivingTest = event.resource?.lesson_type === 'Driving Test'; // Check for Driving Test
 
   const handleMarkAsCompleted = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent event click from opening edit dialog
@@ -56,6 +57,7 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
       {
         "bg-green-600/80": isCompleted,
         "bg-red-600/80": isCancelled,
+        "bg-purple-600/80": isDrivingTest && !isCompleted && !isCancelled, // Apply purple if it's a driving test and not completed/cancelled
       }
     )}>
       <span className="flex-1 truncate text-white text-xs font-medium">{title}</span>
