@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Car, CalendarDays, Gauge, MessageSquareText, ChevronDown } from "lucide-react";
+import { PlusCircle, Car, CalendarDays, Gauge, MessageSquareText, ChevronDown, Pencil } from "lucide-react"; // Added Pencil icon
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -13,6 +13,7 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, startOfMont
 import { enUS } from 'date-fns/locale';
 import AddMileageEntryForm from "@/components/AddMileageEntryForm";
 import AddCarForm from "@/components/AddCarForm";
+import EditCarForm from "@/components/EditCarForm"; // New import
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -59,6 +60,7 @@ const MileageTracker: React.FC = () => {
   const [isLoadingEntries, setIsLoadingEntries] = useState(false); // Separate loading for entries
   const [isAddEntryDialogOpen, setIsAddEntryDialogOpen] = useState(false);
   const [isAddCarDialogOpen, setIsAddCarDialogOpen] = useState(false);
+  const [isEditCarDialogOpen, setIsEditCarDialogOpen] = useState(false); // New state for edit car dialog
   const [searchTerm, setSearchTerm] = useState("");
 
   // Effect to fetch cars and set initial selectedCarId
@@ -154,15 +156,8 @@ const MileageTracker: React.FC = () => {
 
   const handleEntryAdded = () => {
     // Re-fetch entries for the currently selected car
-    // This will trigger the second useEffect due to selectedCarId dependency
-    // No explicit fetchMileageEntries call needed here, just ensure selectedCarId is valid
-    // If selectedCarId is null, it means no cars, so no entries to fetch.
+    // This will trigger the the useEffect for entries due to selectedCarId dependency
     if (selectedCarId) {
-      // A simple way to trigger re-fetch without changing selectedCarId itself
-      // is to update a dummy state or rely on `cars` state update if a car was added/deleted.
-      // For now, relying on `cars` dependency in `fetchMileageEntriesData` is sufficient if `cars` changes.
-      // If only entries are added/deleted for an existing car, we need to explicitly re-fetch.
-      // Let's make fetchMileageEntriesData a direct callback to be called.
       const fetchEntriesForSelectedCar = async () => {
         if (user && selectedCarId) {
           setIsLoadingEntries(true);
@@ -245,6 +240,65 @@ const MileageTracker: React.FC = () => {
 
   const handleCloseAddCarDialog = () => {
     setIsAddCarDialogOpen(false);
+  };
+
+  const handleCarUpdated = () => {
+    // Re-fetch cars to update the dropdown and potentially set a new selectedCarId
+    // This will trigger the first useEffect due to user dependency
+    const fetchCarsAfterUpdate = async () => {
+      if (!user) return;
+      setIsLoadingCars(true);
+      const { data, error } = await supabase
+        .from("cars")
+        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .eq("user_id", user.id)
+        .order("make", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching cars after update:", error);
+        showError("Failed to refresh cars: " + error.message);
+        setCars([]);
+      } else {
+        setCars(data || []);
+        // Ensure the currently selected car is still valid, or select the first one
+        if (!selectedCarId || !data.some(car => car.id === selectedCarId)) {
+          setSelectedCarId(data.length > 0 ? data[0].id : null);
+        }
+      }
+      setIsLoadingCars(false);
+    };
+    fetchCarsAfterUpdate();
+    setIsEditCarDialogOpen(false);
+  };
+
+  const handleCarDeleted = () => {
+    // Re-fetch cars to update the dropdown and select a new car if the current one was deleted
+    const fetchCarsAfterDelete = async () => {
+      if (!user) return;
+      setIsLoadingCars(true);
+      const { data, error } = await supabase
+        .from("cars")
+        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .eq("user_id", user.id)
+        .order("make", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching cars after delete:", error);
+        showError("Failed to refresh cars: " + error.message);
+        setCars([]);
+      } else {
+        setCars(data || []);
+        // If the deleted car was selected, select the first available car, or null if none
+        setSelectedCarId(data.length > 0 ? data[0].id : null);
+      }
+      setIsLoadingCars(false);
+    };
+    fetchCarsAfterDelete();
+    setIsEditCarDialogOpen(false);
+  };
+
+  const handleCloseEditCarDialog = () => {
+    setIsEditCarDialogOpen(false);
   };
 
   const currentCar = useMemo(() => cars.find(car => car.id === selectedCarId), [cars, selectedCarId]);
@@ -411,6 +465,26 @@ const MileageTracker: React.FC = () => {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {currentCar && (
+              <Dialog open={isEditCarDialogOpen} onOpenChange={setIsEditCarDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Pencil className="mr-2 h-4 w-4" /> Edit Car
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Edit Car Details</DialogTitle>
+                  </DialogHeader>
+                  <EditCarForm
+                    carId={currentCar.id}
+                    onCarUpdated={handleCarUpdated}
+                    onCarDeleted={handleCarDeleted}
+                    onClose={handleCloseEditCarDialog}
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           {currentCar ? (
