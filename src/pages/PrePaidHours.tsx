@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom"; // Import Link
+import { cn } from "@/lib/utils"; // Import cn utility
 
 interface StudentPrePaidHours {
   student_id: string;
@@ -218,7 +219,13 @@ const PrePaidHours: React.FC = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStudentsPrePaidHours.map((student) => (
-            <Card key={student.student_id} className="flex flex-col">
+            <Card
+              key={student.student_id}
+              className={cn(
+                "flex flex-col",
+                student.total_remaining_hours <= 2 && "bg-orange-100 text-orange-800"
+              )}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-lg font-semibold">{student.student_name}</CardTitle>
                 <div className="flex items-center text-primary font-bold text-xl">
