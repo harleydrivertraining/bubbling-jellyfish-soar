@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes } from "date-fns";
-import { Users, CalendarDays, DollarSign, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock } from "lucide-react"; // Changed DollarSign to PoundSterling
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom"; // Import Link for navigation
 
@@ -276,7 +276,7 @@ const Dashboard: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <PoundSterling className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {currentHourlyRate === null || currentHourlyRate === 0 ? (
