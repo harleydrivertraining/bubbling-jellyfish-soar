@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils"; // Import cn utility
 
 interface Car {
   id: string;
@@ -552,7 +553,9 @@ const MileageTracker: React.FC = () => {
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className={cn(
+                  milesUntilNextService !== null && milesUntilNextService < 1000 ? "bg-orange-100 text-orange-800" : ""
+                )}>
                   <CardHeader>
                     <CardTitle className="text-lg">Miles Until Next Service</CardTitle>
                   </CardHeader>
