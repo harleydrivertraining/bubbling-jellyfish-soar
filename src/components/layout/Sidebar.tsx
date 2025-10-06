@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Car,
+  Car, // Using Car icon
   Users,
   Settings,
   LayoutDashboard,
@@ -22,7 +22,7 @@ import {
   Hourglass,
   Library,
   ListChecks,
-  SteeringWheel, // New icon for Driving Test Bookings
+  // Removed SteeringWheel as it's not available
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -73,8 +73,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
     { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
     { to: "/student-targets", icon: Target, label: "Student Targets" },
     { to: "/progress", icon: TrendingUp, label: "Progress" },
-    { to: "/driving-test-bookings", icon: SteeringWheel, label: "Test Bookings" }, // New item
-    { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" }, // Renamed for clarity
+    { to: "/driving-test-bookings", icon: Car, label: "Test Bookings" }, // Changed to Car icon
+    { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
     { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
     { to: "/resources", icon: Library, label: "Resources" },
     { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
