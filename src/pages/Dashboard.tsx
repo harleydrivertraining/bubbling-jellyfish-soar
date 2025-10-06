@@ -559,11 +559,11 @@ const Dashboard: React.FC = () => {
       {/* Combined section for Driving Test Overview and Upcoming Lessons */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Upcoming Lessons Section */}
-        <Card className="flex flex-col"> {/* Wrapped in Card */}
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle className="text-2xl font-bold">Upcoming Lessons</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1"> {/* Added flex-1 to CardContent */}
+          <CardContent className="flex-1">
             {upcomingLessons.length === 0 ? (
               <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
             ) : (
@@ -604,13 +604,13 @@ const Dashboard: React.FC = () => {
         </Card>
 
         {/* Right column: Driving Test Overview and Next Driving Tests */}
-        <Card className="flex flex-col p-6 space-y-6"> {/* Wrapped in a single Card */}
+        <Card className="flex flex-col p-6 space-y-6">
           {/* Driving Test Overview Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <CardTitle className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</CardTitle>
               <Button asChild variant="outline" size="sm">
-                <Link to="/driving-tests"> {/* Corrected link here */}
+                <Link to="/driving-tests">
                   View All <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -719,117 +719,120 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* Miles Until Next Service Card */}
-        <Card className={cn(
-          "lg:col-span-2", // This will make it span the full width below the 2-column grid
-          milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
-        )}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
-            <Gauge className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {milesUntilNextServiceDashboard !== null ? (
-              <>
-                <div className="text-2xl font-bold">
-                  {milesUntilNextServiceDashboard.toFixed(0)}
-                  <span className="text-lg text-muted-foreground ml-2">miles</span>
-                </div>
-                {carNeedingService && (
-                  <p className="text-xs text-muted-foreground">
-                    ({carNeedingService} needs service soonest)
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Pre-Paid Hours Summary Card */}
-        <Card className={cn(
-          "lg:col-span-2",
-          totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
-        )}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
-            <Hourglass className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
-              <>
-                <div className="text-2xl font-bold">
-                  {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
-                  <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
-                </div>
-                {studentsWithLowPrePaidHours.length > 0 && (
-                  <p className="text-sm text-orange-800 mt-2">
-                    <span className="font-semibold">Low hours for:</span> {studentsWithLowPrePaidHours.join(", ")}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  Total hours purchased across all students.
+        {/* New Grid for the remaining three cards */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Miles Until Next Service Card */}
+          <Card className={cn(
+            "lg:col-span-2", // This will make it span the full width within this new grid
+            milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
+          )}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
+              <Gauge className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {milesUntilNextServiceDashboard !== null ? (
+                <>
+                  <div className="text-2xl font-bold">
+                    {milesUntilNextServiceDashboard.toFixed(0)}
+                    <span className="text-lg text-muted-foreground ml-2">miles</span>
+                  </div>
+                  {carNeedingService && (
+                    <p className="text-xs text-muted-foreground">
+                      ({carNeedingService} needs service soonest)
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
                 </p>
-                <Button asChild variant="outline" size="sm" className="mt-4">
-                  <Link to="/pre-paid-hours">
-                    View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* New Card: Booked Hours for Selected Week */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
-              <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                <SelectTrigger className="w-[180px] h-7 text-xs">
-                  <SelectValue placeholder="Select Week" />
-                </SelectTrigger>
-                <SelectContent>
-                  {generateWeekOptions.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {totalBookedHoursForSelectedWeek !== null ? (
-              <>
-                <div className="text-2xl font-bold">
-                  {totalBookedHoursForSelectedWeek.toFixed(1)}
-                  <span className="text-lg text-muted-foreground ml-2">hours</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Total scheduled bookings for {selectedWeekLabel}.
+          {/* Pre-Paid Hours Summary Card */}
+          <Card className={cn(
+            "lg:col-span-2",
+            totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
+          )}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
+              <Hourglass className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
+                <>
+                  <div className="text-2xl font-bold">
+                    {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
+                    <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
+                  </div>
+                  {studentsWithLowPrePaidHours.length > 0 && (
+                    <p className="text-sm text-orange-800 mt-2">
+                      <span className="font-semibold">Low hours for:</span> {studentsWithLowPrePaidHours.join(", ")}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Total hours purchased across all students.
+                  </p>
+                  <Button asChild variant="outline" size="sm" className="mt-4">
+                    <Link to="/pre-paid-hours">
+                      View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
                 </p>
-                <Button asChild variant="outline" size="sm" className="mt-4">
-                  <Link to="/schedule">
-                    View Schedule <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No scheduled bookings found for {selectedWeekLabel}.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* New Card: Booked Hours for Selected Week */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
+                <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
+                  <SelectTrigger className="w-[180px] h-7 text-xs">
+                    <SelectValue placeholder="Select Week" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {generateWeekOptions.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {totalBookedHoursForSelectedWeek !== null ? (
+                <>
+                  <div className="text-2xl font-bold">
+                    {totalBookedHoursForSelectedWeek.toFixed(1)}
+                    <span className="text-lg text-muted-foreground ml-2">hours</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Total scheduled bookings for {selectedWeekLabel}.
+                  </p>
+                  <Button asChild variant="outline" size="sm" className="mt-4">
+                    <Link to="/schedule">
+                      View Schedule <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No scheduled bookings found for {selectedWeekLabel}.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
