@@ -645,7 +645,10 @@ const Dashboard: React.FC = () => {
       </Card>
 
       {/* Pre-Paid Hours Summary Card - New Section */}
-      <Card className="lg:col-span-2">
+      <Card className={cn(
+        "lg:col-span-2",
+        totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
+      )}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
           <Hourglass className="h-4 w-4 text-muted-foreground" />
