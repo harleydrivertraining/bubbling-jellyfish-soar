@@ -103,7 +103,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           full_address: data.full_address || "",
           notes: data.notes || "",
           status: studentStatus, // Use the validated status
-          document: null,
+          document: null, // File input should always be reset
           existing_document_url: data.document_url,
         });
         setCurrentDocumentUrl(data.document_url);
