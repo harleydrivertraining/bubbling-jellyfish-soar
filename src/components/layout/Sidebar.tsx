@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Import Avatar components
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Car,
   Users,
@@ -18,10 +18,11 @@ import {
   NotebookText,
   Target,
   TrendingUp,
-  ClipboardCheck,
+  ClipboardCheck, // For Driving Tests (records)
   Hourglass,
   Library,
   ListChecks,
+  SteeringWheel, // New icon for Driving Test Bookings
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -60,7 +61,7 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed })
 
 interface SidebarProps {
   isCollapsed: boolean;
-  logoUrl: string | null; // New prop for logo URL
+  logoUrl: string | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
@@ -72,7 +73,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
     { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
     { to: "/student-targets", icon: Target, label: "Student Targets" },
     { to: "/progress", icon: TrendingUp, label: "Progress" },
-    { to: "/driving-tests", icon: ClipboardCheck, label: "Driving Tests" },
+    { to: "/driving-test-bookings", icon: SteeringWheel, label: "Test Bookings" }, // New item
+    { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" }, // Renamed for clarity
     { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
     { to: "/resources", icon: Library, label: "Resources" },
     { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },

@@ -7,9 +7,9 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight } from "lucide-react"; // Added ArrowRight icon
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom"; // Import Link for navigation
+import { Link } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button"; // Import Button
+import { Button } from "@/components/ui/button";
 
 interface Student {
   id: string;
@@ -63,7 +63,7 @@ const Dashboard: React.FC = () => {
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [upcomingLessonsCount, setUpcomingLessonsCount] = useState<number | null>(null);
   const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
-  const [upcomingDrivingTestsCount, setUpcomingDrivingTestsCount] = useState<number | null>(null);
+  const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null); // Renamed state
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
@@ -181,21 +181,23 @@ const Dashboard: React.FC = () => {
         setCurrentRevenue(0);
       }
 
-      // Fetch Upcoming Driving Tests Count
-      const { count: upcomingTestsCount, error: upcomingTestsError } = await supabase
-        .from("driving_tests")
+      // Fetch Upcoming Driving Test Bookings Count (from bookings table)
+      const { count: upcomingTestBookingsCount, error: upcomingTestBookingsError } = await supabase
+        .from("bookings")
         .select("id", { count: "exact" })
         .eq("user_id", user.id)
-        .gte("test_date", now.toISOString().split('T')[0]);
+        .eq("lesson_type", "Driving Test") // Filter for Driving Test bookings
+        .eq("status", "scheduled") // Only count scheduled tests
+        .gte("start_time", now.toISOString()); // Only count future tests
 
-      if (upcomingTestsError) {
-        console.error("Error fetching upcoming driving tests:", upcomingTestsError);
-        showError("Failed to load upcoming driving tests count.");
+      if (upcomingTestBookingsError) {
+        console.error("Error fetching upcoming driving test bookings:", upcomingTestBookingsError);
+        showError("Failed to load upcoming driving test bookings count.");
       } else {
-        setUpcomingDrivingTestsCount(upcomingTestsCount);
+        setUpcomingDrivingTestBookingsCount(upcomingTestBookingsCount);
       }
 
-      // Fetch Driving Test Stats (Last 12 Months)
+      // Fetch Driving Test Stats (Last 12 Months) - still from driving_tests table for historical records
       const { data: allTestsData, error: allTestsError } = await supabase
         .from("driving_tests")
         .select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)")
@@ -301,10 +303,10 @@ const Dashboard: React.FC = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex items-center gap-2"> {/* Flex container for title and select */}
+            <div className="flex items-center gap-2">
               <CardTitle className="text-sm font-medium">Income</CardTitle>
               <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                <SelectTrigger className="w-[100px] h-7 text-xs"> {/* Adjusted width and height */}
+                <SelectTrigger className="w-[100px] h-7 text-xs">
                   <SelectValue placeholder="Timeframe" />
                 </SelectTrigger>
                 <SelectContent>
@@ -336,11 +338,11 @@ const Dashboard: React.FC = () => {
             <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
             <Car className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="flex flex-col justify-between h-full"> {/* Added flex-col and justify-between */}
-            <div className="text-2xl font-bold mb-4">{upcomingDrivingTestsCount !== null ? upcomingDrivingTestsCount : <Skeleton className="h-6 w-1/4" />}</div>
+          <CardContent className="flex flex-col justify-between h-full">
+            <div className="text-2xl font-bold mb-4">{upcomingDrivingTestBookingsCount !== null ? upcomingDrivingTestBookingsCount : <Skeleton className="h-6 w-1/4" />}</div>
             <Button asChild className="w-full">
-              <Link to="/driving-tests">
-                View All Tests <ArrowRight className="ml-2 h-4 w-4" />
+              <Link to="/driving-test-bookings"> {/* Link to the new page */}
+                View Test Bookings <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
           </CardContent>
