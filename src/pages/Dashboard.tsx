@@ -1,50 +1,392 @@
 "use client";
 
-import React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/components/auth/SessionContextProvider";
+import { showError } from "@/utils/toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes } from "date-fns";
+import { Users, CalendarDays, DollarSign, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface Student {
+  id: string;
+  name: string;
+}
+
+interface Booking {
+  id: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  students: {
+    name: string;
+  };
+}
+
+interface DrivingTest {
+  id: string;
+  student_id: string;
+  student_name: string;
+  test_date: string;
+  passed: boolean;
+  driving_faults: number;
+  serious_faults: number;
+  examiner_action: boolean;
+}
+
+interface DrivingTestStats {
+  totalTests: number;
+  passRate: number;
+  avgDrivingFaults: number;
+  avgSeriousFaults: number;
+  examinerActionPercentage: number;
+}
 
 const Dashboard: React.FC = () => {
+  const { user, isLoading: isSessionLoading } = useSession();
+  const [instructorName, setInstructorName] = useState<string | null>(null);
+  const [totalStudents, setTotalStudents] = useState<number | null>(null);
+  const [upcomingLessonsCount, setUpcomingLessonsCount] = useState<number | null>(null);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<number | null>(null);
+  const [upcomingDrivingTestsCount, setUpcomingDrivingTestsCount] = useState<number | null>(null);
+  const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
+  const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+
+  const getGreeting = useCallback(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 18) return "Good Afternoon";
+    return "Good Evening";
+  }, []);
+
+  const fetchDashboardData = useCallback(async () => {
+    if (!user) {
+      setIsLoadingDashboard(false);
+      return;
+    }
+
+    setIsLoadingDashboard(true);
+    let currentMonthlyRevenue = 0;
+    let hourlyRate = 0;
+
+    try {
+      // Fetch Instructor Name and Hourly Rate
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, hourly_rate")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+        showError("Failed to load instructor profile.");
+      } else if (profileData) {
+        setInstructorName(`${profileData.first_name || ""} ${profileData.last_name || ""}`.trim());
+        hourlyRate = profileData.hourly_rate || 0;
+      }
+
+      // Fetch Total Students
+      const { count: studentsCount, error: studentsError } = await supabase
+        .from("students")
+        .select("id", { count: "exact" })
+        .eq("user_id", user.id);
+
+      if (studentsError) {
+        console.error("Error fetching students count:", studentsError);
+        showError("Failed to load students count.");
+      } else {
+        setTotalStudents(studentsCount);
+      }
+
+      // Fetch Upcoming Lessons Count and List
+      const now = new Date();
+      const { data: upcomingLessonsData, count: upcomingLessonsTotalCount, error: upcomingLessonsError } = await supabase
+        .from("bookings")
+        .select("id, title, description, start_time, end_time, status, students(name)", { count: "exact" })
+        .eq("user_id", user.id)
+        .eq("status", "scheduled")
+        .gte("start_time", now.toISOString())
+        .order("start_time", { ascending: true })
+        .limit(5); // Limit to 5 upcoming lessons for the list
+
+      if (upcomingLessonsError) {
+        console.error("Error fetching upcoming lessons:", upcomingLessonsError);
+        showError("Failed to load upcoming lessons.");
+      } else {
+        setUpcomingLessonsCount(upcomingLessonsTotalCount);
+        setUpcomingLessons(upcomingLessonsData || []);
+      }
+
+      // Calculate Monthly Revenue (from completed lessons in current month)
+      if (hourlyRate > 0) {
+        const startOfCurrentMonth = startOfMonth(now);
+        const endOfCurrentMonth = endOfMonth(now);
+
+        const { data: completedBookings, error: completedBookingsError } = await supabase
+          .from("bookings")
+          .select("start_time, end_time")
+          .eq("user_id", user.id)
+          .eq("status", "completed")
+          .gte("start_time", startOfCurrentMonth.toISOString())
+          .lte("end_time", endOfCurrentMonth.toISOString());
+
+        if (completedBookingsError) {
+          console.error("Error fetching completed bookings for revenue:", completedBookingsError);
+          showError("Failed to calculate monthly revenue.");
+        } else {
+          let totalMinutes = 0;
+          completedBookings?.forEach(booking => {
+            const start = new Date(booking.start_time);
+            const end = new Date(booking.end_time);
+            totalMinutes += differenceInMinutes(end, start);
+          });
+          currentMonthlyRevenue = (totalMinutes / 60) * hourlyRate;
+          setMonthlyRevenue(currentMonthlyRevenue);
+        }
+      } else {
+        setMonthlyRevenue(0); // If no hourly rate is set
+      }
+
+
+      // Fetch Upcoming Driving Tests Count
+      const { count: upcomingTestsCount, error: upcomingTestsError } = await supabase
+        .from("driving_tests")
+        .select("id", { count: "exact" })
+        .eq("user_id", user.id)
+        .gte("test_date", now.toISOString().split('T')[0]); // Only future tests
+
+      if (upcomingTestsError) {
+        console.error("Error fetching upcoming driving tests:", upcomingTestsError);
+        showError("Failed to load upcoming driving tests count.");
+      } else {
+        setUpcomingDrivingTestsCount(upcomingTestsCount);
+      }
+
+      // Fetch Driving Test Stats (Last 12 Months)
+      const { data: allTestsData, error: allTestsError } = await supabase
+        .from("driving_tests")
+        .select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)")
+        .eq("user_id", user.id)
+        .order("test_date", { ascending: false });
+
+      if (allTestsError) {
+        console.error("Error fetching all driving tests for stats:", allTestsError);
+        showError("Failed to load driving test statistics.");
+        setDrivingTestStats(null);
+      } else {
+        const twelveMonthsAgo = subYears(now, 1);
+        const recentTests = (allTestsData || []).filter(test => isAfter(new Date(test.test_date), twelveMonthsAgo));
+
+        if (recentTests.length > 0) {
+          const totalTests = recentTests.length;
+          const passedTests = recentTests.filter(test => test.passed).length;
+          const totalDrivingFaults = recentTests.reduce((sum, test) => sum + test.driving_faults, 0);
+          const totalSeriousFaults = recentTests.reduce((sum, test) => sum + test.serious_faults, 0);
+          const examinerActions = recentTests.filter(test => test.examiner_action).length;
+
+          setDrivingTestStats({
+            totalTests: totalTests,
+            passRate: (passedTests / totalTests) * 100,
+            avgDrivingFaults: totalDrivingFaults / totalTests,
+            avgSeriousFaults: totalSeriousFaults / totalTests,
+            examinerActionPercentage: (examinerActions / totalTests) * 100,
+          });
+        } else {
+          setDrivingTestStats({
+            totalTests: 0,
+            passRate: 0,
+            avgDrivingFaults: 0,
+            avgSeriousFaults: 0,
+            examinerActionPercentage: 0,
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error("Unhandled error fetching dashboard data:", error);
+      showError("An unexpected error occurred while loading dashboard data.");
+    } finally {
+      setIsLoadingDashboard(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!isSessionLoading) {
+      fetchDashboardData();
+    }
+  }, [isSessionLoading, fetchDashboardData]);
+
+  const displayInstructorName = instructorName || "Instructor";
+
+  if (isSessionLoading || isLoadingDashboard) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+        </div>
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+        </div>
+        <Skeleton className="h-8 w-48" />
+        <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <h1 className="text-3xl font-bold">{getGreeting()}, {displayInstructorName}</h1>
+
+      {/* Row of 4 Key Metric Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader>
-            <CardTitle>Total Students</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold">25</p>
+            <div className="text-2xl font-bold">{totalStudents !== null ? totalStudents : <Skeleton className="h-6 w-1/4" />}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Lessons</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Upcoming Lessons</CardTitle>
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold">5</p>
+            <div className="text-2xl font-bold">{upcomingLessonsCount !== null ? upcomingLessonsCount : <Skeleton className="h-6 w-1/4" />}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>Revenue (Month)</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold">$1,200</p>
+            <div className="text-2xl font-bold">£{monthlyRevenue !== null ? monthlyRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
+            <p className="text-xs text-muted-foreground">
+              (from completed lessons this month)
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
+            <Car className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{upcomingDrivingTestsCount !== null ? upcomingDrivingTestsCount : <Skeleton className="h-6 w-1/4" />}</div>
           </CardContent>
         </Card>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2">
-            <li>Lesson with John Doe scheduled for tomorrow.</li>
-            <li>New student Jane Smith added.</li>
-            <li>Payment received from Mike Johnson.</li>
-          </ul>
-        </CardContent>
-      </Card>
+
+      {/* Last 12 months Driving Test Overview Cards */}
+      <h2 className="text-2xl font-bold mt-8">Driving Test Overview (Last 12 Months)</h2>
+      {drivingTestStats && drivingTestStats.totalTests > 0 ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Tests Taken</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{drivingTestStats.totalTests}</p>
+            </CardContent>
+          </Card>
+          <Card className={cn(
+            drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
+            <CardHeader>
+              <CardTitle className="text-lg">Pass Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
+            </CardContent>
+          </Card>
+          <Card className={cn(
+            drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
+            <CardHeader>
+              <CardTitle className="text-lg">Avg. Driving Faults</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+            </CardContent>
+          </Card>
+          <Card className={cn(
+            drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
+            <CardHeader>
+              <CardTitle className="text-lg">Avg. Serious Faults</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+            </CardContent>
+          </Card>
+          <Card className={cn(
+            drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+          )}>
+            <CardHeader>
+              <CardTitle className="text-lg">Examiner Action Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
+      )}
+
+      {/* Upcoming Lessons Section */}
+      <h2 className="text-2xl font-bold mt-8">Upcoming Lessons</h2>
+      {upcomingLessons.length === 0 ? (
+        <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {upcomingLessons.map((booking) => (
+            <Card key={booking.id} className="flex flex-col">
+              <CardHeader>
+                <CardTitle className="text-lg">{booking.title}</CardTitle>
+                {booking.students?.name && (
+                  <CardDescription className="flex items-center text-muted-foreground">
+                    <Users className="mr-2 h-4 w-4" />
+                    <span>Student: {booking.students.name}</span>
+                  </CardDescription>
+                )}
+              </CardHeader>
+              <CardContent className="flex-1 space-y-2 text-sm">
+                {booking.description && (
+                  <p className="text-muted-foreground italic">{booking.description}</p>
+                )}
+                <div className="flex items-center text-muted-foreground">
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  <span>{format(new Date(booking.start_time), "PPP")}</span>
+                </div>
+                <div className="flex items-center text-muted-foreground">
+                  <Clock className="mr-2 h-4 w-4" />
+                  <span>
+                    {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
