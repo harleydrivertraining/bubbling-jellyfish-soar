@@ -61,13 +61,13 @@ const Dashboard: React.FC = () => {
   const [instructorName, setInstructorName] = useState<string | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [upcomingLessonsCount, setUpcomingLessonsCount] = useState<number | null>(null);
-  const [currentRevenue, setCurrentRevenue] = useState<number | null>(null); // Changed from monthlyRevenue
+  const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
   const [upcomingDrivingTestsCount, setUpcomingDrivingTestsCount] = useState<number | null>(null);
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
-  const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("monthly"); // New state for timeframe
+  const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("monthly");
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -240,7 +240,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setIsLoadingDashboard(false);
     }
-  }, [user, revenueTimeframe]); // Add revenueTimeframe to dependencies
+  }, [user, revenueTimeframe]);
 
   useEffect(() => {
     if (!isSessionLoading) {
@@ -249,18 +249,6 @@ const Dashboard: React.FC = () => {
   }, [isSessionLoading, fetchDashboardData]);
 
   const displayInstructorName = instructorName || "Instructor";
-
-  const revenueCardTitle = useMemo(() => {
-    switch (revenueTimeframe) {
-      case "daily":
-        return "Daily Revenue";
-      case "weekly":
-        return "Weekly Revenue";
-      case "monthly":
-      default:
-        return "Monthly Revenue";
-    }
-  }, [revenueTimeframe]);
 
   if (isSessionLoading || isLoadingDashboard) {
     return (
@@ -311,21 +299,21 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-col items-start space-y-2 pb-2">
-            <div className="flex w-full justify-between items-center">
-              <CardTitle className="text-sm font-medium">{revenueCardTitle}</CardTitle>
-              <PoundSterling className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center gap-2"> {/* Flex container for title and select */}
+              <CardTitle className="text-sm font-medium">Income</CardTitle>
+              <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
+                <SelectTrigger className="w-[100px] h-7 text-xs"> {/* Adjusted width and height */}
+                  <SelectValue placeholder="Timeframe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-              <SelectTrigger className="w-[120px] h-8 text-xs">
-                <SelectValue placeholder="Select timeframe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
+            <PoundSterling className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {currentHourlyRate === null || currentHourlyRate === 0 ? (
@@ -336,7 +324,7 @@ const Dashboard: React.FC = () => {
               <>
                 <div className="text-2xl font-bold">£{currentRevenue !== null ? currentRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
                 <p className="text-xs text-muted-foreground">
-                  (from completed lessons this {revenueTimeframe.replace('ly', '')})
+                  (from completed lessons this period)
                 </p>
               </>
             )}
