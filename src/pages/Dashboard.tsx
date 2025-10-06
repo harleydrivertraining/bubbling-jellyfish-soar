@@ -384,7 +384,7 @@ const Dashboard: React.FC = () => {
           {upcomingLessons.length === 0 ? (
             <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
           ) : (
-            <ScrollArea className="h-96 pr-4"> {/* Added ScrollArea with fixed height and right padding */}
+            <ScrollArea className="h-96 pr-4">
               <div className="grid gap-4">
                 {upcomingLessons.map((booking) => (
                   <Card key={booking.id} className="flex flex-col">
@@ -419,117 +419,120 @@ const Dashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Driving Test Overview Section */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</h2>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/driving-test-bookings">
-                View All <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-          {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Tests Taken</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p>
-                </CardContent>
-              </Card>
-              <Card className={cn(
-                drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-              )}>
-                <CardHeader>
-                  <CardTitle className="text-sm">Pass Rate</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
-                </CardContent>
-              </Card>
-              <Card className={cn(
-                drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-              )}>
-                <CardHeader>
-                  <CardTitle className="text-sm">Avg. Driving Faults</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
-                </CardContent>
-              </Card>
-              <Card className={cn(
-                drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-              )}>
-                <CardHeader>
-                  <CardTitle className="text-sm">Avg. Serious Faults</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
-                </CardContent>
-              </Card>
-              <Card className={cn(
-                drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-              )}>
-                <CardHeader>
-                  <CardTitle className="text-sm">Examiner Action Rate</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
-                </CardContent>
-              </Card>
+        {/* Right column: Driving Test Overview and Next Driving Tests */}
+        <div className="space-y-6"> {/* Added space-y-6 for spacing between sections */}
+          {/* Driving Test Overview Section */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</h2>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/driving-test-bookings">
+                  View All <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
             </div>
-          ) : (
-            <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
-          )}
-        </div>
-      </div>
-
-      {/* New section for Next 2 Driving Test Bookings */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Next Driving Tests</h2>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/driving-test-bookings">
-              View All <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        {nextDrivingTestBookings.length === 0 ? (
-          <p className="text-muted-foreground">No upcoming driving test bookings found. Go to the Schedule page to add one!</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {nextDrivingTestBookings.map((booking) => (
-              <Card key={booking.id} className="flex flex-col">
-                <CardHeader>
-                  <CardTitle className="text-lg">{booking.title}</CardTitle>
-                  {booking.students?.name && (
-                    <CardDescription className="flex items-center text-muted-foreground">
-                      <Users className="mr-2 h-4 w-4" />
-                      <span>Student: {booking.students.name}</span>
-                    </CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent className="flex-1 space-y-2 text-sm">
-                  {booking.description && (
-                    <p className="text-muted-foreground italic">{booking.description}</p>
-                  )}
-                  <div className="flex items-center text-muted-foreground">
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    <span>{format(new Date(booking.start_time), "PPP")}</span>
-                  </div>
-                  <div className="flex items-center text-muted-foreground">
-                    <Clock className="mr-2 h-4 w-4" />
-                    <span>
-                      {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {drivingTestStats && drivingTestStats.totalTests > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Tests Taken</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p>
+                  </CardContent>
+                </Card>
+                <Card className={cn(
+                  drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                )}>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Pass Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
+                  </CardContent>
+                </Card>
+                <Card className={cn(
+                  drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                )}>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Avg. Driving Faults</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                  </CardContent>
+                </Card>
+                <Card className={cn(
+                  drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                )}>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Avg. Serious Faults</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                  </CardContent>
+                </Card>
+                <Card className={cn(
+                  drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                )}>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Examiner Action Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
+            )}
           </div>
-        )}
+
+          {/* Next 2 Driving Test Bookings Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Next Driving Tests</h2>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/driving-test-bookings">
+                  View All <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            {nextDrivingTestBookings.length === 0 ? (
+              <p className="text-muted-foreground">No upcoming driving test bookings found. Go to the Schedule page to add one!</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {nextDrivingTestBookings.map((booking) => (
+                  <Card key={booking.id} className="flex flex-col">
+                    <CardHeader>
+                      <CardTitle className="text-lg">{booking.title}</CardTitle>
+                      {booking.students?.name && (
+                        <CardDescription className="flex items-center text-muted-foreground">
+                          <Users className="mr-2 h-4 w-4" />
+                          <span>Student: {booking.students.name}</span>
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="flex-1 space-y-2 text-sm">
+                      {booking.description && (
+                        <p className="text-muted-foreground italic">{booking.description}</p>
+                      )}
+                      <div className="flex items-center text-muted-foreground">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        <span>{format(new Date(booking.start_time), "PPP")}</span>
+                      </div>
+                      <div className="flex items-center text-muted-foreground">
+                        <Clock className="mr-2 h-4 w-4" />
+                        <span>
+                          {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
