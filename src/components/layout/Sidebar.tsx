@@ -22,7 +22,7 @@ import {
   Hourglass,
   Library,
   ListChecks,
-  // Removed SteeringWheel as it's not available
+  Gauge, // New icon for Mileage Tracker
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -73,9 +73,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl }) => {
     { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
     { to: "/student-targets", icon: Target, label: "Student Targets" },
     { to: "/progress", icon: TrendingUp, label: "Progress" },
-    { to: "/driving-test-bookings", icon: Car, label: "Test Bookings" }, // Changed to Car icon
+    { to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
     { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
     { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
+    { to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" }, // New nav item
     { to: "/resources", icon: Library, label: "Resources" },
     { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
     { to: "/settings", icon: Settings, label: "Settings" },
