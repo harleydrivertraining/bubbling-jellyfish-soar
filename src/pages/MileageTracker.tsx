@@ -9,10 +9,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear, differenceInDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
 import { enUS } from 'date-fns/locale';
 import AddMileageEntryForm from "@/components/AddMileageEntryForm";
-import AddCarForm from "@/components/AddCarForm"; // New import
+import AddCarForm from "@/components/AddCarForm";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label"; // Import Label
 
 interface Car {
   id: string;
@@ -54,97 +55,158 @@ const MileageTracker: React.FC = () => {
   const [cars, setCars] = useState<Car[]>([]);
   const [selectedCarId, setSelectedCarId] = useState<string | null>(null);
   const [allMileageEntries, setAllMileageEntries] = useState<MileageEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCars, setIsLoadingCars] = useState(true); // Separate loading for cars
+  const [isLoadingEntries, setIsLoadingEntries] = useState(false); // Separate loading for entries
   const [isAddEntryDialogOpen, setIsAddEntryDialogOpen] = useState(false);
-  const [isAddCarDialogOpen, setIsAddCarDialogOpen] = useState(false); // New state for AddCarForm
+  const [isAddCarDialogOpen, setIsAddCarDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchCars = useCallback(async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from("cars")
-      .select("id, make, model, year, acquisition_date, initial_mileage")
-      .eq("user_id", user.id)
-      .order("make", { ascending: true });
+  // Effect to fetch cars and set initial selectedCarId
+  useEffect(() => {
+    const fetchCarsData = async () => {
+      if (isSessionLoading) return; // Wait for session to load
 
-    if (error) {
-      console.error("Error fetching cars:", error);
-      showError("Failed to load cars: " + error.message);
-      setCars([]);
-    } else {
-      setCars(data || []);
-      if (!selectedCarId && data && data.length > 0) {
-        setSelectedCarId(data[0].id); // Select the first car by default
-      } else if (selectedCarId && !data.some(car => car.id === selectedCarId)) {
-        // If selected car was deleted, select first available or null
-        setSelectedCarId(data.length > 0 ? data[0].id : null);
+      setIsLoadingCars(true);
+      if (!user) {
+        setCars([]);
+        setSelectedCarId(null);
+        setIsLoadingCars(false);
+        return;
       }
-    }
-  }, [user, selectedCarId]);
 
-  const fetchMileageEntries = useCallback(async () => {
-    if (!user || !selectedCarId) {
-      setAllMileageEntries([]);
-      setIsLoading(false);
-      return;
-    }
+      const { data, error } = await supabase
+        .from("cars")
+        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .eq("user_id", user.id)
+        .order("make", { ascending: true });
 
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from("car_mileage_entries")
-      .select("id, entry_date, current_mileage, notes")
-      .eq("user_id", user.id)
-      .eq("car_id", selectedCarId)
-      .order("entry_date", { ascending: true }); // Order ascending to calculate differences
-
-    if (error) {
-      console.error("Error fetching mileage entries:", error);
-      showError("Failed to load mileage entries: " + error.message);
-      setAllMileageEntries([]);
-    } else {
-      const carDetails = cars.find(car => car.id === selectedCarId);
-      let previousMileage = carDetails ? carDetails.initial_mileage : 0;
-      let previousEntryDate: Date | null = carDetails ? parseISO(carDetails.acquisition_date) : null;
-
-      const formattedEntries: MileageEntry[] = (data || []).map(entry => {
-        const entryDate = parseISO(entry.entry_date);
-        let milesDriven = 0;
-
-        // Calculate miles driven since the last entry or car acquisition
-        if (previousEntryDate && entryDate > previousEntryDate) {
-          milesDriven = entry.current_mileage - previousMileage;
-        } else if (!previousEntryDate && carDetails) {
-          // This case handles the very first entry if acquisition_date is not set or earlier
-          milesDriven = entry.current_mileage - carDetails.initial_mileage;
+      if (error) {
+        console.error("Error fetching cars:", error);
+        showError("Failed to load cars: " + error.message);
+        setCars([]);
+        setSelectedCarId(null);
+      } else {
+        setCars(data || []);
+        // Only set selectedCarId if it's currently null or the previously selected one no longer exists
+        if (!selectedCarId || !data.some(car => car.id === selectedCarId)) {
+          setSelectedCarId(data.length > 0 ? data[0].id : null);
         }
-        
-        previousMileage = entry.current_mileage;
-        previousEntryDate = entryDate;
+      }
+      setIsLoadingCars(false);
+    };
 
-        return {
-          ...entry,
-          miles_driven: Math.max(0, milesDriven), // Ensure miles driven is not negative
-        };
-      });
-      setAllMileageEntries(formattedEntries);
-    }
-    setIsLoading(false);
-  }, [user, selectedCarId, cars]);
+    fetchCarsData();
+  }, [isSessionLoading, user, selectedCarId]); // selectedCarId is a dependency to re-evaluate if the selected car is still valid
 
+  // Effect to fetch mileage entries when selectedCarId changes
   useEffect(() => {
-    if (!isSessionLoading) {
-      fetchCars();
-    }
-  }, [isSessionLoading, fetchCars]);
+    const fetchMileageEntriesData = async () => {
+      if (isSessionLoading || !user || !selectedCarId) {
+        setAllMileageEntries([]);
+        setIsLoadingEntries(false); // Ensure loading is false if no car selected or no user
+        return;
+      }
 
-  useEffect(() => {
-    if (!isSessionLoading && selectedCarId) {
-      fetchMileageEntries();
-    }
-  }, [isSessionLoading, selectedCarId, fetchMileageEntries]);
+      setIsLoadingEntries(true);
+      const { data, error } = await supabase
+        .from("car_mileage_entries")
+        .select("id, entry_date, current_mileage, notes")
+        .eq("user_id", user.id)
+        .eq("car_id", selectedCarId)
+        .order("entry_date", { ascending: true }); // Order ascending to calculate differences
+
+      if (error) {
+        console.error("Error fetching mileage entries:", error);
+        showError("Failed to load mileage entries: " + error.message);
+        setAllMileageEntries([]);
+      } else {
+        const carDetails = cars.find(car => car.id === selectedCarId);
+        let previousMileage = carDetails ? carDetails.initial_mileage : 0;
+        let previousEntryDate: Date | null = carDetails ? parseISO(carDetails.acquisition_date) : null;
+
+        const formattedEntries: MileageEntry[] = (data || []).map(entry => {
+          const entryDate = parseISO(entry.entry_date);
+          let milesDriven = 0;
+
+          // Calculate miles driven since the last entry or car acquisition
+          if (previousEntryDate && entryDate > previousEntryDate) {
+            milesDriven = entry.current_mileage - previousMileage;
+          } else if (!previousEntryDate && carDetails) {
+            // This case handles the very first entry if acquisition_date is not set or earlier
+            milesDriven = entry.current_mileage - carDetails.initial_mileage;
+          }
+          
+          previousMileage = entry.current_mileage;
+          previousEntryDate = entryDate;
+
+          return {
+            ...entry,
+            miles_driven: Math.max(0, milesDriven), // Ensure miles driven is not negative
+          };
+        });
+        setAllMileageEntries(formattedEntries);
+      }
+      setIsLoadingEntries(false);
+    };
+
+    fetchMileageEntriesData();
+  }, [isSessionLoading, user, selectedCarId, cars]); // `cars` is a dependency because `carDetails` depends on it.
 
   const handleEntryAdded = () => {
-    fetchMileageEntries();
+    // Re-fetch entries for the currently selected car
+    // This will trigger the second useEffect due to selectedCarId dependency
+    // No explicit fetchMileageEntries call needed here, just ensure selectedCarId is valid
+    // If selectedCarId is null, it means no cars, so no entries to fetch.
+    if (selectedCarId) {
+      // A simple way to trigger re-fetch without changing selectedCarId itself
+      // is to update a dummy state or rely on `cars` state update if a car was added/deleted.
+      // For now, relying on `cars` dependency in `fetchMileageEntriesData` is sufficient if `cars` changes.
+      // If only entries are added/deleted for an existing car, we need to explicitly re-fetch.
+      // Let's make fetchMileageEntriesData a direct callback to be called.
+      const fetchEntriesForSelectedCar = async () => {
+        if (user && selectedCarId) {
+          setIsLoadingEntries(true);
+          const { data, error } = await supabase
+            .from("car_mileage_entries")
+            .select("id, entry_date, current_mileage, notes")
+            .eq("user_id", user.id)
+            .eq("car_id", selectedCarId)
+            .order("entry_date", { ascending: true });
+          
+          if (error) {
+            console.error("Error fetching mileage entries after add:", error);
+            showError("Failed to refresh mileage entries: " + error.message);
+            setAllMileageEntries([]);
+          } else {
+            const carDetails = cars.find(car => car.id === selectedCarId);
+            let previousMileage = carDetails ? carDetails.initial_mileage : 0;
+            let previousEntryDate: Date | null = carDetails ? parseISO(carDetails.acquisition_date) : null;
+
+            const formattedEntries: MileageEntry[] = (data || []).map(entry => {
+              const entryDate = parseISO(entry.entry_date);
+              let milesDriven = 0;
+
+              if (previousEntryDate && entryDate > previousEntryDate) {
+                milesDriven = entry.current_mileage - previousMileage;
+              } else if (!previousEntryDate && carDetails) {
+                milesDriven = entry.current_mileage - carDetails.initial_mileage;
+              }
+              
+              previousMileage = entry.current_mileage;
+              previousEntryDate = entryDate;
+
+              return {
+                ...entry,
+                miles_driven: Math.max(0, milesDriven),
+              };
+            });
+            setAllMileageEntries(formattedEntries);
+          }
+          setIsLoadingEntries(false);
+        }
+      };
+      fetchEntriesForSelectedCar();
+    }
     setIsAddEntryDialogOpen(false);
   };
 
@@ -153,7 +215,31 @@ const MileageTracker: React.FC = () => {
   };
 
   const handleCarAdded = () => {
-    fetchCars(); // Re-fetch cars to update the dropdown
+    // Re-fetch cars to update the dropdown and potentially set a new selectedCarId
+    // This will trigger the first useEffect due to user dependency
+    const fetchCarsAfterAdd = async () => {
+      if (!user) return;
+      setIsLoadingCars(true);
+      const { data, error } = await supabase
+        .from("cars")
+        .select("id, make, model, year, acquisition_date, initial_mileage")
+        .eq("user_id", user.id)
+        .order("make", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching cars after add:", error);
+        showError("Failed to refresh cars: " + error.message);
+        setCars([]);
+      } else {
+        setCars(data || []);
+        // If no car was selected before, or the new car is the first, select it
+        if (!selectedCarId && data.length > 0) {
+          setSelectedCarId(data[0].id);
+        }
+      }
+      setIsLoadingCars(false);
+    };
+    fetchCarsAfterAdd();
     setIsAddCarDialogOpen(false);
   };
 
@@ -176,8 +262,6 @@ const MileageTracker: React.FC = () => {
     let totalMilesThisMonth = 0;
     let totalMilesThisYear = 0;
     let totalMilesSinceAcquisition = 0;
-
-    const grouped: { [key: string]: WeeklySummary } = {};
 
     const filtered = allMileageEntries.filter(entry => {
       const entryDate = parseISO(entry.entry_date);
@@ -239,7 +323,9 @@ const MileageTracker: React.FC = () => {
     };
   }, [allMileageEntries, searchTerm]);
 
-  if (isSessionLoading || isLoading) {
+  const isLoadingPage = isSessionLoading || isLoadingCars || isLoadingEntries;
+
+  if (isLoadingPage) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
