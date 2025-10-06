@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -71,6 +71,8 @@ const Dashboard: React.FC = () => {
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
+  const [milesUntilNextServiceDashboard, setMilesUntilNextServiceDashboard] = useState<number | null>(null);
+  const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -257,6 +259,55 @@ const Dashboard: React.FC = () => {
         }
       }
 
+      // Fetch Cars and calculate Miles Until Next Service
+      const { data: carsData, error: carsError } = await supabase
+        .from("cars")
+        .select("id, make, model, year, initial_mileage, service_interval_miles")
+        .eq("user_id", user.id);
+
+      if (carsError) {
+        console.error("Error fetching cars for service interval:", carsError);
+        showError("Failed to load car service data.");
+      } else if (carsData && carsData.length > 0) {
+        let minMilesUntilService: number | null = null;
+        let carNameForService: string | null = null;
+
+        for (const car of carsData) {
+          if (car.service_interval_miles && car.service_interval_miles > 0) {
+            const { data: latestMileageEntry, error: mileageError } = await supabase
+              .from("car_mileage_entries")
+              .select("current_mileage")
+              .eq("car_id", car.id)
+              .order("entry_date", { ascending: false })
+              .limit(1)
+              .single();
+
+            let currentMileage = car.initial_mileage;
+            if (mileageError && mileageError.code !== 'PGRST116') { // PGRST116 means no rows found
+              console.error(`Error fetching mileage for car ${car.id}:`, mileageError);
+              // If it's a real error, currentMileage remains initial_mileage
+            } else if (latestMileageEntry) {
+              currentMileage = latestMileageEntry.current_mileage;
+            }
+
+            const serviceInterval = car.service_interval_miles;
+            const intervalsPassed = Math.floor(currentMileage / serviceInterval);
+            const nextServiceMiles = (intervalsPassed + 1) * serviceInterval;
+            const milesUntilService = nextServiceMiles - currentMileage;
+
+            if (minMilesUntilService === null || milesUntilService < minMilesUntilService) {
+              minMilesUntilService = milesUntilService;
+              carNameForService = `${car.make} ${car.model}`;
+            }
+          }
+        }
+        setMilesUntilNextServiceDashboard(minMilesUntilService);
+        setCarNeedingService(carNameForService);
+      } else {
+        setMilesUntilNextServiceDashboard(null);
+        setCarNeedingService(null);
+      }
+
     } catch (error) {
       console.error("Unhandled error fetching dashboard data:", error);
       showError("An unexpected error occurred while loading dashboard data.");
@@ -291,13 +342,12 @@ const Dashboard: React.FC = () => {
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
         </div>
-        <Skeleton className="h-8 w-48" />
-        <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
         <Skeleton className="h-8 w-48" /> {/* Skeleton for the new section title */}
         <div className="grid gap-4 md:grid-cols-2"> {/* Skeleton for the new section cards */}
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
         </div>
+        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Miles Until Next Service card */}
       </div>
     );
   }
@@ -538,6 +588,36 @@ const Dashboard: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Miles Until Next Service Card - New Section */}
+      <Card className={cn(
+        "lg:col-span-2", // This will make it span the full width below the 2-column grid
+        milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
+      )}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
+          <Gauge className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {milesUntilNextServiceDashboard !== null ? (
+            <>
+              <div className="text-2xl font-bold">
+                {milesUntilNextServiceDashboard.toFixed(0)}
+                <span className="text-lg text-muted-foreground ml-2">miles</span>
+              </div>
+              {carNeedingService && (
+                <p className="text-xs text-muted-foreground">
+                  ({carNeedingService} needs service soonest)
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
