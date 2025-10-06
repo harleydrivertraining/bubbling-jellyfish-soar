@@ -263,6 +263,8 @@ const MileageTracker: React.FC = () => {
     let totalMilesThisYear = 0;
     let totalMilesSinceAcquisition = 0;
 
+    const grouped: { [key: string]: WeeklySummary } = {};
+
     const filtered = allMileageEntries.filter(entry => {
       const entryDate = parseISO(entry.entry_date);
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -411,104 +413,107 @@ const MileageTracker: React.FC = () => {
             </DropdownMenu>
           </div>
 
-          {currentCar && (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Miles This Week</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">
-                    {totalMilesThisWeek.toFixed(1)}
-                    <span className="text-xl text-muted-foreground ml-2">miles</span>
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Miles This Month</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">
-                    {totalMilesThisMonth.toFixed(1)}
-                    <span className="text-xl text-muted-foreground ml-2">miles</span>
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Miles This Year</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">
-                    {totalMilesThisYear.toFixed(1)}
-                    <span className="text-xl text-muted-foreground ml-2">miles</span>
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Total Miles (Since Acquisition)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold">
-                    {totalMilesSinceAcquisition.toFixed(1)}
-                    <span className="text-xl text-muted-foreground ml-2">miles</span>
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <Input
-            placeholder="Search entries by date or notes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
-          />
-
-          {groupedAndFilteredEntries.length === 0 && allMileageEntries.length > 0 && (
-            <p className="text-muted-foreground col-span-full">No mileage entries match your search criteria for the selected car.</p>
-          )}
-          {allMileageEntries.length === 0 ? (
-            <p className="text-muted-foreground">No mileage entries recorded yet for this car. Click "Add Mileage Entry" to get started!</p>
-          ) : (
-            <ScrollArea className="h-[600px] pr-4">
-              <div className="space-y-6">
-                {groupedAndFilteredEntries.map((weeklySummary) => (
-                  <Card key={weeklySummary.weekStart}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-xl font-semibold flex items-center">
-                        <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                        Week of {weeklySummary.weekStart} - {weeklySummary.weekEnd}
-                      </CardTitle>
-                      <div className="flex items-center text-primary font-bold text-xl">
-                        <Gauge className="mr-2 h-5 w-5" />
-                        <span>{weeklySummary.totalMiles.toFixed(1)} miles</span>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                      {weeklySummary.entries.map((entry) => (
-                        <div key={entry.id} className="border-t pt-3 first:border-t-0 first:pt-0">
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium">{format(parseISO(entry.entry_date), "PPP")}</span>
-                            <span className="text-muted-foreground">
-                              {entry.current_mileage.toFixed(1)} miles ({(entry.miles_driven || 0).toFixed(1)} driven)
-                            </span>
-                          </div>
-                          {entry.notes && (
-                            <CardDescription className="flex items-center text-muted-foreground italic mt-1">
-                              <MessageSquareText className="mr-1 h-3 w-3" />
-                              Notes: {entry.notes}
-                            </CardDescription>
-                          )}
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                ))}
+          {currentCar ? (
+            <>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Miles This Week</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {totalMilesThisWeek.toFixed(1)}
+                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Miles This Month</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {totalMilesThisMonth.toFixed(1)}
+                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Miles This Year</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {totalMilesThisYear.toFixed(1)}
+                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Total Miles (Since Acquisition)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {totalMilesSinceAcquisition.toFixed(1)}
+                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                    </p>
+                  </CardContent>
+                </Card>
               </div>
-            </ScrollArea>
+
+              <Input
+                placeholder="Search entries by date or notes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm"
+              />
+
+              {groupedAndFilteredEntries.length === 0 && allMileageEntries.length > 0 ? (
+                <p className="text-muted-foreground col-span-full">No mileage entries match your search criteria for the selected car.</p>
+              ) : allMileageEntries.length === 0 ? (
+                <p className="text-muted-foreground">No mileage entries recorded yet for this car. Click "Add Mileage Entry" to get started!</p>
+              ) : (
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="space-y-6">
+                    {groupedAndFilteredEntries.map((weeklySummary) => (
+                      <Card key={weeklySummary.weekStart}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-xl font-semibold flex items-center">
+                            <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
+                            Week of {weeklySummary.weekStart} - {weeklySummary.weekEnd}
+                          </CardTitle>
+                          <div className="flex items-center text-primary font-bold text-xl">
+                            <Gauge className="mr-2 h-5 w-5" />
+                            <span>{weeklySummary.totalMiles.toFixed(1)} miles</span>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                          {weeklySummary.entries.map((entry) => (
+                            <div key={entry.id} className="border-t pt-3 first:border-t-0 first:pt-0">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">{format(parseISO(entry.entry_date), "PPP")}</span>
+                                <span className="text-muted-foreground">
+                                  {entry.current_mileage.toFixed(1)} miles ({(entry.miles_driven || 0).toFixed(1)} driven)
+                                </span>
+                              </div>
+                              {entry.notes && (
+                                <CardDescription className="flex items-center text-muted-foreground italic mt-1">
+                                  <MessageSquareText className="mr-1 h-3 w-3" />
+                                  Notes: {entry.notes}
+                                </CardDescription>
+                              )}
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </>
+          ) : (
+            <p className="text-muted-foreground">Please select a car to view its mileage data.</p>
           )}
         </>
       )}
