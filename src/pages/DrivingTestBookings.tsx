@@ -15,9 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { User, CalendarDays, Clock, BookOpen } from "lucide-react";
+import { User, CalendarDays, Clock, BookOpen, FilePlus } from "lucide-react"; // Added FilePlus icon
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EditBookingForm from "@/components/EditBookingForm"; // Reusing the edit booking form
+import { Button } from "@/components/ui/button"; // Import Button
+import AddDrivingTestForm from "@/components/AddDrivingTestForm"; // Import AddDrivingTestForm
 
 interface Booking {
   id: string;
@@ -27,6 +29,7 @@ interface Booking {
   end_time: string;   // ISO string
   status: "scheduled" | "completed" | "cancelled";
   lesson_type: string;
+  student_id: string; // Added student_id
   students: {
     name: string;
   };
@@ -47,6 +50,9 @@ const DrivingTestBookings: React.FC = () => {
 
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+
+  const [isAddTestResultDialogOpen, setIsAddTestResultDialogOpen] = useState(false); // New state
+  const [bookingToRecordResult, setBookingToRecordResult] = useState<Booking | null>(null); // New state
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -73,7 +79,7 @@ const DrivingTestBookings: React.FC = () => {
     setIsLoading(true);
     let query = supabase
       .from("bookings")
-      .select("id, title, description, start_time, end_time, status, lesson_type, students(name)")
+      .select("id, title, description, start_time, end_time, status, lesson_type, student_id, students(name)") // Select student_id
       .eq("user_id", user.id)
       .eq("lesson_type", "Driving Test"); // Filter specifically for Driving Test bookings
 
@@ -128,6 +134,22 @@ const DrivingTestBookings: React.FC = () => {
   const handleCloseEditBookingDialog = () => {
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
+  };
+
+  const handleAddTestResultClick = (booking: Booking) => {
+    setBookingToRecordResult(booking);
+    setIsAddTestResultDialogOpen(true);
+  };
+
+  const handleTestResultAdded = () => {
+    fetchDrivingTestBookings(); // Refresh bookings list
+    setIsAddTestResultDialogOpen(false);
+    setBookingToRecordResult(null);
+  };
+
+  const handleCloseAddTestResultDialog = () => {
+    setIsAddTestResultDialogOpen(false);
+    setBookingToRecordResult(null);
   };
 
   if (isSessionLoading || isLoading) {
@@ -190,7 +212,7 @@ const DrivingTestBookings: React.FC = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {bookings.map((booking) => (
-            <Card key={booking.id} className="flex flex-col cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => handleEditBookingClick(booking.id)}>
+            <Card key={booking.id} className="flex flex-col">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center">
                   <User className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -216,6 +238,14 @@ const DrivingTestBookings: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-sm font-medium mt-2">Status: <span className="capitalize">{booking.status}</span></p>
+                <div className="flex gap-2 mt-4">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEditBookingClick(booking.id)}>
+                    Edit Booking
+                  </Button>
+                  <Button variant="secondary" size="sm" className="flex-1" onClick={() => handleAddTestResultClick(booking)}>
+                    <FilePlus className="mr-2 h-4 w-4" /> Add Test Result
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -233,6 +263,22 @@ const DrivingTestBookings: React.FC = () => {
               onBookingUpdated={handleBookingUpdated}
               onBookingDeleted={handleBookingDeleted}
               onClose={handleCloseEditBookingDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddTestResultDialogOpen} onOpenChange={handleCloseAddTestResultDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add Driving Test Result</DialogTitle>
+          </DialogHeader>
+          {bookingToRecordResult && (
+            <AddDrivingTestForm
+              initialStudentId={bookingToRecordResult.student_id}
+              initialTestDate={new Date(bookingToRecordResult.start_time)}
+              onTestAdded={handleTestResultAdded}
+              onClose={handleCloseAddTestResultDialog}
             />
           )}
         </DialogContent>

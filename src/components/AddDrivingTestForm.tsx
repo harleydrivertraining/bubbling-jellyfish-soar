@@ -63,9 +63,11 @@ const formSchema = z.object({
 interface AddDrivingTestFormProps {
   onTestAdded: () => void;
   onClose: () => void;
+  initialStudentId?: string; // New prop
+  initialTestDate?: Date; // New prop
 }
 
-const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, onClose }) => {
+const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, onClose, initialStudentId, initialTestDate }) => {
   const { user } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
@@ -74,8 +76,8 @@ const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, on
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      student_id: "",
-      test_date: new Date(),
+      student_id: initialStudentId || "", // Use initialStudentId
+      test_date: initialTestDate || new Date(), // Use initialTestDate
       passed: false,
       driving_faults: 0,
       serious_faults: 0,
