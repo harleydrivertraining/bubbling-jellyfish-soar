@@ -102,7 +102,7 @@ const Dashboard: React.FC = () => {
       .from("bookings")
       .select("start_time, end_time")
       .eq("user_id", user.id)
-      .eq("status", "scheduled") // Only count scheduled bookings
+      .in("status", ["scheduled", "completed"]) // Include both scheduled and completed bookings
       .gte("start_time", weekStartDate.toISOString())
       .lte("end_time", weekEndDate.toISOString());
 
@@ -203,7 +203,7 @@ const Dashboard: React.FC = () => {
         const { data: completedBookings, error: completedBookingsError } = await supabase
           .from("bookings")
           .select("start_time, end_time")
-          .eq("user_id", user.id)
+          .eq("user.id", user.id)
           .eq("status", "completed")
           .gte("start_time", startDate.toISOString())
           .lte("end_time", endDate.toISOString());
@@ -809,32 +809,32 @@ const Dashboard: React.FC = () => {
                   </Select>
                 </div>
                 <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {totalBookedHoursForSelectedWeek !== null ? (
-                  <>
-                    <div className="text-2xl font-bold">
-                      {totalBookedHoursForSelectedWeek.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">hours</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Total scheduled bookings for {selectedWeekLabel}.
-                    </p>
-                    <Button asChild variant="outline" size="sm" className="mt-4">
-                      <Link to="/schedule">
-                        View Schedule <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No scheduled bookings found for {selectedWeekLabel}.
+            </CardHeader>
+            <CardContent>
+              {totalBookedHoursForSelectedWeek !== null ? (
+                <>
+                  <div className="text-2xl font-bold">
+                    {totalBookedHoursForSelectedWeek.toFixed(1)}
+                    <span className="text-lg text-muted-foreground ml-2">hours</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Total scheduled and completed bookings for {selectedWeekLabel}.
                   </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                  <Button asChild variant="outline" size="sm" className="mt-4">
+                    <Link to="/schedule">
+                      View Schedule <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No scheduled or completed bookings found for {selectedWeekLabel}.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
+      </div>
     </React.Fragment>
   );
 };
