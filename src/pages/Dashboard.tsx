@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes } from "date-fns";
 import { Users, CalendarDays, DollarSign, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom"; // Import Link for navigation
 
 interface Student {
   id: string;
@@ -56,6 +57,7 @@ const Dashboard: React.FC = () => {
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null); // New state for hourly rate
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -71,8 +73,7 @@ const Dashboard: React.FC = () => {
     }
 
     setIsLoadingDashboard(true);
-    let currentMonthlyRevenue = 0;
-    let hourlyRate = 0;
+    let hourlyRate = 0; // Local variable for calculation within this function
 
     try {
       // Fetch Instructor Name and Hourly Rate
@@ -87,7 +88,8 @@ const Dashboard: React.FC = () => {
         showError("Failed to load instructor profile.");
       } else if (profileData) {
         setInstructorName(`${profileData.first_name || ""} ${profileData.last_name || ""}`.trim());
-        hourlyRate = profileData.hourly_rate || 0;
+        setCurrentHourlyRate(profileData.hourly_rate); // Set the hourly rate state
+        hourlyRate = profileData.hourly_rate || 0; // Use local variable for calculations
       }
 
       // Fetch Total Students
@@ -145,11 +147,11 @@ const Dashboard: React.FC = () => {
             const end = new Date(booking.end_time);
             totalMinutes += differenceInMinutes(end, start);
           });
-          currentMonthlyRevenue = (totalMinutes / 60) * hourlyRate;
-          setMonthlyRevenue(currentMonthlyRevenue);
+          const calculatedRevenue = (totalMinutes / 60) * hourlyRate;
+          setMonthlyRevenue(calculatedRevenue);
         }
       } else {
-        setMonthlyRevenue(0); // If no hourly rate is set
+        setMonthlyRevenue(0); // If no hourly rate is set, revenue is 0
       }
 
 
@@ -277,10 +279,18 @@ const Dashboard: React.FC = () => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">£{monthlyRevenue !== null ? monthlyRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
-            <p className="text-xs text-muted-foreground">
-              (from completed lessons this month)
-            </p>
+            {currentHourlyRate === null || currentHourlyRate === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                Set your <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> in settings to calculate revenue.
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">£{monthlyRevenue !== null ? monthlyRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
+                <p className="text-xs text-muted-foreground">
+                  (from completed lessons this month)
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
