@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Event as BigCalendarEvent } from 'react-big-calendar';
-import { useIsMobile } from "@/hooks/use-mobile"; // Import useIsMobile
 
 interface CustomEventResource {
   student_id: string;
@@ -23,7 +22,6 @@ interface CustomEventResource {
 
 const Schedule: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
-  const isMobile = useIsMobile(); // Use the hook to detect mobile
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
@@ -113,12 +111,11 @@ const Schedule: React.FC = () => {
           <PlusCircle className="mr-2 h-4 w-4" /> Make New Booking
         </Button>
       </div>
-      <div className="flex-1 min-h-[500px] md:min-h-[600px]"> {/* Adjusted min-height */}
+      <div className="flex-1 min-h-[600px]">
         <CalendarComponent
           events={events}
           onEventsRefetch={fetchBookings}
           onSelectSlot={handleOpenAddBookingDialog}
-          defaultView={isMobile ? "day" : "week"} // Set default view based on mobile status
         />
       </div>
 
