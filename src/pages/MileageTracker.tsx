@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import CarImageUploadCard from "@/components/CarImageUploadCard"; // New import
 
 interface Car {
   id: string;
@@ -35,6 +36,7 @@ interface Car {
   acquisition_date: string; // YYYY-MM-DD
   initial_mileage: number;
   service_interval_miles?: number; // New field
+  car_image_url?: string | null; // New field for car image
 }
 
 interface MileageEntry {
@@ -80,7 +82,7 @@ const MileageTracker: React.FC = () => {
 
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -212,7 +214,7 @@ const MileageTracker: React.FC = () => {
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -242,7 +244,7 @@ const MileageTracker: React.FC = () => {
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -268,7 +270,7 @@ const MileageTracker: React.FC = () => {
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -514,7 +516,17 @@ const MileageTracker: React.FC = () => {
 
           {currentCar ? (
             <>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-6"> {/* Changed xl:grid-cols-6 to xl:grid-cols-4 */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-6">
+                {/* Car Image Upload Card - spans two rows */}
+                <Card className="md:row-span-2 lg:row-span-2 xl:row-span-2">
+                  <CarImageUploadCard
+                    carId={currentCar.id}
+                    currentImageUrl={currentCar.car_image_url || null}
+                    carMakeModel={`${currentCar.make} ${currentCar.model}`}
+                    onImageUploaded={handleCarUpdated} // Re-fetch cars to update image URL in state
+                  />
+                </Card>
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Current Total Mileage</CardTitle>
