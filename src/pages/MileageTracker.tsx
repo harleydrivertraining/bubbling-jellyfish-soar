@@ -514,7 +514,7 @@ const MileageTracker: React.FC = () => {
 
           {currentCar ? (
             <>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6"> {/* Adjusted grid layout */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-6"> {/* Changed xl:grid-cols-6 to xl:grid-cols-4 */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Current Total Mileage</CardTitle>
@@ -555,6 +555,17 @@ const MileageTracker: React.FC = () => {
                   <CardContent>
                     <p className="text-4xl font-bold">
                       {totalMilesThisYear.toFixed(1)}
+                      <span className="text-xl text-muted-foreground ml-2">miles</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Total Miles (Since Acquisition)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {totalMilesSinceAcquisition.toFixed(1)}
                       <span className="text-xl text-muted-foreground ml-2">miles</span>
                     </p>
                   </CardContent>
