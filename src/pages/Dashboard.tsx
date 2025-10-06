@@ -430,7 +430,7 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <CardTitle className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</CardTitle>
               <Button asChild variant="outline" size="sm">
-                <Link to="/driving-test-bookings">
+                <Link to="/driving-tests"> {/* Corrected link here */}
                   View All <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
