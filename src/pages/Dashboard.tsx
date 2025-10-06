@@ -6,10 +6,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock } from "lucide-react"; // Changed DollarSign to PoundSterling
+import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom"; // Import Link for navigation
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Student {
   id: string;
@@ -47,17 +54,20 @@ interface DrivingTestStats {
   examinerActionPercentage: number;
 }
 
+type RevenueTimeframe = "daily" | "weekly" | "monthly";
+
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [instructorName, setInstructorName] = useState<string | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [upcomingLessonsCount, setUpcomingLessonsCount] = useState<number | null>(null);
-  const [monthlyRevenue, setMonthlyRevenue] = useState<number | null>(null);
+  const [currentRevenue, setCurrentRevenue] = useState<number | null>(null); // Changed from monthlyRevenue
   const [upcomingDrivingTestsCount, setUpcomingDrivingTestsCount] = useState<number | null>(null);
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
-  const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null); // New state for hourly rate
+  const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
+  const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("monthly"); // New state for timeframe
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -73,7 +83,7 @@ const Dashboard: React.FC = () => {
     }
 
     setIsLoadingDashboard(true);
-    let hourlyRate = 0; // Local variable for calculation within this function
+    let hourlyRate = 0;
 
     try {
       // Fetch Instructor Name and Hourly Rate
@@ -88,8 +98,8 @@ const Dashboard: React.FC = () => {
         showError("Failed to load instructor profile.");
       } else if (profileData) {
         setInstructorName(`${profileData.first_name || ""} ${profileData.last_name || ""}`.trim());
-        setCurrentHourlyRate(profileData.hourly_rate); // Set the hourly rate state
-        hourlyRate = profileData.hourly_rate || 0; // Use local variable for calculations
+        setCurrentHourlyRate(profileData.hourly_rate);
+        hourlyRate = profileData.hourly_rate || 0;
       }
 
       // Fetch Total Students
@@ -114,7 +124,7 @@ const Dashboard: React.FC = () => {
         .eq("status", "scheduled")
         .gte("start_time", now.toISOString())
         .order("start_time", { ascending: true })
-        .limit(5); // Limit to 5 upcoming lessons for the list
+        .limit(5);
 
       if (upcomingLessonsError) {
         console.error("Error fetching upcoming lessons:", upcomingLessonsError);
@@ -124,22 +134,38 @@ const Dashboard: React.FC = () => {
         setUpcomingLessons(upcomingLessonsData || []);
       }
 
-      // Calculate Monthly Revenue (from completed lessons in current month)
+      // Calculate Revenue based on timeframe
       if (hourlyRate > 0) {
-        const startOfCurrentMonth = startOfMonth(now);
-        const endOfCurrentMonth = endOfMonth(now);
+        let startDate: Date;
+        let endDate: Date;
+
+        switch (revenueTimeframe) {
+          case "daily":
+            startDate = startOfDay(now);
+            endDate = endOfDay(now);
+            break;
+          case "weekly":
+            startDate = startOfWeek(now, { weekStartsOn: 1 }); // Monday as start of week
+            endDate = endOfWeek(now, { weekStartsOn: 1 });
+            break;
+          case "monthly":
+          default:
+            startDate = startOfMonth(now);
+            endDate = endOfMonth(now);
+            break;
+        }
 
         const { data: completedBookings, error: completedBookingsError } = await supabase
           .from("bookings")
           .select("start_time, end_time")
           .eq("user_id", user.id)
           .eq("status", "completed")
-          .gte("start_time", startOfCurrentMonth.toISOString())
-          .lte("end_time", endOfCurrentMonth.toISOString());
+          .gte("start_time", startDate.toISOString())
+          .lte("end_time", endDate.toISOString());
 
         if (completedBookingsError) {
           console.error("Error fetching completed bookings for revenue:", completedBookingsError);
-          showError("Failed to calculate monthly revenue.");
+          showError("Failed to calculate revenue.");
         } else {
           let totalMinutes = 0;
           completedBookings?.forEach(booking => {
@@ -148,19 +174,18 @@ const Dashboard: React.FC = () => {
             totalMinutes += differenceInMinutes(end, start);
           });
           const calculatedRevenue = (totalMinutes / 60) * hourlyRate;
-          setMonthlyRevenue(calculatedRevenue);
+          setCurrentRevenue(calculatedRevenue);
         }
       } else {
-        setMonthlyRevenue(0); // If no hourly rate is set, revenue is 0
+        setCurrentRevenue(0);
       }
-
 
       // Fetch Upcoming Driving Tests Count
       const { count: upcomingTestsCount, error: upcomingTestsError } = await supabase
         .from("driving_tests")
         .select("id", { count: "exact" })
         .eq("user_id", user.id)
-        .gte("test_date", now.toISOString().split('T')[0]); // Only future tests
+        .gte("test_date", now.toISOString().split('T')[0]);
 
       if (upcomingTestsError) {
         console.error("Error fetching upcoming driving tests:", upcomingTestsError);
@@ -215,7 +240,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setIsLoadingDashboard(false);
     }
-  }, [user]);
+  }, [user, revenueTimeframe]); // Add revenueTimeframe to dependencies
 
   useEffect(() => {
     if (!isSessionLoading) {
@@ -224,6 +249,18 @@ const Dashboard: React.FC = () => {
   }, [isSessionLoading, fetchDashboardData]);
 
   const displayInstructorName = instructorName || "Instructor";
+
+  const revenueCardTitle = useMemo(() => {
+    switch (revenueTimeframe) {
+      case "daily":
+        return "Daily Revenue";
+      case "weekly":
+        return "Weekly Revenue";
+      case "monthly":
+      default:
+        return "Monthly Revenue";
+    }
+  }, [revenueTimeframe]);
 
   if (isSessionLoading || isLoadingDashboard) {
     return (
@@ -274,9 +311,21 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-            <PoundSterling className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-col items-start space-y-2 pb-2">
+            <div className="flex w-full justify-between items-center">
+              <CardTitle className="text-sm font-medium">{revenueCardTitle}</CardTitle>
+              <PoundSterling className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue placeholder="Select timeframe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent>
             {currentHourlyRate === null || currentHourlyRate === 0 ? (
@@ -285,9 +334,9 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               <>
-                <div className="text-2xl font-bold">£{monthlyRevenue !== null ? monthlyRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
+                <div className="text-2xl font-bold">£{currentRevenue !== null ? currentRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
                 <p className="text-xs text-muted-foreground">
-                  (from completed lessons this month)
+                  (from completed lessons this {revenueTimeframe.replace('ly', '')})
                 </p>
               </>
             )}
