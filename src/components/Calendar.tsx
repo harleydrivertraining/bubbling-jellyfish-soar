@@ -50,22 +50,32 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1, locale: locales['en-US'] }); // Use Monday as start of week
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1, locale: locales['en-US'] }); // Use Monday as start of week
 
-  const eventsInCurrentWeek = events.filter(event => {
+  const eventsInCurrentView = events.filter(event => {
     const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
     const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
 
-    return (
-      isWithinInterval(eventStart, { start: weekStart, end: weekEnd }) ||
-      isWithinInterval(eventEnd, { start: weekStart, end: weekEnd }) ||
-      (eventStart < weekStart && eventEnd > weekEnd) // Events spanning across the entire week
-    );
+    if (currentView === 'day') {
+      const dayStart = startOfDay(currentDate);
+      const dayEnd = endOfDay(currentDate);
+      return (
+        isWithinInterval(eventStart, { start: dayStart, end: dayEnd }) ||
+        isWithinInterval(eventEnd, { start: dayStart, end: dayEnd }) ||
+        (eventStart < dayStart && eventEnd > dayEnd)
+      );
+    } else { // week view
+      return (
+        isWithinInterval(eventStart, { start: weekStart, end: weekEnd }) ||
+        isWithinInterval(eventEnd, { start: weekStart, end: weekEnd }) ||
+        (eventStart < weekStart && eventEnd > weekEnd) // Events spanning across the entire week
+      );
+    }
   });
 
-  if (eventsInCurrentWeek.length > 0) {
+  if (eventsInCurrentView.length > 0) {
     let earliestEventTime = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59, 999); // Initialize to a very late time
     let latestEventTime = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 0, 0, 0, 0); // Initialize to a very early time
 
-    eventsInCurrentWeek.forEach(event => {
+    eventsInCurrentView.forEach(event => {
       const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
       const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
 
@@ -98,17 +108,23 @@ interface CalendarComponentProps {
   events: BigCalendarEvent[];
   onEventsRefetch: () => void;
   onSelectSlot: (start: Date, end: Date) => void;
+  defaultView: "month" | "week" | "day" | "agenda"; // Added defaultView prop
 }
 
-const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsRefetch, onSelectSlot }) => {
+const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsRefetch, onSelectSlot, defaultView }) => {
   const { user } = useSession();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState('week'); // Default view
+  const [currentView, setCurrentView] = useState(defaultView); // Use defaultView prop for initial state
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
   const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
 
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+
+  // Update currentView if defaultView prop changes (e.g., on mobile/desktop switch)
+  useEffect(() => {
+    setCurrentView(defaultView);
+  }, [defaultView]);
 
   // Recalculate min/max whenever events, current date, or view changes
   useEffect(() => {
@@ -122,7 +138,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
   }, []);
 
   const handleView = useCallback((newView: string) => {
-    setCurrentView(newView);
+    setCurrentView(newView as "month" | "week" | "day" | "agenda");
   }, []);
 
   const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
@@ -209,7 +225,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
           endAccessor="end"
           style={{ height: '100%' }}
           views={['month', 'week', 'day', 'agenda']}
-          defaultView="week"
+          defaultView={defaultView} // Use the prop here
           components={{
             toolbar: Toolbar,
             event: (props) => (

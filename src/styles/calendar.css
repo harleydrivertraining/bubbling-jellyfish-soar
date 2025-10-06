@@ -124,3 +124,53 @@
 .rbc-day-slot .rbc-event {
   @apply border border-primary/50; /* Add a subtle border to events in day/week view */
 }
+
+/* Mobile-specific adjustments */
+@media (max-width: 767px) {
+  .rbc-toolbar {
+    flex-direction: column; /* Stack buttons vertically */
+    align-items: stretch; /* Stretch buttons to full width */
+    gap: 0.5rem; /* Add some vertical spacing */
+    padding: 0.5rem; /* Adjust padding */
+  }
+
+  .rbc-toolbar .rbc-btn-group {
+    display: flex; /* Make button groups also stack/stretch */
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .rbc-toolbar .rbc-btn-group button {
+    border-radius: 0.375rem; /* Slightly rounded corners for stacked buttons */
+    margin-left: 0 !important; /* Remove horizontal margin */
+    margin-right: 0 !important; /* Remove horizontal margin */
+  }
+
+  .rbc-toolbar .rbc-btn-group button + button {
+    margin-top: 0.25rem; /* Small vertical gap between stacked buttons */
+  }
+
+  .rbc-toolbar .rbc-toolbar-label {
+    margin-bottom: 0.5rem; /* Space between label and buttons */
+    font-size: 1.5rem; /* Slightly smaller font for label on mobile */
+  }
+
+  .rbc-header {
+    font-size: 12px !important; /* Smaller header font */
+    height: 30px !important; /* Smaller header height */
+  }
+
+  .rbc-date-cell {
+    padding: 0.25rem; /* Smaller padding for date cells */
+  }
+
+  .rbc-event {
+    padding: 0.125rem 0.25rem; /* Smaller padding for events */
+    font-size: 0.65rem; /* Smaller font size for events */
+  }
+
+  /* Ensure the "Mark All Day's Bookings as Completed" button is also responsive */
+  .flex.justify-end.mb-4 {
+    justify-content: center; /* Center the button on mobile */
+  }
+}
