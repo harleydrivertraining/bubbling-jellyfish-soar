@@ -73,6 +73,8 @@ const Dashboard: React.FC = () => {
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
   const [milesUntilNextServiceDashboard, setMilesUntilNextServiceDashboard] = useState<number | null>(null);
   const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
+  const [totalPrePaidHoursPurchased, setTotalPrePaidHoursPurchased] = useState<number | null>(null);
+  const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -308,6 +310,28 @@ const Dashboard: React.FC = () => {
         setCarNeedingService(null);
       }
 
+      // Fetch Pre-Paid Hours Summary
+      const { data: prePaidHoursData, error: prePaidHoursError } = await supabase
+        .from("pre_paid_hours")
+        .select("package_hours, remaining_hours")
+        .eq("user_id", user.id);
+
+      if (prePaidHoursError) {
+        console.error("Error fetching pre-paid hours summary:", prePaidHoursError);
+        showError("Failed to load pre-paid hours summary.");
+        setTotalPrePaidHoursPurchased(null);
+        setTotalPrePaidHoursRemaining(null);
+      } else {
+        let totalPurchased = 0;
+        let totalRemaining = 0;
+        prePaidHoursData.forEach(pkg => {
+          totalPurchased += pkg.package_hours;
+          totalRemaining += pkg.remaining_hours;
+        });
+        setTotalPrePaidHoursPurchased(totalPurchased);
+        setTotalPrePaidHoursRemaining(totalRemaining);
+      }
+
     } catch (error) {
       console.error("Unhandled error fetching dashboard data:", error);
       showError("An unexpected error occurred while loading dashboard data.");
@@ -348,6 +372,7 @@ const Dashboard: React.FC = () => {
           <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
         </div>
         <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Miles Until Next Service card */}
+        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Pre-Paid Hours Summary card */}
       </div>
     );
   }
@@ -614,6 +639,36 @@ const Dashboard: React.FC = () => {
           ) : (
             <p className="text-sm text-muted-foreground">
               No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pre-Paid Hours Summary Card - New Section */}
+      <Card className="lg:col-span-2">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
+          <Hourglass className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
+            <>
+              <div className="text-2xl font-bold">
+                {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
+                <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Total hours purchased across all students.
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-4">
+                <Link to="/pre-paid-hours">
+                  View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
             </p>
           )}
         </CardContent>
