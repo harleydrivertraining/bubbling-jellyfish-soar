@@ -6,21 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 
-const MobileSidebar: React.FC = () => {
+interface MobileMenuButtonProps {
+  logoUrl: string | null;
+}
+
+const MobileMenuButton: React.FC<MobileMenuButtonProps> = ({ logoUrl }) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden">
+        <Button variant="ghost" size="icon" className="h-8 w-8">
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="p-0 w-[240px]">
-        <Sidebar isCollapsed={false} />
+        <Sidebar isCollapsed={false} logoUrl={logoUrl} />
       </SheetContent>
     </Sheet>
   );
 };
 
-export default MobileSidebar;
+export default MobileMenuButton;

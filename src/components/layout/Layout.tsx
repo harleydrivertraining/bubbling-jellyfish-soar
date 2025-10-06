@@ -3,18 +3,18 @@
 import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import MobileSidebar from "./MobileSidebar";
+import MobileMenuButton from "./MobileMenuButton"; // New import
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useSession } from "@/components/auth/SessionContextProvider"; // Import useSession
-import { supabase } from "@/integrations/supabase/client"; // Import supabase client
+import { useSession } from "@/components/auth/SessionContextProvider";
+import { supabase } from "@/integrations/supabase/client";
 
 const Layout = () => {
   const isMobile = useIsMobile();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const { user } = useSession(); // Get user from session
-  const [logoUrl, setLogoUrl] = useState<string | null>(null); // State for logo URL
+  const { user } = useSession();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
@@ -47,14 +47,16 @@ const Layout = () => {
   return (
     <React.Fragment>
       <div className="flex min-h-screen bg-background text-foreground">
-        {isMobile ? (
-          <MobileSidebar />
-        ) : (
-          <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />
-        )}
+        {/* Render desktop sidebar if not mobile */}
+        {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
+
         <div className="flex flex-col flex-1">
           <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
-            {isMobile ? null : (
+            {isMobile ? (
+              // Render mobile menu button here
+              <MobileMenuButton logoUrl={logoUrl} />
+            ) : (
+              // Render desktop toggle button here
               <Button
                 variant="ghost"
                 size="icon"
