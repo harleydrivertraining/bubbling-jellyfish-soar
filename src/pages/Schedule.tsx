@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
-import { addMinutes } from "date-fns";
+import { addMinutes, startOfWeek } from "date-fns"; // Import startOfWeek
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Event as BigCalendarEvent } from 'react-big-calendar';
+import { useIsMobile } from "@/hooks/use-mobile"; // Import useIsMobile hook
 
 interface CustomEventResource {
   student_id: string;
@@ -26,6 +27,19 @@ const Schedule: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+
+  // NEW: Lift state up from CalendarComponent
+  const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
+  const [currentCalendarView, setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week'); // Default to 'week'
+
+  const isMobile = useIsMobile(); // Determine mobile status
+
+  // Effect to set the initial view based on isMobile once it's determined
+  useEffect(() => {
+    if (isMobile !== undefined) { // Only set once when isMobile is determined
+      setCurrentCalendarView(isMobile ? 'day' : 'week');
+    }
+  }, [isMobile]);
 
   const fetchBookings = useCallback(async () => {
     if (!user) {
@@ -116,6 +130,10 @@ const Schedule: React.FC = () => {
           events={events}
           onEventsRefetch={fetchBookings}
           onSelectSlot={handleOpenAddBookingDialog}
+          currentDate={currentCalendarDate}
+          setCurrentDate={setCurrentCalendarDate}
+          currentView={currentCalendarView}
+          setCurrentView={setCurrentCalendarView}
         />
       </div>
 

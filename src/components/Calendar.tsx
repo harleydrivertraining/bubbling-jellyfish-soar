@@ -18,7 +18,7 @@ import EditBookingForm from "@/components/EditBookingForm";
 import CalendarEventWrapper from "@/components/CalendarEventWrapper";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile"; // Import useIsMobile hook
+// Removed useIsMobile import as it's now handled in the parent Schedule.tsx
 
 const locales = {
   'en-US': enUS,
@@ -99,13 +99,24 @@ interface CalendarComponentProps {
   events: BigCalendarEvent[];
   onEventsRefetch: () => void;
   onSelectSlot: (start: Date, end: Date) => void;
+  // NEW PROPS
+  currentDate: Date;
+  setCurrentDate: (date: Date) => void;
+  currentView: 'month' | 'week' | 'day' | 'agenda'; // No longer null
+  setCurrentView: (view: 'month' | 'week' | 'day' | 'agenda') => void;
 }
 
-const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsRefetch, onSelectSlot }) => {
+const CalendarComponent: React.FC<CalendarComponentProps> = ({
+  events,
+  onEventsRefetch,
+  onSelectSlot,
+  currentDate, // Use prop
+  setCurrentDate, // Use prop
+  currentView, // Use prop
+  setCurrentView, // Use prop
+}) => {
   const { user } = useSession();
-  const isMobile = useIsMobile(); // This can now be boolean | undefined
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState<'month' | 'week' | 'day' | 'agenda' | null>(null); // Initialize to null
+  // Removed internal state for currentDate and currentView
 
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
   const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
@@ -113,32 +124,24 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
-  // Effect to set the initial view based on isMobile once it's determined
-  useEffect(() => {
-    if (isMobile !== undefined && currentView === null) { // Only set once when isMobile is determined
-      setCurrentView(isMobile ? 'day' : 'week');
-    }
-  }, [isMobile, currentView]);
-
   // Recalculate min/max whenever events, current date, or view changes
   useEffect(() => {
-    if (currentView) { // Only calculate if currentView is set
-      const { min, max } = calculateDynamicTimeRange(currentDate, events, currentView);
-      setMinTime(min);
-      setMaxTime(max);
-    }
-  }, [events, currentDate, currentView]);
+    // currentView is guaranteed to be set by parent
+    const { min, max } = calculateDynamicTimeRange(currentDate, events, currentView);
+    setMinTime(min);
+    setMaxTime(max);
+  }, [events, currentDate, currentView]); // Dependencies now include props
 
   const handleNavigate = useCallback((newDate: Date) => {
-    setCurrentDate(newDate);
-  }, []);
+    setCurrentDate(newDate); // Call prop setter
+  }, [setCurrentDate]);
 
   const handleView = useCallback((newView: string) => {
-    setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda'); // Cast to valid view type
-  }, []);
+    setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda'); // Call prop setter
+  }, [setCurrentView]);
 
   const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
-    onSelectSlot(start, end); // Call the prop function
+    onSelectSlot(start, end);
   }, [onSelectSlot]);
 
   const handleSelectEvent = useCallback((event: BigCalendarEvent) => {
@@ -147,13 +150,13 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
   }, []);
 
   const handleBookingUpdated = () => {
-    onEventsRefetch(); // Refresh bookings after update
+    onEventsRefetch();
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
 
   const handleBookingDeleted = () => {
-    onEventsRefetch(); // Refresh bookings after deletion
+    onEventsRefetch();
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
@@ -203,13 +206,14 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
     }
   }, [user, currentDate, onEventsRefetch]);
 
-  if (currentView === null) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p>Loading calendar view...</p>
-      </div>
-    );
-  }
+  // No longer need this check as currentView is always set by parent
+  // if (currentView === null) {
+  //   return (
+  //     <div className="flex items-center justify-center h-full">
+  //       <p>Loading calendar view...</p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="h-full flex flex-col bg-card p-4 rounded-lg shadow-sm">
@@ -228,7 +232,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
           endAccessor="end"
           style={{ height: '100%' }}
           views={['month', 'week', 'day', 'agenda']}
-          view={currentView} // Now controlled by state
+          view={currentView} // Use prop
           onView={handleView}
           components={{
             toolbar: Toolbar,
@@ -242,7 +246,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
           min={minTime}
           max={maxTime}
           onNavigate={handleNavigate}
-          date={currentDate}
+          date={currentDate} // Use prop
           selectable
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
