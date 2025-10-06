@@ -18,6 +18,7 @@ import EditBookingForm from "@/components/EditBookingForm";
 import CalendarEventWrapper from "@/components/CalendarEventWrapper";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile"; // Import useIsMobile hook
 
 const locales = {
   'en-US': enUS,
@@ -102,8 +103,9 @@ interface CalendarComponentProps {
 
 const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsRefetch, onSelectSlot }) => {
   const { user } = useSession();
+  const isMobile = useIsMobile(); // Use the hook to detect mobile
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState('week'); // Default view
+  const [currentView, setCurrentView] = useState(isMobile ? 'day' : 'week'); // Default view based on mobile
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
   const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
 
@@ -209,7 +211,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onEventsR
           endAccessor="end"
           style={{ height: '100%' }}
           views={['month', 'week', 'day', 'agenda']}
-          defaultView="week"
+          defaultView={isMobile ? 'day' : 'week'} // Set default view based on mobile
           components={{
             toolbar: Toolbar,
             event: (props) => (
