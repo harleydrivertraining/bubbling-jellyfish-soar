@@ -32,7 +32,7 @@ const formSchema = z.object({
     (val) => Number(val),
     z.number().min(0, { message: "Initial mileage cannot be negative." })
   ),
-  service_interval_miles: z.preprocess( // New field
+  service_interval_miles: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(1, { message: "Service interval must be at least 1 mile." }).nullable().optional()
   ),
@@ -54,7 +54,7 @@ const AddCarForm: React.FC<AddCarFormProps> = ({ onCarAdded, onClose }) => {
       year: new Date().getFullYear(),
       acquisition_date: new Date(),
       initial_mileage: 0,
-      service_interval_miles: 10000, // Default service interval
+      service_interval_miles: 10000,
     },
   });
 
@@ -73,7 +73,8 @@ const AddCarForm: React.FC<AddCarFormProps> = ({ onCarAdded, onClose }) => {
         year: values.year,
         acquisition_date: format(values.acquisition_date, "yyyy-MM-dd"),
         initial_mileage: values.initial_mileage,
-        service_interval_miles: values.service_interval_miles, // Include new field
+        service_interval_miles: values.service_interval_miles,
+        car_image_url: null, // Default to null when adding a new car
       })
       .select();
 

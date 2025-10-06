@@ -21,6 +21,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import CarImageUploadCard from "@/components/CarImageUploadCard"; // Import CarImageUploadCard
 
 const formSchema = z.object({
   make: z.string().min(1, { message: "Car make is required." }),
@@ -34,10 +35,11 @@ const formSchema = z.object({
     (val) => Number(val),
     z.number().min(0, { message: "Initial mileage cannot be negative." })
   ),
-  service_interval_miles: z.preprocess( // New field
+  service_interval_miles: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(1, { message: "Service interval must be at least 1 mile." }).nullable().optional()
   ),
+  car_image_url: z.string().url({ message: "Must be a valid URL." }).optional().nullable().or(z.literal("")), // Add car_image_url to schema
 });
 
 interface EditCarFormProps {
@@ -50,6 +52,7 @@ interface EditCarFormProps {
 const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDeleted, onClose }) => {
   const { user } = useSession();
   const [isLoadingCar, setIsLoadingCar] = useState(true);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null); // State to hold the image URL
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -59,7 +62,8 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
       year: new Date().getFullYear(),
       acquisition_date: new Date(),
       initial_mileage: 0,
-      service_interval_miles: 10000, // Default for new field
+      service_interval_miles: 10000,
+      car_image_url: "", // Default for new field
     },
   });
 
@@ -69,7 +73,7 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
       setIsLoadingCar(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("make, model, year, acquisition_date, initial_mileage, service_interval_miles") // Select new field
+        .select("make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url")
         .eq("id", carId)
         .eq("user_id", user.id)
         .single();
@@ -77,7 +81,7 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
       if (error) {
         console.error("Error fetching car details:", error);
         showError("Failed to load car details: " + error.message);
-        onClose(); // Close dialog on error
+        onClose();
       } else if (data) {
         form.reset({
           make: data.make,
@@ -85,8 +89,10 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
           year: data.year,
           acquisition_date: new Date(data.acquisition_date),
           initial_mileage: data.initial_mileage,
-          service_interval_miles: data.service_interval_miles, // Set new field
+          service_interval_miles: data.service_interval_miles,
+          car_image_url: data.car_image_url || "", // Set car_image_url from fetched data
         });
+        setCurrentImageUrl(data.car_image_url); // Update local state for CarImageUploadCard
       }
       setIsLoadingCar(false);
     };
@@ -108,7 +114,8 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
         year: values.year,
         acquisition_date: format(values.acquisition_date, "yyyy-MM-dd"),
         initial_mileage: values.initial_mileage,
-        service_interval_miles: values.service_interval_miles, // Include new field
+        service_interval_miles: values.service_interval_miles,
+        // car_image_url is updated directly by CarImageUploadCard, no need to include here
       })
       .eq("id", carId)
       .eq("user_id", user.id);
@@ -117,8 +124,8 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
       console.error("Error updating car:", error);
       showError("Failed to update car: " + error.message);
     } else {
-      showSuccess("Car updated successfully!");
-      onCarUpdated();
+      showSuccess("Car details updated successfully!");
+      onCarUpdated(); // Trigger refresh in parent
     }
   };
 
@@ -143,6 +150,11 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
     }
   };
 
+  const handleImageUploaded = (newUrl: string | null) => {
+    setCurrentImageUrl(newUrl); // Update local state
+    onCarUpdated(); // Trigger parent to re-fetch cars and update image on MileageTracker
+  };
+
   if (isLoadingCar) {
     return (
       <div className="space-y-4 p-4">
@@ -159,6 +171,12 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <CarImageUploadCard
+          carId={carId}
+          currentImageUrl={currentImageUrl}
+          carMakeModel={`${form.watch("make")} ${form.watch("model")}`}
+          onImageUploaded={handleImageUploaded}
+        />
         <FormField
           control={form.control}
           name="make"
@@ -257,7 +275,7 @@ const EditCarForm: React.FC<EditCarFormProps> = ({ carId, onCarUpdated, onCarDel
           )}
         />
         <div className="flex gap-2">
-          <Button type="submit" className="flex-1">Update Car</Button>
+          <Button type="submit" className="flex-1">Update Car Details</Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" variant="destructive" className="flex-1">Delete Car</Button>

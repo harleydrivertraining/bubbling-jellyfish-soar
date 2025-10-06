@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import CarImageUploadCard from "@/components/CarImageUploadCard"; // New import
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Import Avatar components
 
 interface Car {
   id: string;
@@ -517,14 +517,23 @@ const MileageTracker: React.FC = () => {
           {currentCar ? (
             <>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-6">
-                {/* Car Image Upload Card - spans two rows */}
-                <Card className="md:row-span-2 lg:row-span-2 xl:row-span-2">
-                  <CarImageUploadCard
-                    carId={currentCar.id}
-                    currentImageUrl={currentCar.car_image_url || null}
-                    carMakeModel={`${currentCar.make} ${currentCar.model}`}
-                    onImageUploaded={handleCarUpdated} // Re-fetch cars to update image URL in state
-                  />
+                {/* Car Image Display Card - spans two rows */}
+                <Card className="md:row-span-2 lg:row-span-2 xl:row-span-2 flex flex-col items-center justify-center p-4">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center">
+                      <Car className="mr-2 h-5 w-5 text-muted-foreground" />
+                      {currentCar.make} {currentCar.model}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex items-center justify-center">
+                    <Avatar className="h-48 w-48 rounded-lg border-2 border-dashed border-muted-foreground/20">
+                      <AvatarImage src={currentCar.car_image_url || undefined} alt={`${currentCar.make} ${currentCar.model} image`} className="object-cover" />
+                      <AvatarFallback className="rounded-lg flex flex-col items-center justify-center text-muted-foreground text-center p-2">
+                        <Car className="h-16 w-16 mb-2" />
+                        <span className="text-base">No Image</span>
+                      </AvatarFallback>
+                    </Avatar>
+                  </CardContent>
                 </Card>
 
                 <Card>
