@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
+import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO } from "date-fns";
 import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -75,7 +75,11 @@ const Dashboard: React.FC = () => {
   const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
   const [totalPrePaidHoursPurchased, setTotalPrePaidHoursPurchased] = useState<number | null>(null);
   const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
-  const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]); // New state
+  const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]);
+
+  // New state for booked hours this week card
+  const [totalBookedHoursForSelectedWeek, setTotalBookedHoursForSelectedWeek] = useState<number | null>(null);
+  const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -83,6 +87,39 @@ const Dashboard: React.FC = () => {
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
   }, []);
+
+  // Function to fetch booked hours for a specific week
+  const fetchBookedHoursForWeek = useCallback(async (weekStartISO: string) => {
+    if (!user) {
+      setTotalBookedHoursForSelectedWeek(null);
+      return;
+    }
+
+    const weekStartDate = parseISO(weekStartISO);
+    const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
+
+    const { data: bookingsData, error } = await supabase
+      .from("bookings")
+      .select("start_time, end_time")
+      .eq("user_id", user.id)
+      .eq("status", "scheduled") // Only count scheduled bookings
+      .gte("start_time", weekStartDate.toISOString())
+      .lte("end_time", weekEndDate.toISOString());
+
+    if (error) {
+      console.error("Error fetching booked hours for week:", error);
+      showError("Failed to load booked hours for the selected week.");
+      setTotalBookedHoursForSelectedWeek(null);
+    } else {
+      let totalMinutes = 0;
+      bookingsData?.forEach(booking => {
+        const start = new Date(booking.start_time);
+        const end = new Date(booking.end_time);
+        totalMinutes += differenceInMinutes(end, start);
+      });
+      setTotalBookedHoursForSelectedWeek(totalMinutes / 60);
+    }
+  }, [user]);
 
   const fetchDashboardData = useCallback(async () => {
     if (!user) {
@@ -366,7 +403,54 @@ const Dashboard: React.FC = () => {
     }
   }, [isSessionLoading, fetchDashboardData]);
 
+  // Effect to fetch booked hours for the selected week whenever selectedWeekStartISO changes
+  useEffect(() => {
+    if (!isSessionLoading && user) {
+      fetchBookedHoursForWeek(selectedWeekStartISO);
+    }
+  }, [isSessionLoading, user, selectedWeekStartISO, fetchBookedHoursForWeek]);
+
   const displayInstructorName = instructorName || "Instructor";
+
+  const generateWeekOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+
+    // Past 4 weeks
+    for (let i = 4; i >= 1; i--) {
+      const weekStart = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
+      options.push({
+        label: `${format(weekStart, "MMM dd")} - ${format(weekEnd, "MMM dd")}`,
+        value: weekStart.toISOString(),
+      });
+    }
+
+    // Current week
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
+    options.push({
+      label: "Current Week",
+      value: currentWeekStart.toISOString(),
+    });
+
+    // Next 4 weeks
+    for (let i = 1; i <= 4; i++) {
+      const weekStart = startOfWeek(addWeeks(now, i), { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(addWeeks(now, i), { weekStartsOn: 1 });
+      options.push({
+        label: `${format(weekStart, "MMM dd")} - ${format(weekEnd, "MMM dd")}`,
+        value: weekStart.toISOString(),
+      });
+    }
+    return options;
+  }, []);
+
+  const selectedWeekLabel = useMemo(() => {
+    const selectedOption = generateWeekOptions.find(option => option.value === selectedWeekStartISO);
+    return selectedOption ? selectedOption.label : "Select Week";
+  }, [generateWeekOptions, selectedWeekStartISO]);
+
 
   if (isSessionLoading || isLoadingDashboard) {
     return (
@@ -393,6 +477,7 @@ const Dashboard: React.FC = () => {
         </div>
         <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Miles Until Next Service card */}
         <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Pre-Paid Hours Summary card */}
+        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Booked Hours card */}
       </div>
     );
   }
@@ -634,7 +719,7 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* Miles Until Next Service Card - New Section */}
+        {/* Miles Until Next Service Card */}
         <Card className={cn(
           "lg:col-span-2", // This will make it span the full width below the 2-column grid
           milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
@@ -664,7 +749,7 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Pre-Paid Hours Summary Card - New Section */}
+        {/* Pre-Paid Hours Summary Card */}
         <Card className={cn(
           "lg:col-span-2",
           totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
@@ -701,8 +786,53 @@ const Dashboard: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* New Card: Booked Hours for Selected Week */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
+              <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
+                <SelectTrigger className="w-[180px] h-7 text-xs">
+                  <SelectValue placeholder="Select Week" />
+                </SelectTrigger>
+                <SelectContent>
+                  {generateWeekOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {totalBookedHoursForSelectedWeek !== null ? (
+              <>
+                <div className="text-2xl font-bold">
+                  {totalBookedHoursForSelectedWeek.toFixed(1)}
+                  <span className="text-lg text-muted-foreground ml-2">hours</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total scheduled bookings for {selectedWeekLabel}.
+                </p>
+                <Button asChild variant="outline" size="sm" className="mt-4">
+                  <Link to="/schedule">
+                    View Schedule <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No scheduled bookings found for {selectedWeekLabel}.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
 export default Dashboard;
