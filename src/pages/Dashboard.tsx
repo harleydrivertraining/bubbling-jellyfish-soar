@@ -338,7 +338,7 @@ const Dashboard: React.FC = () => {
             <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
             <Car className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="flex flex-col justify-between h-full">
+          <CardContent className="flex flex-col justify-between h-full"> {/* Added flex-col, justify-between, h-full */}
             <div className="text-2xl font-bold mb-4">{upcomingDrivingTestBookingsCount !== null ? upcomingDrivingTestBookingsCount : <Skeleton className="h-6 w-1/4" />}</div>
             <Button asChild className="w-full">
               <Link to="/driving-test-bookings"> {/* Link to the new page */}
