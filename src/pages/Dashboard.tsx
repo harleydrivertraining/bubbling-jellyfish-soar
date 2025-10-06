@@ -359,7 +359,7 @@ const Dashboard: React.FC = () => {
           {upcomingLessons.length === 0 ? (
             <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
           ) : (
-            <div className="grid gap-4"> {/* Removed md:grid-cols-2 lg:grid-cols-3 to make it single column within its half-page */}
+            <div className="grid gap-4">
               {upcomingLessons.map((booking) => (
                 <Card key={booking.id} className="flex flex-col">
                   <CardHeader>
@@ -403,53 +403,53 @@ const Dashboard: React.FC = () => {
             </Button>
           </div>
           {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2"> {/* Adjusted grid for smaller cards */}
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5"> {/* Adjusted grid for 5 columns */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Tests Taken</CardTitle>
+                  <CardTitle className="text-sm">Tests Taken</CardTitle> {/* Reduced font size */}
                 </CardHeader>
                 <CardContent>
-                  <p className="text-4xl font-bold">{drivingTestStats.totalTests}</p>
+                  <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p> {/* Reduced font size */}
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-lg">Pass Rate</CardTitle>
+                  <CardTitle className="text-sm">Pass Rate</CardTitle> {/* Reduced font size */}
                 </CardHeader>
                 <CardContent>
-                  <p className="text-4xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
+                  <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p> {/* Reduced font size */}
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-lg">Avg. Driving Faults</CardTitle>
+                  <CardTitle className="text-sm">Avg. Driving Faults</CardTitle> {/* Reduced font size */}
                 </CardHeader>
                 <CardContent>
-                  <p className="text-4xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                  <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p> {/* Reduced font size */}
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-lg">Avg. Serious Faults</CardTitle>
+                  <CardTitle className="text-sm">Avg. Serious Faults</CardTitle> {/* Reduced font size */}
                 </CardHeader>
                 <CardContent>
-                  <p className="text-4xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                  <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p> {/* Reduced font size */}
                 </CardContent>
               </Card>
               <Card className={cn(
                 drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
               )}>
                 <CardHeader>
-                  <CardTitle className="text-lg">Examiner Action Rate</CardTitle>
+                  <CardTitle className="text-sm">Examiner Action Rate</CardTitle> {/* Reduced font size */}
                 </CardHeader>
                 <CardContent>
-                  <p className="text-4xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+                  <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p> {/* Reduced font size */}
                 </CardContent>
               </Card>
             </div>
