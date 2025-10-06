@@ -519,18 +519,13 @@ const MileageTracker: React.FC = () => {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5 mb-6">
                 {/* Car Image Display Card - spans two rows */}
                 <Card className="lg:col-span-1 lg:row-span-2 flex flex-col items-center justify-center p-4">
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center">
-                      <Car className="mr-2 h-5 w-5 text-muted-foreground" />
-                      {currentCar.make} {currentCar.model}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex items-center justify-center p-0"> {/* Removed padding here */}
+                  {/* Removed CardHeader */}
+                  <CardContent className="flex-1 flex flex-col items-center justify-center p-0"> {/* Removed padding here */}
                     <Avatar className="h-full w-full rounded-lg border-2 border-dashed border-muted-foreground/20">
                       <AvatarImage src={currentCar.car_image_url || undefined} alt={`${currentCar.make} ${currentCar.model} image`} className="object-cover h-full w-full" />
                       <AvatarFallback className="rounded-lg flex flex-col items-center justify-center text-muted-foreground text-center p-2 h-full w-full">
                         <Car className="h-16 w-16 mb-2" />
-                        <span className="text-base">No Image</span>
+                        <span className="text-base">{currentCar.make} {currentCar.model}</span> {/* Display make/model here */}
                       </AvatarFallback>
                     </Avatar>
                   </CardContent>
