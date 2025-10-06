@@ -3,15 +3,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText, Phone, CalendarDays, GraduationCap } from "lucide-react";
+import { PlusCircle, FileText, Phone, CalendarDays, GraduationCap, Edit, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
+import EditStudentForm from "@/components/EditStudentForm"; // New import
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -38,7 +38,9 @@ const Students: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); // New state for edit dialog
+  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<string | null>(null); // New state for student being edited
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all"); // New state for status filter
 
@@ -52,7 +54,8 @@ const Students: React.FC = () => {
     const { data, error } = await supabase
       .from("students")
       .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, document_url")
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .order("name", { ascending: true }); // Order by name for consistent display
 
     if (error) {
       console.error("Error fetching students:", error);
@@ -72,7 +75,29 @@ const Students: React.FC = () => {
 
   const handleStudentAdded = () => {
     fetchStudents(); // Refresh the list after a new student is added
-    setIsDialogOpen(false); // Close the dialog
+    setIsAddDialogOpen(false); // Close the dialog
+  };
+
+  const handleEditStudentClick = (studentId: string) => {
+    setSelectedStudentForEdit(studentId);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleStudentUpdated = () => {
+    fetchStudents(); // Refresh the list after a student is updated
+    setIsEditDialogOpen(false); // Close the dialog
+    setSelectedStudentForEdit(null);
+  };
+
+  const handleStudentDeleted = () => {
+    fetchStudents(); // Refresh the list after a student is deleted
+    setIsEditDialogOpen(false); // Close the dialog
+    setSelectedStudentForEdit(null);
+  };
+
+  const handleCloseEditDialog = () => {
+    setIsEditDialogOpen(false);
+    setSelectedStudentForEdit(null);
   };
 
   const filteredStudents = useMemo(() => {
@@ -81,7 +106,11 @@ const Students: React.FC = () => {
     // Filter by search term
     if (searchTerm) {
       currentStudents = currentStudents.filter((student) =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase())
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.driving_license_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.full_address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.notes?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -120,7 +149,7 @@ const Students: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Students</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Student
@@ -130,14 +159,14 @@ const Students: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Add New Student</DialogTitle>
             </DialogHeader>
-            <AddStudentForm onStudentAdded={handleStudentAdded} onClose={() => setIsDialogOpen(false)} />
+            <AddStudentForm onStudentAdded={handleStudentAdded} onClose={() => setIsAddDialogOpen(false)} />
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Input
-          placeholder="Search students by name..."
+          placeholder="Search students by name, license, phone, address, or notes..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
@@ -158,68 +187,91 @@ const Students: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filteredStudents.length === 0 && students.length > 0 && (
-          <p className="text-muted-foreground col-span-full">No students match your search or filter criteria.</p>
-        )}
-        {students.length === 0 && (
-          <p className="text-muted-foreground col-span-full">No students added yet. Click "Add Student" to get started!</p>
-        )}
-        {filteredStudents.map((student) => (
-          <Card key={student.id} className="flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
-              <Badge variant={
-                student.status === "Beginner" ? "secondary" :
-                student.status === "Intermediate" ? "default" :
-                "outline"
-              }>
-                {student.status}
-              </Badge>
-            </CardHeader>
-            <CardContent className="flex-1 space-y-2 text-sm">
-              {student.date_of_birth && (
-                <div className="flex items-center text-muted-foreground">
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  <span>DOB: {format(new Date(student.date_of_birth), "PPP")}</span>
+      {filteredStudents.length === 0 && students.length > 0 && (
+        <p className="text-muted-foreground col-span-full">No students match your search or filter criteria.</p>
+      )}
+      {students.length === 0 ? (
+        <p className="text-muted-foreground col-span-full">No students added yet. Click "Add Student" to get started!</p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredStudents.map((student) => (
+            <Card key={student.id} className="flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
+                <Badge variant={
+                  student.status === "Beginner" ? "secondary" :
+                  student.status === "Intermediate" ? "default" :
+                  "outline"
+                }>
+                  {student.status}
+                </Badge>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-2 text-sm">
+                {student.date_of_birth && (
+                  <div className="flex items-center text-muted-foreground">
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    <span>DOB: {format(new Date(student.date_of_birth), "PPP")}</span>
+                  </div>
+                )}
+                {student.phone_number && (
+                  <div className="flex items-center text-muted-foreground">
+                    <Phone className="mr-2 h-4 w-4" />
+                    <span>{student.phone_number}</span>
+                  </div>
+                )}
+                {student.driving_license_number && (
+                  <div className="flex items-center text-muted-foreground">
+                    <GraduationCap className="mr-2 h-4 w-4" />
+                    <span>License: {student.driving_license_number}</span>
+                  </div>
+                )}
+                {student.full_address && (
+                  <CardDescription className="text-muted-foreground">
+                    {student.full_address}
+                  </CardDescription>
+                )}
+                {student.notes && (
+                  <CardDescription className="text-muted-foreground italic">
+                    Notes: {student.notes}
+                  </CardDescription>
+                )}
+                {student.document_url && (
+                  <a
+                    href={student.document_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-blue-500 hover:underline mt-2"
+                  >
+                    <FileText className="h-4 w-4 mr-1" /> View Document
+                  </a>
+                )}
+                <div className="flex gap-2 mt-4">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEditStudentClick(student.id)}>
+                    <Edit className="mr-2 h-4 w-4" /> Edit
+                  </Button>
+                  {/* Delete button is now inside EditStudentForm for AlertDialog */}
                 </div>
-              )}
-              {student.phone_number && (
-                <div className="flex items-center text-muted-foreground">
-                  <Phone className="mr-2 h-4 w-4" />
-                  <span>{student.phone_number}</span>
-                </div>
-              )}
-              {student.driving_license_number && (
-                <div className="flex items-center text-muted-foreground">
-                  <GraduationCap className="mr-2 h-4 w-4" />
-                  <span>License: {student.driving_license_number}</span>
-                </div>
-              )}
-              {student.full_address && (
-                <CardDescription className="text-muted-foreground">
-                  {student.full_address}
-                </CardDescription>
-              )}
-              {student.notes && (
-                <CardDescription className="text-muted-foreground italic">
-                  Notes: {student.notes}
-                </CardDescription>
-              )}
-              {student.document_url && (
-                <a
-                  href={student.document_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-blue-500 hover:underline mt-2"
-                >
-                  <FileText className="h-4 w-4 mr-1" /> View Document
-                </a>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+          </DialogHeader>
+          {selectedStudentForEdit && (
+            <EditStudentForm
+              studentId={selectedStudentForEdit}
+              onStudentUpdated={handleStudentUpdated}
+              onStudentDeleted={handleStudentDeleted}
+              onClose={handleCloseEditDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
