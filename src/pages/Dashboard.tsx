@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area"; // Import ScrollArea
 
 interface Student {
   id: string;
@@ -66,7 +67,7 @@ const Dashboard: React.FC = () => {
   const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null);
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
-  const [nextDrivingTestBookings, setNextDrivingTestBookings] = useState<Booking[]>([]); // New state for next 2 driving test bookings
+  const [nextDrivingTestBookings, setNextDrivingTestBookings] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
@@ -383,36 +384,38 @@ const Dashboard: React.FC = () => {
           {upcomingLessons.length === 0 ? (
             <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
           ) : (
-            <div className="grid gap-4">
-              {upcomingLessons.map((booking) => (
-                <Card key={booking.id} className="flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{booking.title}</CardTitle>
-                    {booking.students?.name && (
-                      <CardDescription className="flex items-center text-muted-foreground">
-                        <Users className="mr-2 h-4 w-4" />
-                        <span>Student: {booking.students.name}</span>
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="flex-1 space-y-2 text-sm">
-                    {booking.description && (
-                      <p className="text-muted-foreground italic">{booking.description}</p>
-                    )}
-                    <div className="flex items-center text-muted-foreground">
-                      <CalendarDays className="mr-2 h-4 w-4" />
-                      <span>{format(new Date(booking.start_time), "PPP")}</span>
-                    </div>
-                    <div className="flex items-center text-muted-foreground">
-                      <Clock className="mr-2 h-4 w-4" />
-                      <span>
-                        {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <ScrollArea className="h-96 pr-4"> {/* Added ScrollArea with fixed height and right padding */}
+              <div className="grid gap-4">
+                {upcomingLessons.map((booking) => (
+                  <Card key={booking.id} className="flex flex-col">
+                    <CardHeader>
+                      <CardTitle className="text-lg">{booking.title}</CardTitle>
+                      {booking.students?.name && (
+                        <CardDescription className="flex items-center text-muted-foreground">
+                          <Users className="mr-2 h-4 w-4" />
+                          <span>Student: {booking.students.name}</span>
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="flex-1 space-y-2 text-sm">
+                      {booking.description && (
+                        <p className="text-muted-foreground italic">{booking.description}</p>
+                      )}
+                      <div className="flex items-center text-muted-foreground">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        <span>{format(new Date(booking.start_time), "PPP")}</span>
+                      </div>
+                      <div className="flex items-center text-muted-foreground">
+                        <Clock className="mr-2 h-4 w-4" />
+                        <span>
+                          {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
           )}
         </div>
 
