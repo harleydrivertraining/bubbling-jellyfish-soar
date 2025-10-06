@@ -75,6 +75,7 @@ const Dashboard: React.FC = () => {
   const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
   const [totalPrePaidHoursPurchased, setTotalPrePaidHoursPurchased] = useState<number | null>(null);
   const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
+  const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]); // New state
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -310,10 +311,10 @@ const Dashboard: React.FC = () => {
         setCarNeedingService(null);
       }
 
-      // Fetch Pre-Paid Hours Summary
+      // Fetch Pre-Paid Hours Summary and students with low hours
       const { data: prePaidHoursData, error: prePaidHoursError } = await supabase
         .from("pre_paid_hours")
-        .select("package_hours, remaining_hours")
+        .select("package_hours, remaining_hours, students(name)") // Select student name
         .eq("user_id", user.id);
 
       if (prePaidHoursError) {
@@ -321,15 +322,34 @@ const Dashboard: React.FC = () => {
         showError("Failed to load pre-paid hours summary.");
         setTotalPrePaidHoursPurchased(null);
         setTotalPrePaidHoursRemaining(null);
+        setStudentsWithLowPrePaidHours([]);
       } else {
         let totalPurchased = 0;
         let totalRemaining = 0;
+        const studentRemainingHours: { [studentName: string]: number } = {};
+
         prePaidHoursData.forEach(pkg => {
           totalPurchased += pkg.package_hours;
           totalRemaining += pkg.remaining_hours;
+
+          const studentName = pkg.students?.name || "Unknown Student";
+          if (studentRemainingHours[studentName]) {
+            studentRemainingHours[studentName] += pkg.remaining_hours;
+          } else {
+            studentRemainingHours[studentName] = pkg.remaining_hours;
+          }
         });
+
+        const lowHoursStudents: string[] = [];
+        for (const name in studentRemainingHours) {
+          if (studentRemainingHours[name] <= 2) {
+            lowHoursStudents.push(name);
+          }
+        }
+
         setTotalPrePaidHoursPurchased(totalPurchased);
         setTotalPrePaidHoursRemaining(totalRemaining);
+        setStudentsWithLowPrePaidHours(lowHoursStudents);
       }
 
     } catch (error) {
@@ -592,92 +612,97 @@ const Dashboard: React.FC = () => {
                       )}
                     </CardHeader>
                     <CardContent className="flex-1 space-y-2 text-sm">
-                      {booking.description && (
-                        <p className="text-muted-foreground italic">{booking.description}</p>
-                      )}
-                      <div className="flex items-center text-muted-foreground">
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        <span>{format(new Date(booking.start_time), "PPP")}</span>
-                      </div>
-                      <div className="flex items-center text-muted-foreground">
-                        <Clock className="mr-2 h-4 w-4" />
-                        <span>
-                          {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        {booking.description && (
+                          <p className="text-muted-foreground italic">{booking.description}</p>
+                        )}
+                        <div className="flex items-center text-muted-foreground">
+                          <CalendarDays className="mr-2 h-4 w-4" />
+                          <span>{format(new Date(booking.start_time), "PPP")}</span>
+                        </div>
+                        <div className="flex items-center text-muted-foreground">
+                          <Clock className="mr-2 h-4 w-4" />
+                          <span>
+                            {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Miles Until Next Service Card - New Section */}
+        <Card className={cn(
+          "lg:col-span-2", // This will make it span the full width below the 2-column grid
+          milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
+        )}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
+            <Gauge className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {milesUntilNextServiceDashboard !== null ? (
+              <>
+                <div className="text-2xl font-bold">
+                  {milesUntilNextServiceDashboard.toFixed(0)}
+                  <span className="text-lg text-muted-foreground ml-2">miles</span>
+                </div>
+                {carNeedingService && (
+                  <p className="text-xs text-muted-foreground">
+                    ({carNeedingService} needs service soonest)
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
+              </p>
             )}
-          </div>
+          </CardContent>
+        </Card>
+
+        {/* Pre-Paid Hours Summary Card - New Section */}
+        <Card className={cn(
+          "lg:col-span-2",
+          totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
+        )}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
+            <Hourglass className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
+              <>
+                <div className="text-2xl font-bold">
+                  {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
+                  <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
+                </div>
+                {studentsWithLowPrePaidHours.length > 0 && (
+                  <p className="text-sm text-orange-800 mt-2">
+                    <span className="font-semibold">Low hours for:</span> {studentsWithLowPrePaidHours.join(", ")}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total hours purchased across all students.
+                </p>
+                <Button asChild variant="outline" size="sm" className="mt-4">
+                  <Link to="/pre-paid-hours">
+                    View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
+              </p>
+            )}
+          </CardContent>
         </Card>
       </div>
-
-      {/* Miles Until Next Service Card - New Section */}
-      <Card className={cn(
-        "lg:col-span-2", // This will make it span the full width below the 2-column grid
-        milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
-      )}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
-          <Gauge className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          {milesUntilNextServiceDashboard !== null ? (
-            <>
-              <div className="text-2xl font-bold">
-                {milesUntilNextServiceDashboard.toFixed(0)}
-                <span className="text-lg text-muted-foreground ml-2">miles</span>
-              </div>
-              {carNeedingService && (
-                <p className="text-xs text-muted-foreground">
-                  ({carNeedingService} needs service soonest)
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Pre-Paid Hours Summary Card - New Section */}
-      <Card className={cn(
-        "lg:col-span-2",
-        totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
-      )}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
-          <Hourglass className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
-            <>
-              <div className="text-2xl font-bold">
-                {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
-                <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Total hours purchased across all students.
-              </p>
-              <Button asChild variant="outline" size="sm" className="mt-4">
-                <Link to="/pre-paid-hours">
-                  View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+    );
+  };
 
 export default Dashboard;
