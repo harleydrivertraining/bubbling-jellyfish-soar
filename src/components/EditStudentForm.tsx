@@ -487,7 +487,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             </AlertDialogContent>
           </AlertDialog>
         </div>
-        </div>
       </form>
     </Form>
   );
