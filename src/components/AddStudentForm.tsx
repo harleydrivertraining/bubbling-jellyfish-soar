@@ -30,8 +30,8 @@ import { showSuccess, showError } from "@/utils/toast";
 const calculateAge = (dobString: string | null | undefined): number | null => {
   if (!dobString) return null;
 
-  // Parse DD-MM-YYYY string
-  const parts = dobString.split('-');
+  // Parse DD/MM/YYYY string
+  const parts = dobString.split('/');
   if (parts.length !== 3) return null; // Invalid format
 
   const day = parseInt(parts[0], 10);
@@ -60,10 +60,10 @@ const formSchema = z.object({
     .nullable()
     .refine((val) => {
       if (!val) return true; // Allow null or empty string
-      const dateRegex = /^\d{2}-\d{2}-\d{4}$/; // DD-MM-YYYY format
+      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/; // DD/MM/YYYY format
       if (!dateRegex.test(val)) return false;
 
-      const parts = val.split('-');
+      const parts = val.split('/');
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10);
       const year = parseInt(parts[2], 10);
@@ -73,7 +73,7 @@ const formSchema = z.object({
       const date = new Date(year, month - 1, day);
       return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
     }, {
-      message: "Invalid date format. Please use DD-MM-YYYY.",
+      message: "Invalid date format. Please use DD/MM/YYYY.",
     }),
   driving_license_number: z.string().optional().nullable(),
   phone_number: z.string().optional().nullable(),
@@ -137,9 +137,9 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       documentUrl = publicUrlData.publicUrl;
     }
 
-    // Convert DD-MM-YYYY to YYYY-MM-DD for database storage
+    // Convert DD/MM/YYYY to YYYY-MM-DD for database storage
     const formattedDobForSupabase = values.date_of_birth
-      ? `${values.date_of_birth.split('-')[2]}-${values.date_of_birth.split('-')[1]}-${values.date_of_birth.split('-')[0]}`
+      ? `${values.date_of_birth.split('/')[2]}-${values.date_of_birth.split('/')[1]}-${values.date_of_birth.split('/')[0]}`
       : null;
 
     const { data, error } = await supabase
@@ -190,9 +190,9 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
             name="date_of_birth"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Date of Birth (DD-MM-YYYY)</FormLabel>
+                <FormLabel>Date of Birth (DD/MM/YYYY)</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., 15-01-2000" {...field} value={field.value || ""} />
+                  <Input placeholder="e.g., 15/01/2000" {...field} value={field.value || ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
