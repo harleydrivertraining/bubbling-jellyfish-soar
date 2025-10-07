@@ -190,7 +190,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
             name="date_of_birth"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Date of Birth (DD/MM/YYYY)</FormLabel>
+                <FormLabel>Date of Birth</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., 15/01/2000" {...field} value={field.value || ""} />
                 </FormControl>

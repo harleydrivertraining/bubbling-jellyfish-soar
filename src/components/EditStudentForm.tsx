@@ -124,7 +124,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         .from("students")
         .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, document_url")
         .eq("id", studentId)
-        .eq("user.id", user.id)
+        .eq("user_id", user.id)
         .single();
 
       if (error) {
@@ -342,7 +342,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             name="date_of_birth"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Date of Birth (DD/MM/YYYY)</FormLabel>
+                <FormLabel>Date of Birth</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., 15/01/2000" {...field} value={field.value || ""} />
                 </FormControl>
@@ -486,6 +486,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        </div>
         </div>
       </form>
     </Form>
