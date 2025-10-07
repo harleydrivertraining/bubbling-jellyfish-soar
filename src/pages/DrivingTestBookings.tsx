@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
+import { format, addMinutes } from "date-fns"; // Import addMinutes
 import {
   Select,
   SelectContent,
@@ -15,11 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { User, CalendarDays, Clock, BookOpen, FilePlus, PlusCircle } from "lucide-react"; // Added PlusCircle icon
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"; // Added DialogTrigger
-import EditBookingForm from "@/components/EditBookingForm"; // Reusing the edit booking form
-import { Button } from "@/components/ui/button"; // Import Button
-import AddDrivingTestForm from "@/components/AddDrivingTestForm"; // Import AddDrivingTestForm
+import { User, CalendarDays, Clock, BookOpen, FilePlus, PlusCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import EditBookingForm from "@/components/EditBookingForm";
+import { Button } from "@/components/ui/button";
+import AddDrivingTestForm from "@/components/AddDrivingTestForm";
+import AddBookingForm from "@/components/AddBookingForm"; // Import AddBookingForm
 
 interface Booking {
   id: string;
@@ -54,7 +55,10 @@ const DrivingTestBookings: React.FC = () => {
   const [isAddTestResultDialogOpen, setIsAddTestResultDialogOpen] = useState(false);
   const [bookingToRecordResult, setBookingToRecordResult] = useState<Booking | null>(null);
 
-  const [isAddDrivingTestDialogOpen, setIsAddDrivingTestDialogOpen] = useState(false); // New state for adding a new driving test
+  // State for the new booking dialog
+  const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
+  const [initialBookingSlot, setInitialBookingSlot] = useState<{ start: Date; end: Date } | null>(null);
+
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -81,9 +85,9 @@ const DrivingTestBookings: React.FC = () => {
     setIsLoading(true);
     let query = supabase
       .from("bookings")
-      .select("id, title, description, start_time, end_time, status, lesson_type, student_id, students(name)") // Select student_id
+      .select("id, title, description, start_time, end_time, status, lesson_type, student_id, students(name)")
       .eq("user_id", user.id)
-      .eq("lesson_type", "Driving Test"); // Filter specifically for Driving Test bookings
+      .eq("lesson_type", "Driving Test");
 
     if (selectedStudentId && selectedStudentId !== "all") {
       query = query.eq("student_id", selectedStudentId);
@@ -92,7 +96,7 @@ const DrivingTestBookings: React.FC = () => {
       query = query.eq("status", selectedStatus);
     }
 
-    const { data, error } = await query.order("start_time", { ascending: false }); // Most recent first
+    const { data, error } = await query.order("start_time", { ascending: false });
 
     if (error) {
       console.error("Error fetching driving test bookings:", error);
@@ -122,13 +126,13 @@ const DrivingTestBookings: React.FC = () => {
   };
 
   const handleBookingUpdated = () => {
-    fetchDrivingTestBookings(); // Refresh the list after update
+    fetchDrivingTestBookings();
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
 
   const handleBookingDeleted = () => {
-    fetchDrivingTestBookings(); // Refresh the list after deletion
+    fetchDrivingTestBookings();
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
@@ -144,7 +148,7 @@ const DrivingTestBookings: React.FC = () => {
   };
 
   const handleTestResultAdded = () => {
-    fetchDrivingTestBookings(); // Refresh bookings list
+    fetchDrivingTestBookings();
     setIsAddTestResultDialogOpen(false);
     setBookingToRecordResult(null);
   };
@@ -154,13 +158,27 @@ const DrivingTestBookings: React.FC = () => {
     setBookingToRecordResult(null);
   };
 
-  const handleNewDrivingTestAdded = () => {
-    fetchDrivingTestBookings(); // Refresh the list after a new test is added
-    setIsAddDrivingTestDialogOpen(false);
+  // Handler for opening the AddBookingForm dialog
+  const handleOpenAddBookingDialog = () => {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    const roundedMinutes = Math.ceil(minutes / 15) * 15;
+    const defaultStartTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMinutes, 0);
+    const defaultEndTime = addMinutes(defaultStartTime, 60); // Default to 1 hour lesson
+
+    setInitialBookingSlot({ start: defaultStartTime, end: defaultEndTime });
+    setIsAddBookingDialogOpen(true);
   };
 
-  const handleCloseAddDrivingTestDialog = () => {
-    setIsAddDrivingTestDialogOpen(false);
+  const handleNewBookingAdded = () => {
+    fetchDrivingTestBookings(); // Refresh the list after a new booking is added
+    setIsAddBookingDialogOpen(false);
+    setInitialBookingSlot(null);
+  };
+
+  const handleCloseAddBookingDialog = () => {
+    setIsAddBookingDialogOpen(false);
+    setInitialBookingSlot(null);
   };
 
   if (isSessionLoading || isLoading) {
@@ -184,9 +202,9 @@ const DrivingTestBookings: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Driving Test Bookings</h1>
-        <Dialog open={isAddDrivingTestDialogOpen} onOpenChange={setIsAddDrivingTestDialogOpen}>
+        <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={handleOpenAddBookingDialog}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Test Booking
             </Button>
           </DialogTrigger>
@@ -194,7 +212,16 @@ const DrivingTestBookings: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Add New Driving Test Booking</DialogTitle>
             </DialogHeader>
-            <AddDrivingTestForm onTestAdded={handleNewDrivingTestAdded} onClose={handleCloseAddDrivingTestDialog} />
+            {initialBookingSlot && (
+              <AddBookingForm
+                initialStartTime={initialBookingSlot.start}
+                initialEndTime={initialBookingSlot.end}
+                onBookingAdded={handleNewBookingAdded}
+                onClose={handleCloseAddBookingDialog}
+                // Pre-fill lesson_type for driving test
+                defaultValues={{ lesson_type: "Driving Test" }}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
