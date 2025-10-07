@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import DatePicker from "@/components/DatePicker"; // Import the new DatePicker
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
@@ -31,7 +30,7 @@ const formSchema = z.object({
   name: z.string().min(2, {
     message: "Student name must be at least 2 characters.",
   }),
-  date_of_birth: z.date().optional().nullable(),
+  date_of_birth: z.string().optional().nullable(), // Changed to string
   driving_license_number: z.string().optional().nullable(),
   phone_number: z.string().optional().nullable(),
   full_address: z.string().optional().nullable(),
@@ -53,7 +52,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      date_of_birth: undefined,
+      date_of_birth: "", // Default to empty string
       driving_license_number: "",
       phone_number: "",
       full_address: "",
@@ -99,7 +98,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       .insert({
         user_id: user.id,
         name: values.name,
-        date_of_birth: values.date_of_birth ? values.date_of_birth.toISOString().split('T')[0] : null,
+        date_of_birth: values.date_of_birth || null, // Pass string directly or null
         driving_license_number: values.driving_license_number,
         phone_number: values.phone_number,
         full_address: values.full_address,
@@ -140,14 +139,10 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
           control={form.control}
           name="date_of_birth"
           render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Date of Birth</FormLabel>
+            <FormItem>
+              <FormLabel>Date of Birth (YYYY-MM-DD)</FormLabel>
               <FormControl>
-                <DatePicker
-                  date={field.value || undefined}
-                  setDate={field.onChange}
-                  placeholder="Select DOB"
-                />
+                <Input placeholder="e.g., 2000-01-15" {...field} value={field.value || ""} />
               </FormControl>
               <FormMessage />
             </FormItem>
