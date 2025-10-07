@@ -47,7 +47,7 @@ const DrivingTestBookings: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("scheduled"); // Changed default to "scheduled"
 
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -96,7 +96,7 @@ const DrivingTestBookings: React.FC = () => {
       query = query.eq("status", selectedStatus);
     }
 
-    const { data, error } = await query.order("start_time", { ascending: true }); // Changed to ascending
+    const { data, error } = await query.order("start_time", { ascending: true });
 
     if (error) {
       console.error("Error fetching driving test bookings:", error);
