@@ -32,7 +32,17 @@ import { FileText, XCircle } from "lucide-react";
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
   if (!dobString) return null;
-  const dob = new Date(dobString);
+
+  // Parse DD-MM-YYYY string
+  const parts = dobString.split('-');
+  if (parts.length !== 3) return null; // Invalid format
+
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+  const year = parseInt(parts[2], 10);
+
+  const dob = new Date(year, month, day);
+
   if (isNaN(dob.getTime())) return null; // Invalid date
 
   const today = new Date();
@@ -53,10 +63,20 @@ const formSchema = z.object({
     .nullable()
     .refine((val) => {
       if (!val) return true; // Allow null or empty string
-      const date = new Date(val);
-      return !isNaN(date.getTime()) && val.match(/^\d{4}-\d{2}-\d{2}$/); // Check if it's a valid date and YYYY-MM-DD format
+      const dateRegex = /^\d{2}-\d{2}-\d{4}$/; // DD-MM-YYYY format
+      if (!dateRegex.test(val)) return false;
+
+      const parts = val.split('-');
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const year = parseInt(parts[2], 10);
+
+      // Basic date validity check
+      if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+      const date = new Date(year, month - 1, day);
+      return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
     }, {
-      message: "Invalid date format. Please use YYYY-MM-DD.",
+      message: "Invalid date format. Please use DD-MM-YYYY.",
     }),
   driving_license_number: z.string().optional().nullable(),
   phone_number: z.string().optional().nullable(),
@@ -118,9 +138,14 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           ? data.status as "Beginner" | "Intermediate" | "Advanced"
           : "Beginner"; // Fallback to 'Beginner' if status is invalid
 
+        // Convert YYYY-MM-DD from database to DD-MM-YYYY for display
+        const formattedDobForDisplay = data.date_of_birth
+          ? `${data.date_of_birth.split('-')[2]}-${data.date_of_birth.split('-')[1]}-${data.date_of_birth.split('-')[0]}`
+          : "";
+
         form.reset({
           name: data.name,
-          date_of_birth: data.date_of_birth || "", // Set string directly
+          date_of_birth: formattedDobForDisplay,
           driving_license_number: data.driving_license_number || "",
           phone_number: data.phone_number || "",
           full_address: data.full_address || "",
@@ -219,11 +244,16 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       documentUrl = publicUrlData.publicUrl;
     }
 
+    // Convert DD-MM-YYYY to YYYY-MM-DD for database storage
+    const formattedDobForSupabase = values.date_of_birth
+      ? `${values.date_of_birth.split('-')[2]}-${values.date_of_birth.split('-')[1]}-${values.date_of_birth.split('-')[0]}`
+      : null;
+
     const { error } = await supabase
       .from("students")
       .update({
         name: values.name,
-        date_of_birth: values.date_of_birth || null, // Pass string directly or null
+        date_of_birth: formattedDobForSupabase,
         driving_license_number: values.driving_license_number,
         phone_number: values.phone_number,
         full_address: values.full_address,
@@ -312,9 +342,9 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             name="date_of_birth"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Date of Birth (YYYY-MM-DD)</FormLabel>
+                <FormLabel>Date of Birth (DD-MM-YYYY)</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., 2000-01-15" {...field} value={field.value || ""} />
+                  <Input placeholder="e.g., 15-01-2000" {...field} value={field.value || ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
