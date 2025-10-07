@@ -300,32 +300,34 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="driving_license_number"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Driving License Number</FormLabel>
-              <FormControl>
-                <Input placeholder="ABC12345DEF" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone_number"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone Number</FormLabel>
-              <FormControl>
-                <Input placeholder="+1 (555) 123-4567" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="driving_license_number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Driving License Number</FormLabel>
+                <FormControl>
+                  <Input placeholder="ABC12345DEF" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="phone_number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone Number</FormLabel>
+                <FormControl>
+                  <Input placeholder="+1 (555) 123-4567" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <FormField
           control={form.control}
           name="full_address"
