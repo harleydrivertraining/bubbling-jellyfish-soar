@@ -15,8 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { User, CalendarDays, Clock, BookOpen, FilePlus } from "lucide-react"; // Added FilePlus icon
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { User, CalendarDays, Clock, BookOpen, FilePlus, PlusCircle } from "lucide-react"; // Added PlusCircle icon
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"; // Added DialogTrigger
 import EditBookingForm from "@/components/EditBookingForm"; // Reusing the edit booking form
 import { Button } from "@/components/ui/button"; // Import Button
 import AddDrivingTestForm from "@/components/AddDrivingTestForm"; // Import AddDrivingTestForm
@@ -51,8 +51,10 @@ const DrivingTestBookings: React.FC = () => {
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
-  const [isAddTestResultDialogOpen, setIsAddTestResultDialogOpen] = useState(false); // New state
-  const [bookingToRecordResult, setBookingToRecordResult] = useState<Booking | null>(null); // New state
+  const [isAddTestResultDialogOpen, setIsAddTestResultDialogOpen] = useState(false);
+  const [bookingToRecordResult, setBookingToRecordResult] = useState<Booking | null>(null);
+
+  const [isAddDrivingTestDialogOpen, setIsAddDrivingTestDialogOpen] = useState(false); // New state for adding a new driving test
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -152,6 +154,15 @@ const DrivingTestBookings: React.FC = () => {
     setBookingToRecordResult(null);
   };
 
+  const handleNewDrivingTestAdded = () => {
+    fetchDrivingTestBookings(); // Refresh the list after a new test is added
+    setIsAddDrivingTestDialogOpen(false);
+  };
+
+  const handleCloseAddDrivingTestDialog = () => {
+    setIsAddDrivingTestDialogOpen(false);
+  };
+
   if (isSessionLoading || isLoading) {
     return (
       <div className="space-y-6">
@@ -171,7 +182,23 @@ const DrivingTestBookings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Driving Test Bookings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Driving Test Bookings</h1>
+        <Dialog open={isAddDrivingTestDialogOpen} onOpenChange={setIsAddDrivingTestDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add New Test Booking
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Add New Driving Test Booking</DialogTitle>
+            </DialogHeader>
+            <AddDrivingTestForm onTestAdded={handleNewDrivingTestAdded} onClose={handleCloseAddDrivingTestDialog} />
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <p className="text-muted-foreground">Manage your scheduled driving tests.</p>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
