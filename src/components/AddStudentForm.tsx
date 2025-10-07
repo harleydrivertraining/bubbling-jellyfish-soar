@@ -26,11 +26,35 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 
+// Helper function to calculate age
+const calculateAge = (dobString: string | null | undefined): number | null => {
+  if (!dobString) return null;
+  const dob = new Date(dobString);
+  if (isNaN(dob.getTime())) return null; // Invalid date
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age;
+};
+
 const formSchema = z.object({
   name: z.string().min(2, {
     message: "Student name must be at least 2 characters.",
   }),
-  date_of_birth: z.string().optional().nullable(), // Changed to string
+  date_of_birth: z.string()
+    .optional()
+    .nullable()
+    .refine((val) => {
+      if (!val) return true; // Allow null or empty string
+      const date = new Date(val);
+      return !isNaN(date.getTime()) && val.match(/^\d{4}-\d{2}-\d{2}$/); // Check if it's a valid date and YYYY-MM-DD format
+    }, {
+      message: "Invalid date format. Please use YYYY-MM-DD.",
+    }),
   driving_license_number: z.string().optional().nullable(),
   phone_number: z.string().optional().nullable(),
   full_address: z.string().optional().nullable(),
@@ -52,7 +76,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      date_of_birth: "", // Default to empty string
+      date_of_birth: "",
       driving_license_number: "",
       phone_number: "",
       full_address: "",
@@ -135,19 +159,29 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="date_of_birth"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Date of Birth (YYYY-MM-DD)</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., 2000-01-15" {...field} value={field.value || ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="date_of_birth"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Date of Birth (YYYY-MM-DD)</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., 2000-01-15" {...field} value={field.value || ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormItem>
+            <FormLabel>Current Age</FormLabel>
+            <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+              {calculateAge(form.watch("date_of_birth")) !== null
+                ? `${calculateAge(form.watch("date_of_birth"))} years`
+                : "N/A"}
+            </div>
+          </FormItem>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
