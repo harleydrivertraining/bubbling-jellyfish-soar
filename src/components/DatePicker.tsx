@@ -40,6 +40,9 @@ const DatePicker: React.FC<DatePickerProps> = ({ date, setDate, placeholder = "P
           selected={date}
           onSelect={setDate}
           initialFocus
+          captionLayout="dropdown" // Added this prop to enable dropdowns for month/year
+          fromYear={1900} // Optional: Set a reasonable start year for birth dates
+          toYear={new Date().getFullYear()} // Optional: Set current year as end year
         />
       </PopoverContent>
     </Popover>
