@@ -96,7 +96,7 @@ const DrivingTestBookings: React.FC = () => {
       query = query.eq("status", selectedStatus);
     }
 
-    const { data, error } = await query.order("start_time", { ascending: false });
+    const { data, error } = await query.order("start_time", { ascending: true }); // Changed to ascending
 
     if (error) {
       console.error("Error fetching driving test bookings:", error);
