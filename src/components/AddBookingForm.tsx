@@ -94,12 +94,15 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     },
   });
 
-  // Explicitly set lesson_type if provided in defaultValues prop
+  // Explicitly set lesson_type and lesson_length if provided in defaultValues prop
   useEffect(() => {
     if (defaultValues?.lesson_type) {
       form.setValue("lesson_type", defaultValues.lesson_type);
     }
-  }, [defaultValues?.lesson_type, form]); // Depend on defaultValues.lesson_type and form instance
+    if (defaultValues?.lesson_length) {
+      form.setValue("lesson_length", defaultValues.lesson_length);
+    }
+  }, [defaultValues?.lesson_type, defaultValues?.lesson_length, form]); // Depend on defaultValues.lesson_type, lesson_length and form instance
 
   const selectedLessonLength = form.watch("lesson_length");
   const selectedStartTime = form.watch("start_time");
@@ -284,7 +287,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Lesson Length</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}> {/* Use value instead of defaultValue */}
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select length" />

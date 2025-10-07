@@ -164,7 +164,7 @@ const DrivingTestBookings: React.FC = () => {
     const minutes = now.getMinutes();
     const roundedMinutes = Math.ceil(minutes / 15) * 15;
     const defaultStartTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMinutes, 0);
-    const defaultEndTime = addMinutes(defaultStartTime, 60); // Default to 1 hour lesson
+    const defaultEndTime = addMinutes(defaultStartTime, 120); // Default to 2 hours lesson for driving test
 
     setInitialBookingSlot({ start: defaultStartTime, end: defaultEndTime });
     setIsAddBookingDialogOpen(true);
@@ -219,7 +219,7 @@ const DrivingTestBookings: React.FC = () => {
                 onBookingAdded={handleNewBookingAdded}
                 onClose={handleCloseAddBookingDialog}
                 // Pre-fill lesson_type for driving test
-                defaultValues={{ lesson_type: "Driving Test" }}
+                defaultValues={{ lesson_type: "Driving Test", lesson_length: "120" }}
               />
             )}
           </DialogContent>
