@@ -65,6 +65,7 @@ interface AddBookingFormProps {
   initialEndTime: Date; // Still passed for initial calculation, but not directly used in form
   onBookingAdded: () => void;
   onClose: () => void;
+  defaultValues?: Partial<z.infer<typeof formSchema>>; // Keep this prop
 }
 
 const AddBookingForm: React.FC<AddBookingFormProps> = ({
@@ -72,6 +73,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   initialEndTime,
   onBookingAdded,
   onClose,
+  defaultValues, // Destructure defaultValues
 }) => {
   const { user } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
@@ -83,15 +85,21 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     defaultValues: {
       student_id: "",
       description: "",
-      lesson_type: "Driving lesson",
+      lesson_type: "Driving lesson", // Default fallback
       lesson_length: "60",
       targets_for_next_session: "",
       repeat_booking: "none",
       repeat_count: 1,
       start_time: initialStartTime,
-      // end_time is derived, not a default value
     },
   });
+
+  // Explicitly set lesson_type if provided in defaultValues prop
+  useEffect(() => {
+    if (defaultValues?.lesson_type) {
+      form.setValue("lesson_type", defaultValues.lesson_type);
+    }
+  }, [defaultValues?.lesson_type, form]); // Depend on defaultValues.lesson_type and form instance
 
   const selectedLessonLength = form.watch("lesson_length");
   const selectedStartTime = form.watch("start_time");
@@ -253,7 +261,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Lesson Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}> {/* Use value instead of defaultValue */}
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
