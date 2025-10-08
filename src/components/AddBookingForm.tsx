@@ -127,7 +127,9 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       const { data, error } = await supabase
         .from("students")
         .select("id, name")
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .eq("is_past_student", false) // Filter out past students
+        .order("name", { ascending: true });
 
       if (error) {
         console.error("Error fetching students for booking form:", error);
