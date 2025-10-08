@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,6 +29,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, XCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch"; // Import Switch
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
@@ -87,6 +89,7 @@ const formSchema = z.object({
   }),
   document: typeof window === 'undefined' ? z.any().optional().nullable() : z.instanceof(FileList).optional().nullable(),
   existing_document_url: z.string().url().optional().nullable(), // To display existing document
+  is_past_student: z.boolean().optional(), // New field
 });
 
 interface EditStudentFormProps {
@@ -113,6 +116,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       status: "Beginner", // Default to a valid enum value
       document: null,
       existing_document_url: null,
+      is_past_student: false, // Default for new field
     },
   });
 
@@ -122,7 +126,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       setIsLoadingStudent(true);
       const { data, error } = await supabase
         .from("students")
-        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, document_url")
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, document_url, is_past_student") // Fetch new field
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -153,6 +157,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           status: studentStatus, // Use the validated status
           document: null, // File input should always be reset
           existing_document_url: data.document_url,
+          is_past_student: data.is_past_student, // Set new field
         });
         setCurrentDocumentUrl(data.document_url);
       }
@@ -260,6 +265,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         notes: values.notes,
         status: values.status,
         document_url: documentUrl,
+        is_past_student: values.is_past_student, // Update new field
       })
       .eq("id", studentId)
       .eq("user_id", user.id);
@@ -316,6 +322,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" /> {/* Added for new field */}
       </div>
     );
   }
@@ -464,6 +471,27 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           <FormMessage />
           <p className="text-sm text-muted-foreground">Upload a new file to replace the existing one, or remove the current document.</p>
         </FormItem>
+
+        <FormField
+          control={form.control}
+          name="is_past_student"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+              <div className="space-y-0.5">
+                <FormLabel>Mark as Past Student</FormLabel>
+                <FormDescription>
+                  Toggle to mark this student as a past student. Past students can be hidden from the main list.
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
         <div className="flex gap-2">
           <Button type="submit" className="flex-1">Update Student</Button>

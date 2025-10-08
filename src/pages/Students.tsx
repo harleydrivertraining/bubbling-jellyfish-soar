@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText, Phone, CalendarDays, GraduationCap, Edit, Trash2 } from "lucide-react";
+import { PlusCircle, FileText, Phone, CalendarDays, GraduationCap, Edit, Trash2, UserX } from "lucide-react"; // Added UserX icon
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
-import EditStudentForm from "@/components/EditStudentForm"; // New import
+import EditStudentForm from "@/components/EditStudentForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
@@ -21,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input"; // Added import for Input
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils"; // Import cn utility
 
 interface Student {
   id: string;
@@ -33,6 +34,7 @@ interface Student {
   full_address?: string;
   notes?: string;
   document_url?: string;
+  is_past_student: boolean; // New field
 }
 
 const Students: React.FC = () => {
@@ -40,10 +42,11 @@ const Students: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); // New state for edit dialog
-  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<string | null>(null); // New state for student being edited
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all"); // New state for status filter
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [showPastStudents, setShowPastStudents] = useState<string>("current"); // "current", "past", "all"
 
   const fetchStudents = useCallback(async () => {
     if (!user) {
@@ -54,9 +57,9 @@ const Students: React.FC = () => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from("students")
-      .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, document_url")
+      .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, document_url, is_past_student") // Fetch new field
       .eq("user_id", user.id)
-      .order("name", { ascending: true }); // Order by name for consistent display
+      .order("name", { ascending: true });
 
     if (error) {
       console.error("Error fetching students:", error);
@@ -75,8 +78,8 @@ const Students: React.FC = () => {
   }, [user, isSessionLoading, fetchStudents]);
 
   const handleStudentAdded = () => {
-    fetchStudents(); // Refresh the list after a new student is added
-    setIsAddDialogOpen(false); // Close the dialog
+    fetchStudents();
+    setIsAddDialogOpen(false);
   };
 
   const handleEditStudentClick = (studentId: string) => {
@@ -85,14 +88,14 @@ const Students: React.FC = () => {
   };
 
   const handleStudentUpdated = () => {
-    fetchStudents(); // Refresh the list after a student is updated
-    setIsEditDialogOpen(false); // Close the dialog
+    fetchStudents();
+    setIsEditDialogOpen(false);
     setSelectedStudentForEdit(null);
   };
 
   const handleStudentDeleted = () => {
-    fetchStudents(); // Refresh the list after a student is deleted
-    setIsEditDialogOpen(false); // Close the dialog
+    fetchStudents();
+    setIsEditDialogOpen(false);
     setSelectedStudentForEdit(null);
   };
 
@@ -122,8 +125,15 @@ const Students: React.FC = () => {
       );
     }
 
+    // Filter by past student status
+    if (showPastStudents === "current") {
+      currentStudents = currentStudents.filter((student) => !student.is_past_student);
+    } else if (showPastStudents === "past") {
+      currentStudents = currentStudents.filter((student) => student.is_past_student);
+    }
+
     return currentStudents;
-  }, [students, searchTerm, selectedStatus]);
+  }, [students, searchTerm, selectedStatus, showPastStudents]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -186,6 +196,19 @@ const Students: React.FC = () => {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="past-student-filter">View:</Label>
+          <Select onValueChange={setShowPastStudents} defaultValue={showPastStudents}>
+            <SelectTrigger id="past-student-filter" className="w-[180px]">
+              <SelectValue placeholder="View students" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="current">Current Students</SelectItem>
+              <SelectItem value="past">Past Students</SelectItem>
+              <SelectItem value="all">All Students</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {filteredStudents.length === 0 && students.length > 0 && (
@@ -196,16 +219,23 @@ const Students: React.FC = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStudents.map((student) => (
-            <Card key={student.id} className="flex flex-col">
+            <Card key={student.id} className={cn("flex flex-col", student.is_past_student && "opacity-70 border-dashed")}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
-                <Badge variant={
-                  student.status === "Beginner" ? "secondary" :
-                  student.status === "Intermediate" ? "default" :
-                  "outline"
-                }>
-                  {student.status}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {student.is_past_student && (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground">
+                      <UserX className="mr-1 h-3 w-3" /> Past Student
+                    </Badge>
+                  )}
+                  <Badge variant={
+                    student.status === "Beginner" ? "secondary" :
+                    student.status === "Intermediate" ? "default" :
+                    "outline"
+                  }>
+                    {student.status}
+                  </Badge>
+                </div>
               </CardHeader>
               <CardContent className="flex-1 space-y-2 text-sm">
                 {student.date_of_birth && (
@@ -250,7 +280,6 @@ const Students: React.FC = () => {
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEditStudentClick(student.id)}>
                     <Edit className="mr-2 h-4 w-4" /> Edit
                   </Button>
-                  {/* Delete button is now inside EditStudentForm for AlertDialog */}
                 </div>
               </CardContent>
             </Card>
