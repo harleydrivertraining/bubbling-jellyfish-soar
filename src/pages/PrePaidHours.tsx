@@ -11,7 +11,8 @@ import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import AddPrePaidHoursForm from "@/components/AddPrePaidHoursForm";
-import { format } from "date-fns";
+import { format }
+from "date-fns";
 import {
   Select,
   SelectContent,
@@ -115,7 +116,9 @@ const PrePaidHours: React.FC = () => {
       });
     });
 
-    setAllStudentPrePaidHours(Array.from(studentPrePaidHoursMap.values()));
+    // Sort students by total_remaining_hours from least to most
+    const sortedStudents = Array.from(studentPrePaidHoursMap.values()).sort((a, b) => a.total_remaining_hours - b.total_remaining_hours);
+    setAllStudentPrePaidHours(sortedStudents);
     setIsLoading(false);
   }, [user]);
 
