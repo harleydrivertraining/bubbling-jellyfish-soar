@@ -51,6 +51,7 @@ const PrePaidHours: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all"); // New state for student filter
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("active"); // New state for active/expired filter
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -151,8 +152,15 @@ const PrePaidHours: React.FC = () => {
       );
     }
 
+    // Filter by status (active/expired)
+    if (selectedStatusFilter === "active") {
+      currentStudents = currentStudents.filter(student => student.total_remaining_hours > 0);
+    } else if (selectedStatusFilter === "expired") {
+      currentStudents = currentStudents.filter(student => student.total_remaining_hours <= 0);
+    }
+
     return currentStudents;
-  }, [allStudentPrePaidHours, searchTerm, selectedStudentId]);
+  }, [allStudentPrePaidHours, searchTerm, selectedStudentId, selectedStatusFilter]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -212,6 +220,19 @@ const PrePaidHours: React.FC = () => {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="status-filter">Status:</Label>
+          <Select onValueChange={setSelectedStatusFilter} defaultValue={selectedStatusFilter}>
+            <SelectTrigger id="status-filter" className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="expired">Expired</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {filteredStudentsPrePaidHours.length === 0 && allStudentPrePaidHours.length > 0 && (
@@ -226,7 +247,8 @@ const PrePaidHours: React.FC = () => {
               key={student.student_id}
               className={cn(
                 "flex flex-col",
-                student.total_remaining_hours <= 2 && "bg-orange-100 text-orange-800"
+                student.total_remaining_hours <= 0 ? "bg-red-100 text-red-800 border-red-300" : // Expired styling
+                student.total_remaining_hours <= 2 ? "bg-orange-100 text-orange-800" : "" // Low hours warning
               )}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

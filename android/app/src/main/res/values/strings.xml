@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">bubbling-jellyfish-soar</string>
-    <string name="title_activity_main">bubbling-jellyfish-soar</string>
+    <string name="app_name">HDT ADMIN</string>
+    <string name="title_activity_main">HDT ADMIN</string>
     <string name="package_name">com.example.bubblingjellyfishsoar</string>
     <string name="custom_url_scheme">com.example.bubblingjellyfishsoar</string>
 </resources>
