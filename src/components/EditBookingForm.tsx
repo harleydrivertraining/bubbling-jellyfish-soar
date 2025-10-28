@@ -38,6 +38,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import DatePicker from "@/components/DatePicker"; // Import DatePicker
+import TimePicker from "@/components/TimePicker"; // Import TimePicker
 
 interface Student {
   id: string;
@@ -352,26 +354,40 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <FormItem>
-            <FormLabel>Start Time</FormLabel>
-            <Input
-              type="text"
-              value={format(selectedStartTime, "PPP p")}
-              readOnly
-              className="bg-muted"
-            />
-          </FormItem>
-          <FormItem>
-            <FormLabel>End Time</FormLabel>
-            <Input
-              type="text"
-              value={format(form.getValues("end_time"), "PPP p")}
-              readOnly
-              className="bg-muted"
-            />
-          </FormItem>
-        </div>
+        {/* Start Time Field with DatePicker and TimePicker */}
+        <FormField
+          control={form.control}
+          name="start_time"
+          render={({ field }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel>Start Time</FormLabel>
+              <div className="flex gap-2">
+                <DatePicker
+                  date={field.value}
+                  setDate={field.onChange}
+                  placeholder="Select date"
+                />
+                <TimePicker
+                  date={field.value}
+                  onChange={field.onChange}
+                  label="Start Time"
+                />
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Display calculated End Time */}
+        <FormItem>
+          <FormLabel>End Time</FormLabel>
+          <Input
+            type="text"
+            value={format(form.getValues("end_time"), "PPP p")}
+            readOnly
+            className="bg-muted"
+          />
+        </FormItem>
 
         <FormField
           control={form.control}
