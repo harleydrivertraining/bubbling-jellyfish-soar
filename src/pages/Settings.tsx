@@ -3,6 +3,7 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import ProfileSettingsForm from "@/components/ProfileSettingsForm"; // Import the new component
+import ChangePasswordForm from "@/components/ChangePasswordForm"; // New import
 
 const Settings: React.FC = () => {
   return (
@@ -14,6 +15,15 @@ const Settings: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <ProfileSettingsForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Change Password</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ChangePasswordForm />
         </CardContent>
       </Card>
       {/* Other settings cards can go here */}
