@@ -60,6 +60,7 @@ const DrivingTests: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
   const [selectedOutcome, setSelectedOutcome] = useState<string>("all"); // "all", "passed", "failed"
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>("last12months"); // New state for timeframe filter
   const [stats, setStats] = useState<DrivingTestStats | null>(null); // New state for statistics
 
   const fetchStudents = useCallback(async () => {
@@ -182,6 +183,12 @@ const DrivingTests: React.FC = () => {
 
   const filteredDrivingTests = useMemo(() => {
     let currentTests = [...allDrivingTests];
+    const twelveMonthsAgo = subYears(new Date(), 1);
+
+    // Apply timeframe filter first
+    if (selectedTimeframe === "last12months") {
+      currentTests = currentTests.filter(test => isAfter(new Date(test.test_date), twelveMonthsAgo));
+    }
 
     if (searchTerm) {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -204,7 +211,7 @@ const DrivingTests: React.FC = () => {
     }
 
     return currentTests;
-  }, [allDrivingTests, searchTerm, selectedStudentId, selectedOutcome]);
+  }, [allDrivingTests, searchTerm, selectedStudentId, selectedOutcome, selectedTimeframe]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -338,12 +345,23 @@ const DrivingTests: React.FC = () => {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="timeframe-filter">Timeframe:</Label>
+          <Select onValueChange={setSelectedTimeframe} defaultValue={selectedTimeframe}>
+            <SelectTrigger id="timeframe-filter" className="w-[180px]">
+              <SelectValue placeholder="Select timeframe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="last12months">Last 12 Months</SelectItem>
+              <SelectItem value="allTime">All Time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {filteredDrivingTests.length === 0 && allDrivingTests.length > 0 && (
+      {filteredDrivingTests.length === 0 && allDrivingTests.length > 0 ? (
         <p className="text-muted-foreground col-span-full">No driving test records match your search or filter criteria.</p>
-      )}
-      {allDrivingTests.length === 0 ? (
+      ) : allDrivingTests.length === 0 ? (
         <p className="text-muted-foreground">No driving test records added yet. Click "Add Test Record" to get started!</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -356,7 +374,7 @@ const DrivingTests: React.FC = () => {
       <Dialog open={isEditTestDialogOpen} onOpenChange={handleCloseEditTestDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Edit Driving Test Record</DialogTitle>
+            <DialogTitle>Edit Driving Test Record</CardTitle>
           </DialogHeader>
           {selectedTestForEdit && (
             <EditDrivingTestForm
