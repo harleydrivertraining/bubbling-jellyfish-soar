@@ -374,7 +374,7 @@ const DrivingTests: React.FC = () => {
       <Dialog open={isEditTestDialogOpen} onOpenChange={handleCloseEditTestDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Edit Driving Test Record</CardTitle>
+            <DialogTitle>Edit Driving Test Record</DialogTitle>
           </DialogHeader>
           {selectedTestForEdit && (
             <EditDrivingTestForm
