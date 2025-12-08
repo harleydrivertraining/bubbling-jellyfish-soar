@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Link as LinkIcon, Image as ImageIcon, Folder, Trash2, Edit, ChevronRight, Home } from "lucide-react";
+import { PlusCircle, Link as LinkIcon, Image as ImageIcon, Folder, Trash2, Edit, ChevronRight, Home, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -22,7 +22,8 @@ interface Resource {
   name: string;
   image_url?: string | null;
   details?: string | null;
-  resource_url: string;
+  resource_url?: string | null; // Now optional
+  file_path?: string | null; // New field
   folder_id?: string | null;
 }
 
@@ -70,7 +71,7 @@ const Resources: React.FC = () => {
     // Fetch resources
     let resourceQuery = supabase
       .from("resources")
-      .select("id, name, image_url, details, resource_url, folder_id")
+      .select("id, name, image_url, details, resource_url, file_path, folder_id") // Select new file_path
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
@@ -131,16 +132,36 @@ const Resources: React.FC = () => {
     setSelectedResourceForEdit(null);
   };
 
-  const handleDeleteResource = async (resourceId: string) => {
+  const handleDeleteResource = async (resource: Resource) => {
     if (!user) {
       showError("You must be logged in to delete a resource.");
       return;
     }
 
+    // If the resource has an associated file, delete it from storage first
+    if (resource.file_path && resource.file_path.includes('/storage/v1/object/public/resources/')) {
+      const urlParts = resource.file_path.split('/public/resources/');
+      if (urlParts.length < 2) {
+        showError("Could not determine file path from URL. Cannot delete file.");
+        return;
+      }
+      const filePathInStorage = urlParts[1];
+
+      const { error: deleteFileError } = await supabase.storage
+        .from('resources')
+        .remove([filePathInStorage]);
+
+      if (deleteFileError) {
+        console.error("Error deleting file from storage:", deleteFileError);
+        showError("Failed to delete associated file: " + deleteFileError.message);
+        return; // Stop if file deletion fails
+      }
+    }
+
     const { error } = await supabase
       .from("resources")
       .delete()
-      .eq("id", resourceId)
+      .eq("id", resource.id)
       .eq("user_id", user.id);
 
     if (error) {
@@ -387,7 +408,7 @@ const Resources: React.FC = () => {
                   <Avatar className="h-10 w-10 rounded-md mr-3">
                     <AvatarImage src={resource.image_url || undefined} alt={`${resource.name} image`} className="object-cover" />
                     <AvatarFallback className="rounded-md">
-                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                      {resource.file_path ? <FileText className="h-5 w-5 text-muted-foreground" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
                     </AvatarFallback>
                   </Avatar>
                   <CardTitle className="text-lg font-semibold">{resource.name}</CardTitle>
@@ -408,12 +429,12 @@ const Resources: React.FC = () => {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the resource "{resource.name}".
+                          This action cannot be undone. This will permanently delete the resource "{resource.name}" and any associated file from storage.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteResource(resource.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        <AlertDialogAction onClick={() => handleDeleteResource(resource)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                           Delete
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -425,14 +446,17 @@ const Resources: React.FC = () => {
                 {resource.details && (
                   <CardDescription className="text-muted-foreground">{resource.details}</CardDescription>
                 )}
-                <a
-                  href={resource.resource_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-blue-500 hover:underline mt-2"
-                >
-                  <LinkIcon className="h-4 w-4 mr-1" /> View Resource
-                </a>
+                {(resource.resource_url || resource.file_path) && (
+                  <a
+                    href={resource.resource_url || resource.file_path || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-blue-500 hover:underline mt-2"
+                  >
+                    {resource.file_path ? <FileText className="h-4 w-4 mr-1" /> : <LinkIcon className="h-4 w-4 mr-1" />}
+                    View Resource
+                  </a>
+                )}
               </CardContent>
             </Card>
           ))}

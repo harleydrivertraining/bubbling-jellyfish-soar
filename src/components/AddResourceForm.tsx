@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Link as LinkIcon, Image as ImageIcon, Check, ChevronsUpDown } from "lucide-react";
+import { Link as LinkIcon, Image as ImageIcon, Check, ChevronsUpDown, UploadCloud, XCircle, FileText } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 
 interface ResourceFolder {
   id: string;
@@ -39,14 +40,28 @@ const formSchema = z.object({
   name: z.string().min(1, { message: "Resource name is required." }),
   image_url: z.string().url({ message: "Must be a valid URL." }).optional().nullable().or(z.literal("")),
   details: z.string().optional().nullable(),
-  resource_url: z.string().url({ message: "Resource URL is required and must be a valid URL." }),
-  folder_id: z.string().optional().nullable(), // New field for folder_id
+  resource_url: z.string().url({ message: "Resource URL is required and must be a valid URL." }).optional().nullable().or(z.literal("")),
+  file: typeof window === 'undefined' ? z.any().optional().nullable() : z.instanceof(FileList).optional().nullable(),
+  folder_id: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (!data.resource_url && (!data.file || data.file.length === 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Either a Resource URL or a File must be provided.",
+      path: ["resource_url"],
+    });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Either a Resource URL or a File must be provided.",
+      path: ["file"],
+    });
+  }
 });
 
 interface AddResourceFormProps {
   onResourceAdded: () => void;
   onClose: () => void;
-  currentFolderId?: string | null; // New prop to pre-select folder
+  currentFolderId?: string | null;
 }
 
 const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onClose, currentFolderId }) => {
@@ -54,6 +69,9 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
   const [folders, setFolders] = useState<ResourceFolder[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
   const [openFolderSelect, setOpenFolderSelect] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -62,9 +80,25 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       image_url: "",
       details: "",
       resource_url: "",
-      folder_id: currentFolderId || null, // Set default to currentFolderId
+      file: null,
+      folder_id: currentFolderId || null,
     },
   });
+
+  const selectedFile = form.watch("file");
+  const resourceUrl = form.watch("resource_url");
+
+  useEffect(() => {
+    if (selectedFile && selectedFile.length > 0) {
+      setFilePreview(URL.createObjectURL(selectedFile[0]));
+      form.setValue("resource_url", ""); // Clear URL if file is selected
+    } else {
+      setFilePreview(null);
+    }
+    return () => {
+      if (filePreview) URL.revokeObjectURL(filePreview);
+    };
+  }, [selectedFile, form, filePreview]);
 
   useEffect(() => {
     const fetchFolders = async () => {
@@ -95,6 +129,49 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       return;
     }
 
+    let finalResourceUrl: string | null = values.resource_url === "" ? null : values.resource_url;
+    let finalFilePath: string | null = null;
+
+    if (values.file && values.file.length > 0) {
+      setUploading(true);
+      setUploadProgress(0);
+      const file = values.file[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${file.name}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('resources')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          onUploadProgress: (event) => {
+            if (event.totalBytes > 0) {
+              setUploadProgress(Math.round((event.bytesUploaded / event.totalBytes) * 100));
+            }
+          },
+        });
+
+      if (uploadError) {
+        console.error("Error uploading resource file:", uploadError);
+        showError("Failed to upload file: " + uploadError.message);
+        setUploading(false);
+        setUploadProgress(0);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('resources')
+        .getPublicUrl(filePath);
+      
+      finalFilePath = publicUrlData.publicUrl;
+      finalResourceUrl = null; // Clear external URL if a file is uploaded
+      setUploading(false);
+      setUploadProgress(0);
+    } else if (finalResourceUrl) {
+      finalFilePath = null; // Clear file path if an external URL is provided
+    }
+
     const { error } = await supabase
       .from("resources")
       .insert({
@@ -102,8 +179,9 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
         name: values.name,
         image_url: values.image_url === "" ? null : values.image_url,
         details: values.details,
-        resource_url: values.resource_url,
-        folder_id: values.folder_id === "" ? null : values.folder_id, // Insert folder_id
+        resource_url: finalResourceUrl,
+        file_path: finalFilePath, // Store the uploaded file's public URL
+        folder_id: values.folder_id === "" ? null : values.folder_id,
       })
       .select();
 
@@ -173,19 +251,79 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="resource_url"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Resource URL</FormLabel>
-              <FormControl>
-                <Input placeholder="https://www.gov.uk/highway-code" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="space-y-2">
+          <FormField
+            control={form.control}
+            name="resource_url"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Resource URL (Optional)</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="https://www.gov.uk/highway-code"
+                    {...field}
+                    value={field.value || ""}
+                    disabled={uploading || (selectedFile && selectedFile.length > 0)} // Disable if file is selected or uploading
+                    onChange={(e) => {
+                      field.onChange(e);
+                      if (e.target.value) {
+                        form.setValue("file", null); // Clear file input if URL is entered
+                      }
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="relative flex items-center py-2">
+            <div className="flex-grow border-t border-muted-foreground/20"></div>
+            <span className="flex-shrink mx-4 text-muted-foreground text-sm">OR</span>
+            <div className="flex-grow border-t border-muted-foreground/20"></div>
+          </div>
+
+          <FormField
+            control={form.control}
+            name="file"
+            render={({ field: { value, onChange, ...fieldProps } }) => (
+              <FormItem>
+                <FormLabel>Upload File (Optional)</FormLabel>
+                <FormControl>
+                  <Input
+                    {...fieldProps}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.jpg,.png,.mp4,.mov" // Example accepted file types
+                    onChange={(event) => {
+                      onChange(event.target.files);
+                      if (event.target.files && event.target.files.length > 0) {
+                        form.setValue("resource_url", ""); // Clear URL if file is selected
+                      }
+                    }}
+                    disabled={uploading || (resourceUrl && resourceUrl.length > 0)} // Disable if URL is entered or uploading
+                  />
+                </FormControl>
+                <FormMessage />
+                {filePreview && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    <span>{selectedFile?.[0]?.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => form.setValue("file", null)}
+                      className="h-6 w-6 text-destructive hover:text-destructive/90"
+                      title="Remove selected file"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                {uploading && <Progress value={uploadProgress} className="w-full mt-2" />}
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -261,7 +399,7 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
           )}
         />
 
-        <Button type="submit" className="w-full">Add Resource</Button>
+        <Button type="submit" className="w-full" disabled={uploading}>Add Resource</Button>
       </form>
     </Form>
   );
