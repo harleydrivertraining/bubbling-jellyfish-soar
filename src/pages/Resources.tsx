@@ -71,7 +71,7 @@ const Resources: React.FC = () => {
     // Fetch resources
     let resourceQuery = supabase
       .from("resources")
-      .select("id, name, image_url, details, resource_url, file_path, folder_id") // Select new file_path
+      .select("id, name, image_url, details, resource_url, file_path, folder_id") // Explicitly select file_path
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
