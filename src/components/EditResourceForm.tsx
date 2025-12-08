@@ -29,7 +29,7 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } = "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 
@@ -173,7 +173,7 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
     if (existingFilePath.includes('/storage/v1/object/public/resources/')) {
       const urlParts = existingFilePath.split('/public/resources/');
       if (urlParts.length < 2) {
-        showError("Could not determine file path from URL.");
+        showError("Could not determine file path from URL. Cannot delete file.");
         return;
       }
       const filePathInStorage = urlParts[1];

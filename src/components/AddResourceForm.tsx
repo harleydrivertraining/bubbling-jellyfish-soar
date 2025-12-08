@@ -107,7 +107,7 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       const { data, error } = await supabase
         .from("resource_folders")
         .select("id, name")
-        .eq("user_id", user.id)
+        .eq("user.id", user.id)
         .order("name", { ascending: true });
 
       if (error) {
