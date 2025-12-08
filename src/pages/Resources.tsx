@@ -332,6 +332,9 @@ const Resources: React.FC = () => {
                 {viewerContentType === 'other' ? "Download File" : "Open in New Tab"}
               </a>
             </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Note: Some external websites prevent embedding in iframes for security reasons. If this is an external link and it's not loading, try opening it in a new tab.
+            </p>
           </div>
         );
     }
