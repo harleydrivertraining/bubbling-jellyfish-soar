@@ -33,14 +33,13 @@ interface ResourceFolder {
   parent_folder_id?: string | null;
 }
 
-// Helper to determine file type for embedding
+// Helper to determine file type for embedding (still useful for icon display)
 const getFileType = (url: string | null | undefined): 'image' | 'video' | 'pdf' | 'web' | 'other' => {
   if (!url) return 'other';
   const lowerUrl = url.toLowerCase();
   if (lowerUrl.match(/\.(jpeg|jpg|png|gif|webp|svg)$/)) return 'image';
   if (lowerUrl.match(/\.(mp4|webm|ogg)$/)) return 'video';
   if (lowerUrl.endsWith('.pdf')) return 'pdf';
-  // Consider anything with http/https as a web link, otherwise 'other' for non-embeddable files
   if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) return 'web';
   return 'other';
 };
@@ -58,11 +57,7 @@ const Resources: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState("");
   const [currentFolder, setCurrentFolder] = useState<ResourceFolder | null>(null); // null for root
 
-  // State for the in-app viewer
-  const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [viewerContentUrl, setViewerContentUrl] = useState<string | null>(null);
-  const [viewerContentType, setViewerContentType] = useState<'image' | 'video' | 'pdf' | 'web' | 'other'>('other');
-  const [viewerTitle, setViewerTitle] = useState<string>("");
+  // Removed states for in-app viewer
 
   const fetchFoldersAndResources = useCallback(async () => {
     if (!user) {
@@ -288,57 +283,13 @@ const Resources: React.FC = () => {
   const handleViewResource = (resource: Resource) => {
     const url = resource.resource_url || resource.file_path;
     if (url) {
-      const type = getFileType(url);
-      setViewerContentUrl(url);
-      setViewerContentType(type);
-      setViewerTitle(resource.name);
-      setIsViewerOpen(true);
+      window.open(url, '_blank'); // Open in a new tab
     } else {
       showError("No viewable content available for this resource.");
     }
   };
 
-  const renderViewerContent = () => {
-    if (!viewerContentUrl) return null;
-
-    switch (viewerContentType) {
-      case 'image':
-        return <img src={viewerContentUrl} alt={viewerTitle} className="max-w-full max-h-[80vh] object-contain mx-auto" />;
-      case 'video':
-        return (
-          <video controls className="w-full max-h-[80vh] object-contain mx-auto">
-            <source src={viewerContentUrl} type="video/mp4" /> {/* Assuming mp4, could add more types */}
-            Your browser does not support the video tag.
-          </video>
-        );
-      case 'pdf':
-      case 'web':
-        return (
-          <iframe
-            src={viewerContentType === 'pdf' ? viewerContentUrl : viewerContentUrl}
-            title={viewerTitle}
-            className="w-full h-[80vh] border-none"
-            allowFullScreen
-          ></iframe>
-        );
-      case 'other':
-      default:
-        return (
-          <div className="p-4 text-center space-y-4">
-            <p className="text-lg font-semibold">Cannot display this file type directly.</p>
-            <p className="text-muted-foreground">You can download it or open it in a new tab.</p>
-            <Button asChild>
-              <a href={viewerContentUrl} target="_blank" rel="noopener noreferrer" download={viewerContentType === 'other'}>
-                {viewerContentType === 'other' ? "Download File" : "Open in New Tab"}
-              </a>
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Note: Some external websites prevent embedding in iframes for security reasons. If this is an external link and it's not loading, try opening it in a new tab.
-            </p>
-          </div>
-        );
-    }
-  };
+  // Removed renderViewerContent function
 
   if (isSessionLoading || isLoading) {
     return (
@@ -550,17 +501,7 @@ const Resources: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* In-app Resource Viewer Dialog */}
-      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle>{viewerTitle}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto p-4">
-            {renderViewerContent()}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Removed the in-app Resource Viewer Dialog */}
     </div>
   );
 };
