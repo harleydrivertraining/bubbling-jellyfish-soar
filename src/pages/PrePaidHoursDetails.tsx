@@ -1,16 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom"; // Import useNavigate
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError, showSuccess } from "@/utils/toast"; // Import showSuccess
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock, Trash2 } from "lucide-react"; // Import Trash2
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // Import AlertDialog components
+import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface PrePaidHoursPackage {
   id: string;
@@ -30,7 +30,7 @@ interface BookingTransaction {
   hours_deducted: number;
   transaction_date: string;
   bookings: {
-    id: string;
+    id: string; // Booking ID
     title: string;
     description?: string;
     start_time: string;
@@ -43,7 +43,7 @@ interface BookingTransaction {
 const PrePaidHoursDetails: React.FC = () => {
   const { packageId } = useParams<{ packageId: string }>();
   const { user, isLoading: isSessionLoading } = useSession();
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
   const [prePaidPackage, setPrePaidPackage] = useState<PrePaidHoursPackage | null>(null);
   const [packageTransactions, setPackageTransactions] = useState<BookingTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,24 +101,24 @@ const PrePaidHoursDetails: React.FC = () => {
     }
   }, [isSessionLoading, fetchPackageDetails]);
 
-  const handleDeletePackage = async () => {
-    if (!user || !packageId) {
-      showError("You must be logged in to delete a pre-paid hours package.");
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!user) {
+      showError("You must be logged in to delete a booking.");
       return;
     }
 
     const { error } = await supabase
-      .from("pre_paid_hours")
+      .from("bookings")
       .delete()
-      .eq("id", packageId)
-      .eq("user_id", user.id);
+      .eq("id", bookingId)
+      .eq("user_id", user.id); // Ensure user owns the booking
 
     if (error) {
-      console.error("Error deleting pre-paid hours package:", error);
-      showError("Failed to delete pre-paid hours package: " + error.message);
+      console.error("Error deleting booking:", error);
+      showError("Failed to delete booking: " + error.message);
     } else {
-      showSuccess("Pre-paid hours package deleted successfully! Associated lesson statuses have been reverted.");
-      navigate("/pre-paid-hours"); // Navigate back to the list page
+      showSuccess("Booking deleted successfully! Hours have been returned to the package.");
+      fetchPackageDetails(); // Re-fetch details to update remaining hours and transaction list
     }
   };
 
@@ -179,29 +179,6 @@ const PrePaidHoursDetails: React.FC = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Pre-Paid Hours
           </Link>
         </Button>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive">
-              <Trash2 className="mr-2 h-4 w-4" /> Delete Package
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete this pre-paid hours package.
-                <br />
-                <span className="font-bold text-destructive">Any lessons that used hours from this package will have their status reverted to "scheduled".</span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeletePackage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Delete Package
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
 
       <h1 className="text-3xl font-bold">Pre-Paid Hours Details</h1>
@@ -240,15 +217,38 @@ const PrePaidHoursDetails: React.FC = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {packageTransactions.map((transaction) => (
-            <Card key={transaction.id}>
-              <CardHeader>
+            <Card key={transaction.id} className="flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-lg">{transaction.bookings.title}</CardTitle>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete this booking.
+                        <br />
+                        <span className="font-bold text-primary">The {transaction.hours_deducted.toFixed(1)} hours deducted for this booking will be returned to this pre-paid package.</span>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteBooking(transaction.bookings.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete Booking
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-1 text-sm">
                 <CardDescription className="flex items-center text-muted-foreground">
                   <BookOpen className="mr-2 h-4 w-4" />
                   <span>{transaction.bookings.lesson_type}</span>
                 </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-1 text-sm">
                 <div className="flex items-center text-muted-foreground">
                   <CalendarDays className="mr-2 h-4 w-4" />
                   <span>{format(new Date(transaction.bookings.start_time), "PPP")}</span>
