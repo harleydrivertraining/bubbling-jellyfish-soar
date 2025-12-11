@@ -15,7 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label"; // Corrected import: using Label instead of FormLabel
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Import Dialog components
+import EditBookingForm from "@/components/EditBookingForm"; // Import EditBookingForm
 
 interface Booking {
   id: string;
@@ -40,6 +42,9 @@ const Lessons: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all"); // "all" for all students
+
+  const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false); // New state
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null); // New state
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -73,11 +78,14 @@ const Lessons: React.FC = () => {
       query = query.eq("student_id", studentId);
     }
 
-    const { data, error } = await query.order("start_time", { ascending: true });
+    // Only show completed lessons for this page
+    query = query.eq("status", "completed"); // Filter for completed lessons
+
+    const { data, error } = await query.order("start_time", { ascending: false }); // Most recent completed first
 
     if (error) {
       console.error("Error fetching bookings:", error);
-      showError("Failed to load bookings: " + error.message);
+      showError("Failed to load lessons: " + error.message);
       setBookings([]);
     } else {
       setBookings(data || []);
@@ -96,6 +104,22 @@ const Lessons: React.FC = () => {
       fetchBookings(selectedStudentId);
     }
   }, [isSessionLoading, user, selectedStudentId, fetchBookings]);
+
+  const handleEditBookingClick = (bookingId: string) => {
+    setSelectedBookingId(bookingId);
+    setIsEditBookingDialogOpen(true);
+  };
+
+  const handleBookingUpdatedOrDeleted = () => {
+    fetchBookings(selectedStudentId); // Re-fetch bookings to update the list
+    setIsEditBookingDialogOpen(false);
+    setSelectedBookingId(null);
+  };
+
+  const handleCloseEditBookingDialog = () => {
+    setIsEditBookingDialogOpen(false);
+    setSelectedBookingId(null);
+  };
 
   if (isSessionLoading || isLoading) {
     return (
@@ -125,10 +149,10 @@ const Lessons: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Lessons</h1>
+      <h1 className="text-3xl font-bold">Completed Lessons</h1> {/* Changed title */}
 
       <div className="flex items-center gap-4">
-        <Label>Filter by Student:</Label> {/* Corrected: using Label instead of FormLabel */}
+        <Label>Filter by Student:</Label>
         <Select onValueChange={setSelectedStudentId} defaultValue={selectedStudentId}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select a student" />
@@ -145,11 +169,11 @@ const Lessons: React.FC = () => {
       </div>
 
       {bookings.length === 0 ? (
-        <p className="text-muted-foreground">No lessons scheduled yet for the selected student(s). Go to the Schedule page to add one!</p>
+        <p className="text-muted-foreground">No completed lessons found. Mark lessons as completed in the Schedule page to see them here.</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {bookings.map((booking) => (
-            <Card key={booking.id} className="flex flex-col">
+            <Card key={booking.id} className="flex flex-col cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => handleEditBookingClick(booking.id)}>
               <CardHeader>
                 <CardTitle className="text-lg">{booking.title}</CardTitle>
                 {booking.students?.name && (
@@ -179,6 +203,22 @@ const Lessons: React.FC = () => {
           ))}
         </div>
       )}
+
+      <Dialog open={isEditBookingDialogOpen} onOpenChange={handleCloseEditBookingDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Lesson</DialogTitle>
+          </DialogHeader>
+          {selectedBookingId && (
+            <EditBookingForm
+              bookingId={selectedBookingId}
+              onBookingUpdated={handleBookingUpdatedOrDeleted}
+              onBookingDeleted={handleBookingUpdatedOrDeleted}
+              onClose={handleCloseEditBookingDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
