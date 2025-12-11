@@ -1,15 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom"; // Import useNavigate
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast"; // Import showSuccess
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock } from "lucide-react";
+import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock, Trash2 } from "lucide-react"; // Import Trash2
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // Import AlertDialog components
 
 interface PrePaidHoursPackage {
   id: string;
@@ -42,6 +43,7 @@ interface BookingTransaction {
 const PrePaidHoursDetails: React.FC = () => {
   const { packageId } = useParams<{ packageId: string }>();
   const { user, isLoading: isSessionLoading } = useSession();
+  const navigate = useNavigate(); // Initialize useNavigate
   const [prePaidPackage, setPrePaidPackage] = useState<PrePaidHoursPackage | null>(null);
   const [packageTransactions, setPackageTransactions] = useState<BookingTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,6 +101,27 @@ const PrePaidHoursDetails: React.FC = () => {
     }
   }, [isSessionLoading, fetchPackageDetails]);
 
+  const handleDeletePackage = async () => {
+    if (!user || !packageId) {
+      showError("You must be logged in to delete a pre-paid hours package.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("pre_paid_hours")
+      .delete()
+      .eq("id", packageId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error deleting pre-paid hours package:", error);
+      showError("Failed to delete pre-paid hours package: " + error.message);
+    } else {
+      showSuccess("Pre-paid hours package deleted successfully! Associated lesson statuses have been reverted.");
+      navigate("/pre-paid-hours"); // Navigate back to the list page
+    }
+  };
+
   if (isSessionLoading || isLoading) {
     return (
       <div className="space-y-6">
@@ -109,8 +132,7 @@ const PrePaidHoursDetails: React.FC = () => {
           <CardContent className="space-y-2">
             <Skeleton className="h-4 w-1/2" />
             <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3" />
-          </CardContent>
+            <Skeleton className="h-4 w-2/3" /></CardContent>
         </Card>
         <Skeleton className="h-8 w-48" />
         <div className="grid gap-4 md:grid-cols-2">
@@ -151,11 +173,36 @@ const PrePaidHoursDetails: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <Button variant="outline" asChild>
-        <Link to="/pre-paid-hours">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Pre-Paid Hours
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button variant="outline" asChild>
+          <Link to="/pre-paid-hours">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Pre-Paid Hours
+          </Link>
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive">
+              <Trash2 className="mr-2 h-4 w-4" /> Delete Package
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete this pre-paid hours package.
+                <br />
+                <span className="font-bold text-destructive">Any lessons that used hours from this package will have their status reverted to "scheduled".</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeletePackage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete Package
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
 
       <h1 className="text-3xl font-bold">Pre-Paid Hours Details</h1>
 
@@ -201,7 +248,7 @@ const PrePaidHoursDetails: React.FC = () => {
                   <span>{transaction.bookings.lesson_type}</span>
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-1 text-sm">
+              <CardContent className="flex-1 space-y-1 text-sm">
                 <div className="flex items-center text-muted-foreground">
                   <CalendarDays className="mr-2 h-4 w-4" />
                   <span>{format(new Date(transaction.bookings.start_time), "PPP")}</span>
