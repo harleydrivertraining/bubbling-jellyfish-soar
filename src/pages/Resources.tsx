@@ -33,18 +33,6 @@ interface ResourceFolder {
   parent_folder_id?: string | null;
 }
 
-// Helper to determine file type for embedding
-const getFileType = (url: string | null | undefined): 'image' | 'video' | 'pdf' | 'web' | 'other' => {
-  if (!url) return 'other';
-  const lowerUrl = url.toLowerCase();
-  if (lowerUrl.match(/\.(jpeg|jpg|png|gif|webp|svg)$/)) return 'image';
-  if (lowerUrl.match(/\.(mp4|webm|ogg)$/)) return 'video';
-  if (lowerUrl.endsWith('.pdf')) return 'pdf';
-  // Consider anything with http/https as a web link, otherwise 'other' for non-embeddable files
-  if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) return 'web';
-  return 'other';
-};
-
 const Resources: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [resources, setResources] = useState<Resource[]>([]);
@@ -57,12 +45,6 @@ const Resources: React.FC = () => {
   const [isAddFolderDialogOpen, setIsAddFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [currentFolder, setCurrentFolder] = useState<ResourceFolder | null>(null); // null for root
-
-  // State for the in-app viewer
-  const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [viewerContentUrl, setViewerContentUrl] = useState<string | null>(null);
-  const [viewerContentType, setViewerContentType] = useState<'image' | 'video' | 'pdf' | 'web' | 'other'>('other');
-  const [viewerTitle, setViewerTitle] = useState<string>("");
 
   const fetchFoldersAndResources = useCallback(async () => {
     if (!user) {
@@ -288,56 +270,22 @@ const Resources: React.FC = () => {
   const handleViewResource = (resource: Resource) => {
     const url = resource.resource_url || resource.file_path;
     if (url) {
-      const type = getFileType(url);
-      setViewerContentUrl(url);
-      setViewerContentType(type);
-      setViewerTitle(resource.name);
-      setIsViewerOpen(true);
+      window.open(url, '_blank'); // Open in a new tab
     } else {
       showError("No viewable content available for this resource.");
     }
   };
 
-  const renderViewerContent = () => {
-    if (!viewerContentUrl) return null;
+  // Helper to determine icon for resource link
+  const getResourceIcon = (resource: Resource) => {
+    const url = resource.resource_url || resource.file_path;
+    if (!url) return <FileText className="h-4 w-4 mr-1" />;
 
-    switch (viewerContentType) {
-      case 'image':
-        return <img src={viewerContentUrl} alt={viewerTitle} className="max-w-full max-h-[80vh] object-contain mx-auto" />;
-      case 'video':
-        return (
-          <video controls className="w-full max-h-[80vh] object-contain mx-auto">
-            <source src={viewerContentUrl} type="video/mp4" /> {/* Assuming mp4, could add more types */}
-            Your browser does not support the video tag.
-          </video>
-        );
-      case 'pdf':
-      case 'web':
-        return (
-          <iframe
-            src={viewerContentType === 'pdf' ? viewerContentUrl : viewerContentUrl}
-            title={viewerTitle}
-            className="w-full h-[80vh] border-none"
-            allowFullScreen
-          ></iframe>
-        );
-      case 'other':
-      default:
-        return (
-          <div className="p-4 text-center space-y-4">
-            <p className="text-lg font-semibold">Cannot display this file type directly.</p>
-            <p className="text-muted-foreground">You can download it or open it in a new tab.</p>
-            <Button asChild>
-              <a href={viewerContentUrl} target="_blank" rel="noopener noreferrer" download={viewerContentType === 'other'}>
-                {viewerContentType === 'other' ? "Download File" : "Open in New Tab"}
-              </a>
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Note: Some external websites prevent embedding in iframes for security reasons. If this is an external link and it's not loading, try opening it in a new tab.
-            </p>
-          </div>
-        );
-    }
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.match(/\.(jpeg|jpg|png|gif|webp|svg)$/)) return <ImageIcon className="h-4 w-4 mr-1" />;
+    if (lowerUrl.match(/\.(mp4|webm|ogg)$/)) return <Video className="h-4 w-4 mr-1" />;
+    if (lowerUrl.endsWith('.pdf')) return <FileText className="h-4 w-4 mr-1" />;
+    return <LinkIcon className="h-4 w-4 mr-1" />;
   };
 
   if (isSessionLoading || isLoading) {
@@ -481,7 +429,7 @@ const Resources: React.FC = () => {
                   <Avatar className="h-10 w-10 rounded-md mr-3">
                     <AvatarImage src={resource.image_url || undefined} alt={`${resource.name} image`} className="object-cover" />
                     <AvatarFallback className="rounded-md">
-                      {resource.file_path ? <FileText className="h-5 w-5 text-muted-foreground" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                      {getResourceIcon(resource)}
                     </AvatarFallback>
                   </Avatar>
                   <CardTitle className="text-lg font-semibold">{resource.name}</CardTitle>
@@ -521,10 +469,7 @@ const Resources: React.FC = () => {
                 )}
                 {(resource.resource_url || resource.file_path) && (
                   <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => handleViewResource(resource)}>
-                    {getFileType(resource.resource_url || resource.file_path) === 'web' ? <LinkIcon className="h-4 w-4 mr-1" /> :
-                     getFileType(resource.resource_url || resource.file_path) === 'image' ? <ImageIcon className="h-4 w-4 mr-1" /> :
-                     getFileType(resource.resource_url || resource.file_path) === 'video' ? <Video className="h-4 w-4 mr-1" /> :
-                     <FileText className="h-4 w-4 mr-1" />}
+                    {getResourceIcon(resource)}
                     View Resource
                   </Button>
                 )}
@@ -547,18 +492,6 @@ const Resources: React.FC = () => {
               onClose={handleCloseEditResourceDialog}
             />
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* In-app Resource Viewer Dialog */}
-      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle>{viewerTitle}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto p-4">
-            {renderViewerContent()}
-          </div>
         </DialogContent>
       </Dialog>
     </div>
