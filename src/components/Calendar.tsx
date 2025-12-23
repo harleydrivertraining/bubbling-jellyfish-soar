@@ -9,7 +9,7 @@ import endOfWeek from 'date-fns/endOfWeek';
 import getDay from 'date-fns/getDay';
 import enUS from 'date-fns/locale/en-US';
 import Toolbar from 'react-big-calendar/lib/Toolbar';
-import { isWithinInterval, setHours, getHours, getMinutes, startOfDay, endOfDay } from 'date-fns';
+import { isWithinInterval, setHours, getHours, getMinutes, startOfDay, endOfDay, startOfMonth, endOfMonth, addMonths } from 'date-fns'; // Added startOfMonth, endOfMonth, addMonths
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -37,7 +37,7 @@ const DEFAULT_MAX_HOUR = 18; // 6 PM
 
 const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[], currentView: string) => {
   // Min/max only apply to week and day views
-  if (currentView !== 'week' && currentView !== 'day') {
+  if (currentView !== 'month' && currentView !== 'day') {
     // Ensure minutes/seconds are zeroed out for default range
     return {
       min: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0),
@@ -97,12 +97,11 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
 
 interface CalendarComponentProps {
   events: BigCalendarEvent[];
-  onEventsRefetch: () => void;
+  onEventsRefetch: (startDate: Date, endDate: Date) => void; // Modified to accept date range
   onSelectSlot: (start: Date, end: Date) => void;
-  // NEW PROPS
   currentDate: Date;
   setCurrentDate: (date: Date) => void;
-  currentView: 'month' | 'week' | 'day' | 'agenda'; // No longer null
+  currentView: 'month' | 'week' | 'day' | 'agenda';
   setCurrentView: (view: 'month' | 'week' | 'day' | 'agenda') => void;
 }
 
@@ -110,13 +109,12 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   events,
   onEventsRefetch,
   onSelectSlot,
-  currentDate, // Use prop
-  setCurrentDate, // Use prop
-  currentView, // Use prop
-  setCurrentView, // Use prop
+  currentDate,
+  setCurrentDate,
+  currentView,
+  setCurrentView,
 }) => {
   const { user } = useSession();
-  // Removed internal state for currentDate and currentView
 
   const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
   const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
@@ -124,21 +122,75 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
-  // Recalculate min/max whenever events, current date, or view changes
   useEffect(() => {
-    // currentView is guaranteed to be set by parent
     const { min, max } = calculateDynamicTimeRange(currentDate, events, currentView);
     setMinTime(min);
     setMaxTime(max);
-  }, [events, currentDate, currentView]); // Dependencies now include props
+  }, [events, currentDate, currentView]);
 
-  const handleNavigate = useCallback((newDate: Date) => {
-    setCurrentDate(newDate); // Call prop setter
-  }, [setCurrentDate]);
+  const handleNavigate = useCallback((newDate: Date, view: string) => {
+    setCurrentDate(newDate);
+
+    // Determine the new date range to fetch based on the newDate and currentView
+    let fetchStartDate: Date;
+    let fetchEndDate: Date;
+
+    switch (view) {
+      case 'month':
+        fetchStartDate = startOfMonth(newDate);
+        fetchEndDate = endOfMonth(newDate);
+        break;
+      case 'week':
+        fetchStartDate = startOfWeek(newDate, { weekStartsOn: 1 });
+        fetchEndDate = endOfWeek(newDate, { weekStartsOn: 1 });
+        break;
+      case 'day':
+        fetchStartDate = startOfDay(newDate);
+        fetchEndDate = endOfDay(newDate);
+        break;
+      case 'agenda':
+        // For agenda, fetch a wider range, e.g., current month + next 2 months
+        fetchStartDate = startOfMonth(newDate);
+        fetchEndDate = endOfMonth(addMonths(newDate, 2));
+        break;
+      default:
+        fetchStartDate = startOfMonth(newDate);
+        fetchEndDate = endOfMonth(addMonths(newDate, 2));
+        break;
+    }
+    onEventsRefetch(fetchStartDate, fetchEndDate); // Trigger refetch with new range
+  }, [setCurrentDate, onEventsRefetch]);
 
   const handleView = useCallback((newView: string) => {
-    setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda'); // Call prop setter
-  }, [setCurrentView]);
+    setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda');
+    // When view changes, also refetch for the current date in the new view's range
+    let fetchStartDate: Date;
+    let fetchEndDate: Date;
+
+    switch (newView) {
+      case 'month':
+        fetchStartDate = startOfMonth(currentDate);
+        fetchEndDate = endOfMonth(currentDate);
+        break;
+      case 'week':
+        fetchStartDate = startOfWeek(currentDate, { weekStartsOn: 1 });
+        fetchEndDate = endOfWeek(currentDate, { weekStartsOn: 1 });
+        break;
+      case 'day':
+        fetchStartDate = startOfDay(currentDate);
+        fetchEndDate = endOfDay(currentDate);
+        break;
+      case 'agenda':
+        fetchStartDate = startOfMonth(currentDate);
+        fetchEndDate = endOfMonth(addMonths(currentDate, 2));
+        break;
+      default:
+        fetchStartDate = startOfMonth(currentDate);
+        fetchEndDate = endOfMonth(addMonths(currentDate, 2));
+        break;
+    }
+    onEventsRefetch(fetchStartDate, fetchEndDate);
+  }, [setCurrentView, currentDate, onEventsRefetch]);
 
   const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
     onSelectSlot(start, end);
@@ -150,13 +202,19 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   }, []);
 
   const handleBookingUpdated = () => {
-    onEventsRefetch();
+    // When a booking is updated, refetch for the current view range
+    const start = startOfMonth(currentDate);
+    const end = endOfMonth(addMonths(currentDate, 2));
+    onEventsRefetch(start, end);
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
 
   const handleBookingDeleted = () => {
-    onEventsRefetch();
+    // When a booking is deleted, refetch for the current view range
+    const start = startOfMonth(currentDate);
+    const end = endOfMonth(addMonths(currentDate, 2));
+    onEventsRefetch(start, end);
     setIsEditBookingDialogOpen(false);
     setSelectedBookingId(null);
   };
@@ -170,7 +228,6 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     const startOfCurrentDay = startOfDay(currentDate);
     const endOfCurrentDay = endOfDay(currentDate);
 
-    // Fetch only scheduled bookings for the current day
     const { data: bookingsToUpdate, error: fetchError } = await supabase
       .from("bookings")
       .select("id")
@@ -202,18 +259,12 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
       showError("Failed to mark all bookings as completed: " + updateError.message);
     } else {
       showSuccess(`${bookingIdsToUpdate.length} booking(s) marked as completed for ${format(currentDate, "PPP")}!`);
-      onEventsRefetch(); // Refresh calendar events
+      // After marking as completed, refetch events for the current view range
+      const start = startOfMonth(currentDate);
+      const end = endOfMonth(addMonths(currentDate, 2));
+      onEventsRefetch(start, end);
     }
   }, [user, currentDate, onEventsRefetch]);
-
-  // No longer need this check as currentView is always set by parent
-  // if (currentView === null) {
-  //   return (
-  //     <div className="flex items-center justify-center h-full">
-  //       <p>Loading calendar view...</p>
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="h-full flex flex-col bg-card p-4 rounded-lg shadow-sm">
@@ -232,21 +283,21 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
           endAccessor="end"
           style={{ height: '100%' }}
           views={['month', 'week', 'day', 'agenda']}
-          view={currentView} // Use prop
+          view={currentView}
           onView={handleView}
           components={{
             toolbar: Toolbar,
             event: (props) => (
               <CalendarEventWrapper
                 {...props}
-                onEventStatusChange={onEventsRefetch}
+                onEventStatusChange={handleBookingUpdated} // Use handleBookingUpdated to trigger refetch
               />
             ),
           }}
           min={minTime}
           max={maxTime}
           onNavigate={handleNavigate}
-          date={currentDate} // Use prop
+          date={currentDate}
           selectable
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
