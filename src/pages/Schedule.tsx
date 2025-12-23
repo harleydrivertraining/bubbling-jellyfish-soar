@@ -29,15 +29,20 @@ const Schedule: React.FC = () => {
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
-  const [currentCalendarView, setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
+  const [currentCalendarView, _setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
 
   const isMobile = useIsMobile();
 
+  // Create a stable setter for currentCalendarView
+  const handleSetCurrentCalendarView = useCallback((view: 'month' | 'week' | 'day' | 'agenda') => {
+    _setCurrentCalendarView(view);
+  }, []);
+
   useEffect(() => {
     if (isMobile !== undefined) {
-      setCurrentCalendarView(isMobile ? 'day' : 'week');
+      handleSetCurrentCalendarView(isMobile ? 'day' : 'week');
     }
-  }, [isMobile]);
+  }, [isMobile, handleSetCurrentCalendarView]);
 
   // Modified fetchBookings to fetch within a dynamic range
   const fetchBookings = useCallback(async (startDate: Date, endDate: Date) => {
@@ -166,7 +171,7 @@ const Schedule: React.FC = () => {
           currentDate={currentCalendarDate}
           setCurrentDate={setCurrentCalendarDate}
           currentView={currentCalendarView}
-          setCurrentView={setCurrentView}
+          setCurrentView={handleSetCurrentCalendarView}
         />
       </div>
 
