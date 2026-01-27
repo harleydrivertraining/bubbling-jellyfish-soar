@@ -48,7 +48,7 @@ interface Student {
 
 const formSchema = z.object({
   student_id: z.string().min(1, { message: "Please select a student." }),
-  title: z.string().min(2, { message: "Title must be at least 2 characters." }),
+  // title: z.string().min(2, { message: "Title must be at least 2 characters." }), // Removed title
   description: z.string().optional().nullable(),
   lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal"], {
     message: "Please select a valid lesson type.",
@@ -91,7 +91,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       student_id: "",
-      title: "",
+      // title: "", // Removed title
       description: "",
       lesson_type: "Driving lesson",
       lesson_length: "60", // Default for calculation, will be overwritten
@@ -104,6 +104,8 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
 
   const selectedLessonLength = form.watch("lesson_length");
   const selectedStartTime = form.watch("start_time");
+  const selectedStudentId = form.watch("student_id");
+  const selectedLessonType = form.watch("lesson_type");
 
   // Effect to update end_time when start_time or lesson_length changes
   useEffect(() => {
@@ -152,7 +154,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
 
         form.reset({
           student_id: bookingData.student_id,
-          title: bookingData.title,
+          // title: bookingData.title, // Removed title
           description: bookingData.description || "",
           lesson_type: bookingData.lesson_type as "Driving lesson" | "Driving Test" | "Personal",
           lesson_length: duration.toString() as "60" | "90" | "120",
@@ -174,11 +176,14 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
       return;
     }
 
+    const studentName = students.find(s => s.id === values.student_id)?.name || "Unknown Student";
+    const generatedTitle = `${studentName} - ${values.lesson_type}`;
+
     const { error } = await supabase
       .from("bookings")
       .update({
         student_id: values.student_id,
-        title: values.title,
+        title: generatedTitle, // Update title with the generated one
         description: values.description,
         lesson_type: values.lesson_type,
         targets_for_next_session: values.targets_for_next_session,
@@ -292,19 +297,16 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Title</FormLabel>
-              <FormControl>
-                <Input placeholder="Driving Lesson" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Display the generated title */}
+        <FormItem>
+          <FormLabel>Booking Title</FormLabel>
+          <Input
+            type="text"
+            value={`${students.find(s => s.id === selectedStudentId)?.name || "Select Student"} - ${selectedLessonType}`}
+            readOnly
+            className="bg-muted"
+          />
+        </FormItem>
 
         <div className="grid grid-cols-2 gap-3">
           <FormField
