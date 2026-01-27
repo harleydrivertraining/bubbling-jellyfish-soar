@@ -297,16 +297,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           )}
         />
 
-        {/* Display the generated title */}
-        <FormItem>
-          <FormLabel>Booking Title</FormLabel>
-          <Input
-            type="text"
-            value={`${students.find(s => s.id === selectedStudentId)?.name || "Select Student"} - ${selectedLessonType}`}
-            readOnly
-            className="bg-muted"
-          />
-        </FormItem>
+        {/* The Booking Title display is now removed */}
 
         <div className="grid grid-cols-2 gap-3">
           <FormField
