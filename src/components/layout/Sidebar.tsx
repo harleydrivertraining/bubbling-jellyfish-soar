@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Car, // Using Car icon
+  Car,
   Users,
   Settings,
   LayoutDashboard,
@@ -18,11 +18,12 @@ import {
   NotebookText,
   Target,
   TrendingUp,
-  ClipboardCheck, // For Driving Tests (records)
+  ClipboardCheck,
   Hourglass,
   Library,
   ListChecks,
-  Gauge, // New icon for Mileage Tracker
+  Gauge,
+  BarChart3, // New icon for Statistics
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -30,7 +31,7 @@ interface NavLinkProps {
   icon: React.ElementType;
   label: string;
   isCollapsed: boolean;
-  onLinkClick?: () => void; // New prop
+  onLinkClick?: () => void;
 }
 
 const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed, onLinkClick }) => {
@@ -49,7 +50,7 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed, o
           )}
           asChild
         >
-          <Link to={to} onClick={onLinkClick}> {/* Call onLinkClick when link is clicked */}
+          <Link to={to} onClick={onLinkClick}>
             <Icon className={cn("h-5 w-5", isCollapsed ? "" : "mr-3")} />
             {!isCollapsed && label}
           </Link>
@@ -63,7 +64,7 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed, o
 interface SidebarProps {
   isCollapsed: boolean;
   logoUrl: string | null;
-  onLinkClick?: () => void; // New prop
+  onLinkClick?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
@@ -77,8 +78,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     { to: "/progress", icon: TrendingUp, label: "Progress" },
     { to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
     { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
+    { to: "/test-statistics", icon: BarChart3, label: "Test Statistics" }, // New nav item
     { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
-    { to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" }, // New nav item
+    { to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
     { to: "/resources", icon: Library, label: "Resources" },
     { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
     { to: "/settings", icon: Settings, label: "Settings" },
@@ -116,7 +118,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
               icon={item.icon}
               label={item.label}
               isCollapsed={isCollapsed}
-              onLinkClick={onLinkClick} // Pass the onLinkClick prop
+              onLinkClick={onLinkClick}
             />
           ))}
         </nav>

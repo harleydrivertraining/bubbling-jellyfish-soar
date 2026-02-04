@@ -18,7 +18,8 @@ import PrePaidHours from "./pages/PrePaidHours";
 import PrePaidHoursDetails from "./pages/PrePaidHoursDetails";
 import Resources from "./pages/Resources";
 import ManageTopics from "./pages/ManageTopics";
-import MileageTracker from "./pages/MileageTracker"; // New import
+import MileageTracker from "./pages/MileageTracker";
+import TestStatistics from "./pages/TestStatistics"; // New import
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import { SessionContextProvider } from "./components/auth/SessionContextProvider";
@@ -42,15 +43,15 @@ const App = () => (
               <Route path="lesson-notes" element={<LessonNotes />} />
               <Route path="student-targets" element={<StudentTargets />} />
               <Route path="progress" element={<Progress />} />
-              <Route path="driving-tests" element={<DrivingTests />} />
               <Route path="driving-test-bookings" element={<DrivingTestBookings />} />
+              <Route path="driving-tests" element={<DrivingTests />} />
+              <Route path="test-statistics" element={<TestStatistics />} /> {/* New route */}
               <Route path="pre-paid-hours" element={<PrePaidHours />} />
               <Route path="pre-paid-hours/:packageId" element={<PrePaidHoursDetails />} />
               <Route path="resources" element={<Resources />} />
               <Route path="manage-topics" element={<ManageTopics />} />
-              <Route path="mileage-tracker" element={<MileageTracker />} /> {/* New route */}
+              <Route path="mileage-tracker" element={<MileageTracker />} />
               <Route path="settings" element={<Settings />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
