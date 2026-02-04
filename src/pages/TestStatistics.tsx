@@ -23,10 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users, CalendarDays } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users, CalendarDays, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface DrivingTest {
   id: string;
@@ -49,12 +50,19 @@ interface StudentStat {
   avgSeriousFaults: number;
 }
 
+type StudentFilter = "all" | "passed" | "not-passed";
+type StudentSort = "tests-desc" | "tests-asc" | "name-asc";
+
 const TestStatistics: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [allTests, setAllTests] = useState<DrivingTest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<string>("last12months");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  
+  // New state for student table filtering and sorting
+  const [studentFilter, setStudentFilter] = useState<StudentFilter>("all");
+  const [studentSort, setStudentSort] = useState<StudentSort>("tests-desc");
 
   const fetchTests = useCallback(async () => {
     if (!user) {
@@ -137,11 +145,26 @@ const TestStatistics: React.FC = () => {
       s.avgSeriousFaults += t.serious_faults;
     });
 
-    const studentStats = Array.from(studentMap.values()).map(s => ({
+    let studentStats = Array.from(studentMap.values()).map(s => ({
       ...s,
       avgDrivingFaults: s.avgDrivingFaults / s.totalTests,
       avgSeriousFaults: s.avgSeriousFaults / s.totalTests,
-    })).sort((a, b) => b.totalTests - a.totalTests);
+    }));
+
+    // Apply Student Filter
+    if (studentFilter === "passed") {
+      studentStats = studentStats.filter(s => s.passCount > 0);
+    } else if (studentFilter === "not-passed") {
+      studentStats = studentStats.filter(s => s.passCount === 0);
+    }
+
+    // Apply Student Sort
+    studentStats.sort((a, b) => {
+      if (studentSort === "tests-desc") return b.totalTests - a.totalTests;
+      if (studentSort === "tests-asc") return a.totalTests - b.totalTests;
+      if (studentSort === "name-asc") return a.studentName.localeCompare(b.studentName);
+      return 0;
+    });
 
     return {
       total,
@@ -151,7 +174,7 @@ const TestStatistics: React.FC = () => {
       examinerActionRate: (examinerActions / total) * 100,
       studentStats,
     };
-  }, [filteredTests]);
+  }, [filteredTests, studentFilter, studentSort]);
 
   const selectedStudentTests = useMemo(() => {
     if (!selectedStudentId) return [];
@@ -251,11 +274,37 @@ const TestStatistics: React.FC = () => {
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Users className="mr-2 h-5 w-5" />
-                  Performance by Student
-                </CardTitle>
-                <CardDescription>Click a student name to view their full test history.</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center">
+                      <Users className="mr-2 h-5 w-5" />
+                      Performance by Student
+                    </CardTitle>
+                    <CardDescription>Click a student name to view their full test history.</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={studentFilter} onValueChange={(v) => setStudentFilter(v as StudentFilter)}>
+                      <SelectTrigger className="w-[130px] h-8 text-xs">
+                        <SelectValue placeholder="Filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Students</SelectItem>
+                        <SelectItem value="passed">Has Passed</SelectItem>
+                        <SelectItem value="not-passed">Not Passed Yet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={studentSort} onValueChange={(v) => setStudentSort(v as StudentSort)}>
+                      <SelectTrigger className="w-[130px] h-8 text-xs">
+                        <SelectValue placeholder="Sort" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tests-desc">Most Tests</SelectItem>
+                        <SelectItem value="tests-asc">Least Tests</SelectItem>
+                        <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -289,6 +338,13 @@ const TestStatistics: React.FC = () => {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {stats.studentStats.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          No students match the selected filter.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
