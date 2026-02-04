@@ -23,8 +23,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 interface DrivingTest {
   id: string;
@@ -35,9 +37,11 @@ interface DrivingTest {
   driving_faults: number;
   serious_faults: number;
   examiner_action: boolean;
+  notes?: string;
 }
 
 interface StudentStat {
+  studentId: string;
   studentName: string;
   totalTests: number;
   passCount: number;
@@ -50,6 +54,7 @@ const TestStatistics: React.FC = () => {
   const [allTests, setAllTests] = useState<DrivingTest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<string>("last12months");
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   const fetchTests = useCallback(async () => {
     if (!user) {
@@ -78,6 +83,7 @@ const TestStatistics: React.FC = () => {
         driving_faults: test.driving_faults,
         serious_faults: test.serious_faults,
         examiner_action: test.examiner_action,
+        notes: test.notes,
       }));
       setAllTests(formatted);
     }
@@ -116,6 +122,7 @@ const TestStatistics: React.FC = () => {
     filteredTests.forEach(t => {
       if (!studentMap.has(t.student_id)) {
         studentMap.set(t.student_id, {
+          studentId: t.student_id,
           studentName: t.student_name,
           totalTests: 0,
           passCount: 0,
@@ -145,6 +152,15 @@ const TestStatistics: React.FC = () => {
       studentStats,
     };
   }, [filteredTests]);
+
+  const selectedStudentTests = useMemo(() => {
+    if (!selectedStudentId) return [];
+    return allTests.filter(t => t.student_id === selectedStudentId).sort((a, b) => parseISO(b.test_date).getTime() - parseISO(a.test_date).getTime());
+  }, [allTests, selectedStudentId]);
+
+  const selectedStudentName = useMemo(() => {
+    return selectedStudentTests[0]?.student_name || "Student History";
+  }, [selectedStudentTests]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -239,7 +255,7 @@ const TestStatistics: React.FC = () => {
                   <Users className="mr-2 h-5 w-5" />
                   Performance by Student
                 </CardTitle>
-                <CardDescription>Summary of test attempts and results per student.</CardDescription>
+                <CardDescription>Click a student name to view their full test history.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -253,8 +269,15 @@ const TestStatistics: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {stats.studentStats.map((s) => (
-                      <TableRow key={s.studentName}>
-                        <TableCell className="font-medium">{s.studentName}</TableCell>
+                      <TableRow key={s.studentId}>
+                        <TableCell className="font-medium">
+                          <button 
+                            onClick={() => setSelectedStudentId(s.studentId)}
+                            className="text-blue-600 hover:underline text-left"
+                          >
+                            {s.studentName}
+                          </button>
+                        </TableCell>
                         <TableCell className="text-center">{s.totalTests}</TableCell>
                         <TableCell className="text-center">
                           <span className={cn(s.passCount > 0 ? "text-green-600 font-semibold" : "text-muted-foreground")}>
@@ -307,6 +330,69 @@ const TestStatistics: React.FC = () => {
           </div>
         </>
       )}
+
+      <Dialog open={!!selectedStudentId} onOpenChange={(open) => !open && setSelectedStudentId(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {selectedStudentName} - Test History
+            </DialogTitle>
+            <DialogDescription>
+              Chronological list of all driving test attempts.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            {selectedStudentTests.map((test) => (
+              <Card key={test.id} className="overflow-hidden">
+                <div className={cn(
+                  "h-1 w-full",
+                  test.passed ? "bg-green-500" : "bg-destructive"
+                )} />
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                        {format(parseISO(test.test_date), "PPP")}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {test.passed ? (
+                          <Badge className="bg-green-500 hover:bg-green-600">Passed</Badge>
+                        ) : (
+                          <Badge variant="destructive">Failed</Badge>
+                        )}
+                        {test.examiner_action && (
+                          <Badge variant="outline" className="text-orange-600 border-orange-600">
+                            Examiner Action
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Car className="h-4 w-4 text-muted-foreground" />
+                        <span>Driving Faults: <strong>{test.driving_faults}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                        <span>Serious Faults: <strong>{test.serious_faults}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                  {test.notes && (
+                    <div className="mt-3 pt-3 border-t text-sm text-muted-foreground italic">
+                      "{test.notes}"
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
