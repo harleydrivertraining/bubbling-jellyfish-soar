@@ -23,11 +23,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users, CalendarDays, ArrowUpDown } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users, CalendarDays, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 interface DrivingTest {
   id: string;
@@ -60,7 +59,6 @@ const TestStatistics: React.FC = () => {
   const [timeframe, setTimeframe] = useState<string>("last12months");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   
-  // New state for student table filtering and sorting
   const [studentFilter, setStudentFilter] = useState<StudentFilter>("all");
   const [studentSort, setStudentSort] = useState<StudentSort>("tests-desc");
 
@@ -125,7 +123,6 @@ const TestStatistics: React.FC = () => {
     const totalSeriousFaults = filteredTests.reduce((sum, t) => sum + t.serious_faults, 0);
     const examinerActions = filteredTests.filter(t => t.examiner_action).length;
 
-    // Student breakdown
     const studentMap = new Map<string, StudentStat>();
     filteredTests.forEach(t => {
       if (!studentMap.has(t.student_id)) {
@@ -151,14 +148,12 @@ const TestStatistics: React.FC = () => {
       avgSeriousFaults: s.avgSeriousFaults / s.totalTests,
     }));
 
-    // Apply Student Filter
     if (studentFilter === "passed") {
       studentStats = studentStats.filter(s => s.passCount > 0);
     } else if (studentFilter === "not-passed") {
       studentStats = studentStats.filter(s => s.passCount === 0);
     }
 
-    // Apply Student Sort
     studentStats.sort((a, b) => {
       if (studentSort === "tests-desc") return b.totalTests - a.totalTests;
       if (studentSort === "tests-asc") return a.totalTests - b.totalTests;
@@ -189,8 +184,8 @@ const TestStatistics: React.FC = () => {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map(i => <Card key={i}><CardContent className="p-6"><Skeleton className="h-12 w-full" /></CardContent></Card>)}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {[1, 2, 3, 4, 5].map(i => <Card key={i}><CardContent className="p-6"><Skeleton className="h-12 w-full" /></CardContent></Card>)}
         </div>
         <Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card>
       </div>
@@ -224,7 +219,7 @@ const TestStatistics: React.FC = () => {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Tests</CardTitle>
@@ -236,36 +231,51 @@ const TestStatistics: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-            <Card className={cn(stats.passRate >= 50 ? "bg-green-50/50" : "bg-orange-50/50")}>
+            
+            <Card className={cn(stats.passRate <= 55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900")}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Pass Rate</CardTitle>
+                <CardTitle className="text-sm font-medium opacity-70">Pass Rate</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold flex items-center">
-                  {stats.passRate >= 50 ? <CheckCircle className="mr-2 h-5 w-5 text-green-500" /> : <XCircle className="mr-2 h-5 w-5 text-orange-500" />}
+                  {stats.passRate > 55 ? <CheckCircle className="mr-2 h-5 w-5" /> : <XCircle className="mr-2 h-5 w-5" />}
                   {stats.passRate.toFixed(1)}%
                 </div>
               </CardContent>
             </Card>
-            <Card>
+
+            <Card className={cn(stats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900")}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Driving Faults</CardTitle>
+                <CardTitle className="text-sm font-medium opacity-70">Avg. Driving Faults</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold flex items-center">
-                  <Car className="mr-2 h-5 w-5 text-muted-foreground" />
+                  <Car className="mr-2 h-5 w-5" />
                   {stats.avgDrivingFaults.toFixed(1)}
                 </div>
               </CardContent>
             </Card>
-            <Card className={cn(stats.avgSeriousFaults > 0.5 ? "bg-red-50/50" : "")}>
+
+            <Card className={cn(stats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900")}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Serious Faults</CardTitle>
+                <CardTitle className="text-sm font-medium opacity-70">Avg. Serious Faults</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold flex items-center">
-                  <AlertTriangle className={cn("mr-2 h-5 w-5", stats.avgSeriousFaults > 0.5 ? "text-red-500" : "text-muted-foreground")} />
+                  <ShieldAlert className="mr-2 h-5 w-5" />
                   {stats.avgSeriousFaults.toFixed(1)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={cn(stats.examinerActionRate >= 10 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900")}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium opacity-70">Ex. Action Rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold flex items-center">
+                  <Hand className="mr-2 h-5 w-5" />
+                  {stats.examinerActionRate.toFixed(1)}%
                 </div>
               </CardContent>
             </Card>
@@ -366,7 +376,10 @@ const TestStatistics: React.FC = () => {
                   </div>
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-orange-500 transition-all" 
+                      className={cn(
+                        "h-full transition-all",
+                        stats.examinerActionRate >= 10 ? "bg-orange-500" : "bg-green-500"
+                      )} 
                       style={{ width: `${Math.min(100, stats.examinerActionRate)}%` }}
                     />
                   </div>
@@ -377,8 +390,8 @@ const TestStatistics: React.FC = () => {
                   <h4 className="text-sm font-semibold mb-2">Quick Insights</h4>
                   <ul className="text-sm space-y-2 text-muted-foreground">
                     <li>• Most students pass within {stats.total > 0 ? (stats.total / stats.studentStats.length).toFixed(1) : 0} attempts on average.</li>
-                    <li>• Serious faults are {stats.avgSeriousFaults < 0.5 ? "relatively low" : "a common area for improvement"}.</li>
-                    <li>• Your current pass rate is {stats.passRate > 55 ? "above" : "below"} the national average (~48-50%).</li>
+                    <li>• Serious faults are {stats.avgSeriousFaults < 0.55 ? "relatively low" : "a common area for improvement"}.</li>
+                    <li>• Your current pass rate is {stats.passRate > 55 ? "above" : "below"} your target benchmark.</li>
                   </ul>
                 </div>
               </CardContent>
