@@ -378,24 +378,20 @@ const Dashboard: React.FC = () => {
                 </Button>
               </div>
               {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-                <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-                  <div className="p-2 border rounded-md text-center">
-                    <p className="text-xs text-muted-foreground">Tests</p>
-                    <p className="text-xl font-bold">{drivingTestStats.totalTests}</p>
-                  </div>
+                <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
                   <div className={cn("p-2 border rounded-md text-center", drivingTestStats.passRate <= 55 ? "bg-orange-50" : "bg-green-50")}>
                     <p className="text-xs text-muted-foreground">Pass %</p>
                     <p className="text-xl font-bold">{drivingTestStats.passRate.toFixed(0)}%</p>
                   </div>
-                  <div className="p-2 border rounded-md text-center">
+                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50" : "bg-green-50")}>
                     <p className="text-xs text-muted-foreground">Avg D.F.</p>
                     <p className="text-xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
                   </div>
-                  <div className="p-2 border rounded-md text-center">
+                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50" : "bg-green-50")}>
                     <p className="text-xs text-muted-foreground">Avg S.F.</p>
                     <p className="text-xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
                   </div>
-                  <div className="p-2 border rounded-md text-center">
+                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50" : "bg-green-50")}>
                     <p className="text-xs text-muted-foreground">Ex. Act.</p>
                     <p className="text-xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(0)}%</p>
                   </div>
