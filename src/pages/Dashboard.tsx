@@ -6,8 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert } from "lucide-react";
+import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday } from "date-fns";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
 interface Booking {
   id: string;
@@ -135,7 +136,7 @@ const Dashboard: React.FC = () => {
 
       const scheduledBookings = allScheduledBookingsRes.data || [];
       setUpcomingLessonsCount(scheduledBookings.length);
-      setUpcomingLessons(scheduledBookings.slice(0, 5) as unknown as Booking[]);
+      setUpcomingLessons(scheduledBookings.slice(0, 10) as unknown as Booking[]);
       
       const testBookings = scheduledBookings.filter(b => b.lesson_type === "Driving Test");
       setUpcomingDrivingTestBookingsCount(testBookings.length);
@@ -324,37 +325,80 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold">Upcoming Lessons</CardTitle>
+          <Card className="flex flex-col overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-2xl font-bold">Upcoming Lessons</CardTitle>
+                  <CardDescription>Your next scheduled sessions</CardDescription>
+                </div>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/schedule" className="flex items-center">
+                    Full Schedule <Calendar className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="flex-1">
+            <CardContent className="p-0 flex-1">
               {upcomingLessons.length === 0 ? (
-                <p className="text-muted-foreground">No upcoming lessons scheduled.</p>
+                <div className="p-8 text-center">
+                  <Calendar className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No upcoming lessons scheduled.</p>
+                  <Button asChild variant="outline" className="mt-4">
+                    <Link to="/schedule">Book a Lesson</Link>
+                  </Button>
+                </div>
               ) : (
-                <ScrollArea className="h-96 pr-4">
-                  <div className="grid gap-4">
-                    {upcomingLessons.map((booking) => (
-                      <Card key={booking.id}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-lg">{booking.title}</CardTitle>
-                          <CardDescription className="flex items-center text-muted-foreground">
-                            <Users className="mr-2 h-4 w-4" />
-                            <span>Student: {booking.students?.name || "Unknown"}</span>
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-sm space-y-1">
-                          <div className="flex items-center text-muted-foreground">
-                            <CalendarDays className="mr-2 h-4 w-4" />
-                            <span>{format(new Date(booking.start_time), "PPP")}</span>
+                <ScrollArea className="h-[500px]">
+                  <div className="divide-y">
+                    {upcomingLessons.map((booking) => {
+                      const startTime = new Date(booking.start_time);
+                      const isLessonToday = isToday(startTime);
+                      
+                      return (
+                        <div key={booking.id} className={cn(
+                          "p-4 transition-colors hover:bg-muted/50 flex items-start gap-4",
+                          isLessonToday && "bg-primary/5"
+                        )}>
+                          <div className="flex flex-col items-center justify-center min-w-[60px] py-1 rounded-lg bg-muted border">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground">{format(startTime, "MMM")}</span>
+                            <span className="text-xl font-bold leading-none">{format(startTime, "dd")}</span>
                           </div>
-                          <div className="flex items-center text-muted-foreground">
-                            <Clock className="mr-2 h-4 w-4" />
-                            <span>{format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}</span>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="font-semibold text-base truncate pr-2">{booking.students?.name || "Unknown Student"}</h4>
+                              {isLessonToday && (
+                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] h-5 px-1.5">TODAY</Badge>
+                              )}
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                              <div className="flex items-center">
+                                <Clock className="mr-1.5 h-3.5 w-3.5" />
+                                <span>{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <BookOpen className="mr-1.5 h-3.5 w-3.5" />
+                                <span className="capitalize">{booking.lesson_type}</span>
+                              </div>
+                            </div>
+                            
+                            {booking.description && (
+                              <p className="mt-2 text-xs text-muted-foreground italic line-clamp-1 border-l-2 pl-2 border-muted-foreground/20">
+                                {booking.description}
+                              </p>
+                            )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" asChild>
+                            <Link to="/schedule">
+                              <ArrowRight className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               )}
