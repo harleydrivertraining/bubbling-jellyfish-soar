@@ -379,7 +379,8 @@ const Dashboard: React.FC = () => {
 
         const lowHoursStudents: string[] = [];
         for (const name in studentRemainingHours) {
-          if (studentRemainingHours[name] <= 2) {
+          // Only include students with more than 0 but 2 or fewer hours
+          if (studentRemainingHours[name] <= 2 && studentRemainingHours[name] > 0) {
             lowHoursStudents.push(name);
           }
         }
