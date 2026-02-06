@@ -18,12 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area"; // Import ScrollArea
-
-interface Student {
-  id: string;
-  name: string;
-}
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Booking {
   id: string;
@@ -32,20 +27,10 @@ interface Booking {
   start_time: string;
   end_time: string;
   status: string;
+  lesson_type: string;
   students: {
     name: string;
   };
-}
-
-interface DrivingTest {
-  id: string;
-  student_id: string;
-  student_name: string;
-  test_date: string;
-  passed: boolean;
-  driving_faults: number;
-  serious_faults: number;
-  examiner_action: boolean;
 }
 
 interface DrivingTestStats {
@@ -77,7 +62,6 @@ const Dashboard: React.FC = () => {
   const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
   const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]);
 
-  // New state for booked hours this week card
   const [totalBookedHoursForSelectedWeek, setTotalBookedHoursForSelectedWeek] = useState<number | null>(null);
   const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
 
@@ -88,12 +72,8 @@ const Dashboard: React.FC = () => {
     return "Good Evening";
   }, []);
 
-  // Function to fetch booked hours for a specific week
   const fetchBookedHoursForWeek = useCallback(async (weekStartISO: string) => {
-    if (!user) {
-      setTotalBookedHoursForSelectedWeek(null);
-      return;
-    }
+    if (!user) return;
 
     const weekStartDate = parseISO(weekStartISO);
     const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
@@ -102,13 +82,12 @@ const Dashboard: React.FC = () => {
       .from("bookings")
       .select("start_time, end_time")
       .eq("user_id", user.id)
-      .in("status", ["scheduled", "completed"]) // Include both scheduled and completed bookings
+      .in("status", ["scheduled", "completed"])
       .gte("start_time", weekStartDate.toISOString())
       .lte("end_time", weekEndDate.toISOString());
 
     if (error) {
       console.error("Error fetching booked hours for week:", error);
-      showError("Failed to load booked hours for the selected week.");
       setTotalBookedHoursForSelectedWeek(null);
     } else {
       let totalMinutes = 0;
@@ -128,357 +107,158 @@ const Dashboard: React.FC = () => {
     }
 
     setIsLoadingDashboard(true);
-    let hourlyRate = 0;
+    const now = new Date();
 
     try {
-      // Fetch Instructor Name and Hourly Rate
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, hourly_rate")
-        .eq("id", user.id)
-        .single();
+      // Fire off all independent primary queries in parallel
+      const [
+        profileRes,
+        studentsCountRes,
+        allScheduledBookingsRes,
+        historicalTestsRes,
+        carsRes,
+        prePaidHoursRes
+      ] = await Promise.all([
+        supabase.from("profiles").select("first_name, last_name, hourly_rate").eq("id", user.id).single(),
+        supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id),
+        supabase.from("bookings").select("id, title, description, start_time, end_time, status, lesson_type, students(name)").eq("user_id", user.id).eq("status", "scheduled").gte("start_time", now.toISOString()).order("start_time", { ascending: true }),
+        supabase.from("driving_tests").select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)").eq("user_id", user.id).order("test_date", { ascending: false }),
+        supabase.from("cars").select("id, make, model, year, initial_mileage, service_interval_miles").eq("user_id", user.id),
+        supabase.from("pre_paid_hours").select("package_hours, remaining_hours, students(name)").eq("user_id", user.id)
+      ]);
 
-      if (profileError) {
-        console.error("Error fetching profile:", profileError);
-        showError("Failed to load instructor profile.");
-      } else if (profileData) {
-        setInstructorName(`${profileData.first_name || ""} ${profileData.last_name || ""}`.trim());
-        setCurrentHourlyRate(profileData.hourly_rate);
-        hourlyRate = profileData.hourly_rate || 0;
+      // 1. Profile & Hourly Rate
+      if (profileRes.data) {
+        setInstructorName(`${profileRes.data.first_name || ""} ${profileRes.data.last_name || ""}`.trim());
+        setCurrentHourlyRate(profileRes.data.hourly_rate);
       }
 
-      // Fetch Total Students
-      const { count: studentsCount, error: studentsError } = await supabase
-        .from("students")
-        .select("id", { count: "exact" })
-        .eq("user_id", user.id);
+      // 2. Students Count
+      setTotalStudents(studentsCountRes.count);
 
-      if (studentsError) {
-        console.error("Error fetching students count:", studentsError);
-        showError("Failed to load students count.");
+      // 3. Bookings Processing (Upcoming Lessons & Tests)
+      const scheduledBookings = allScheduledBookingsRes.data || [];
+      setUpcomingLessonsCount(scheduledBookings.length);
+      setUpcomingLessons(scheduledBookings.slice(0, 5) as unknown as Booking[]);
+      
+      const testBookings = scheduledBookings.filter(b => b.lesson_type === "Driving Test");
+      setUpcomingDrivingTestBookingsCount(testBookings.length);
+      setNextDrivingTestBookings(testBookings.slice(0, 2) as unknown as Booking[]);
+
+      // 4. Historical Test Stats
+      const twelveMonthsAgo = subYears(now, 1);
+      const recentTests = (historicalTestsRes.data || []).filter(test => isAfter(new Date(test.test_date), twelveMonthsAgo));
+      if (recentTests.length > 0) {
+        const total = recentTests.length;
+        setDrivingTestStats({
+          totalTests: total,
+          passRate: (recentTests.filter(t => t.passed).length / total) * 100,
+          avgDrivingFaults: recentTests.reduce((sum, t) => sum + t.driving_faults, 0) / total,
+          avgSeriousFaults: recentTests.reduce((sum, t) => sum + t.serious_faults, 0) / total,
+          examinerActionPercentage: (recentTests.filter(t => t.examiner_action).length / total) * 100,
+        });
       } else {
-        setTotalStudents(studentsCount);
+        setDrivingTestStats({ totalTests: 0, passRate: 0, avgDrivingFaults: 0, avgSeriousFaults: 0, examinerActionPercentage: 0 });
       }
 
-      // Fetch Upcoming Lessons Count and List
-      const now = new Date();
-      const { data: upcomingLessonsData, count: upcomingLessonsTotalCount, error: upcomingLessonsError } = await supabase
-        .from("bookings")
-        .select("id, title, description, start_time, end_time, status, students(name)", { count: "exact" })
-        .eq("user_id", user.id)
-        .eq("status", "scheduled")
-        .gte("start_time", now.toISOString())
-        .order("start_time", { ascending: true })
-        .limit(5);
-
-      if (upcomingLessonsError) {
-        console.error("Error fetching upcoming lessons:", upcomingLessonsError);
-        showError("Failed to load upcoming lessons.");
-      } else {
-        setUpcomingLessonsCount(upcomingLessonsTotalCount);
-        setUpcomingLessons(upcomingLessonsData || []);
-      }
-
-      // Calculate Revenue based on timeframe
+      // 5. Revenue Calculation (Needs to be separate because it depends on timeframe)
+      const hourlyRate = profileRes.data?.hourly_rate || 0;
       if (hourlyRate > 0) {
-        let startDate: Date;
-        let endDate: Date;
+        let startDate: Date, endDate: Date;
+        if (revenueTimeframe === "daily") { startDate = startOfDay(now); endDate = endOfDay(now); }
+        else if (revenueTimeframe === "weekly") { startDate = startOfWeek(now, { weekStartsOn: 1 }); endDate = endOfWeek(now, { weekStartsOn: 1 }); }
+        else { startDate = startOfMonth(now); endDate = endOfMonth(now); }
 
-        switch (revenueTimeframe) {
-          case "daily":
-            startDate = startOfDay(now);
-            endDate = endOfDay(now);
-            break;
-          case "weekly":
-            startDate = startOfWeek(now, { weekStartsOn: 1 }); // Monday as start of week
-            endDate = endOfWeek(now, { weekStartsOn: 1 });
-            break;
-          case "monthly":
-          default:
-            startDate = startOfMonth(now);
-            endDate = endOfMonth(now);
-            break;
-        }
-
-        const { data: completedBookings, error: completedBookingsError } = await supabase
-          .from("bookings")
-          .select("start_time, end_time")
-          .eq("user_id", user.id)
-          .eq("status", "completed")
-          .gte("start_time", startDate.toISOString())
-          .lte("end_time", endDate.toISOString());
-
-        if (completedBookingsError) {
-          console.error("Error fetching completed bookings for revenue:", completedBookingsError);
-          showError("Failed to calculate revenue.");
-        } else {
-          let totalMinutes = 0;
-          completedBookings?.forEach(booking => {
-            const start = new Date(booking.start_time);
-            const end = new Date(booking.end_time);
-            totalMinutes += differenceInMinutes(end, start);
-          });
-          const calculatedRevenue = (totalMinutes / 60) * hourlyRate;
-          setCurrentRevenue(calculatedRevenue);
-        }
+        const { data: revData } = await supabase.from("bookings").select("start_time, end_time").eq("user_id", user.id).eq("status", "completed").gte("start_time", startDate.toISOString()).lte("end_time", endDate.toISOString());
+        let totalMins = 0;
+        revData?.forEach(b => totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)));
+        setCurrentRevenue((totalMins / 60) * hourlyRate);
       } else {
         setCurrentRevenue(0);
       }
 
-      // Fetch Upcoming Driving Test Bookings Count (from bookings table)
-      const { count: upcomingTestBookingsCount, error: upcomingTestBookingsError } = await supabase
-        .from("bookings")
-        .select("id", { count: "exact" })
-        .eq("user_id", user.id)
-        .eq("lesson_type", "Driving Test") // Filter for Driving Test bookings
-        .eq("status", "scheduled") // Only count scheduled tests
-        .gte("start_time", now.toISOString()); // Only count future tests
+      // 6. Car Service Logic (Parallelized mileage fetches)
+      if (carsRes.data && carsRes.data.length > 0) {
+        const mileageResults = await Promise.all(carsRes.data.map(async (car) => {
+          const { data } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).single();
+          return { carId: car.id, currentMileage: data?.current_mileage || car.initial_mileage };
+        }));
 
-      if (upcomingTestBookingsError) {
-        console.error("Error fetching upcoming driving test bookings:", upcomingTestBookingsError);
-        showError("Failed to load upcoming driving test bookings count.");
-      } else {
-        setUpcomingDrivingTestBookingsCount(upcomingTestBookingsCount);
-      }
+        let minMiles: number | null = null;
+        let carName: string | null = null;
 
-      // Fetch Next 2 Driving Test Bookings
-      const { data: nextDrivingTestsData, error: nextDrivingTestsError } = await supabase
-        .from("bookings")
-        .select("id, title, description, start_time, end_time, status, students(name)")
-        .eq("user_id", user.id)
-        .eq("lesson_type", "Driving Test")
-        .eq("status", "scheduled")
-        .gte("start_time", now.toISOString())
-        .order("start_time", { ascending: true })
-        .limit(2);
-
-      if (nextDrivingTestsError) {
-        console.error("Error fetching next driving test bookings:", nextDrivingTestsError);
-        showError("Failed to load next driving test bookings.");
-      } else {
-        setNextDrivingTestBookings(nextDrivingTestsData || []);
-      }
-
-      // Fetch Driving Test Stats (Last 12 Months) - still from driving_tests table for historical records
-      const { data: allTestsData, error: allTestsError } = await supabase
-        .from("driving_tests")
-        .select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)")
-        .eq("user_id", user.id)
-        .order("test_date", { ascending: false });
-
-      if (allTestsError) {
-        console.error("Error fetching all driving tests for stats:", allTestsError);
-        showError("Failed to load driving test statistics.");
-        setDrivingTestStats(null);
-      } else {
-        const twelveMonthsAgo = subYears(now, 1);
-        const recentTests = (allTestsData || []).filter(test => isAfter(new Date(test.test_date), twelveMonthsAgo));
-
-        if (recentTests.length > 0) {
-          const totalTests = recentTests.length;
-          const passedTests = recentTests.filter(test => test.passed).length;
-          const totalDrivingFaults = recentTests.reduce((sum, test) => sum + test.driving_faults, 0);
-          const totalSeriousFaults = recentTests.reduce((sum, test) => sum + test.serious_faults, 0);
-          const examinerActions = recentTests.filter(test => test.examiner_action).length;
-
-          setDrivingTestStats({
-            totalTests: totalTests,
-            passRate: (passedTests / totalTests) * 100,
-            avgDrivingFaults: totalDrivingFaults / totalTests,
-            avgSeriousFaults: totalSeriousFaults / totalTests,
-            examinerActionPercentage: (examinerActions / totalTests) * 100,
-          });
-        } else {
-          setDrivingTestStats({
-            totalTests: 0,
-            passRate: 0,
-            avgDrivingFaults: 0,
-            avgSeriousFaults: 0,
-            examinerActionPercentage: 0,
-          });
-        }
-      }
-
-      // Fetch Cars and calculate Miles Until Next Service
-      const { data: carsData, error: carsError } = await supabase
-        .from("cars")
-        .select("id, make, model, year, initial_mileage, service_interval_miles")
-        .eq("user_id", user.id);
-
-      if (carsError) {
-        console.error("Error fetching cars for service interval:", carsError);
-        showError("Failed to load car service data.");
-      } else if (carsData && carsData.length > 0) {
-        let minMilesUntilService: number | null = null;
-        let carNameForService: string | null = null;
-
-        for (const car of carsData) {
+        carsRes.data.forEach(car => {
           if (car.service_interval_miles && car.service_interval_miles > 0) {
-            const { data: latestMileageEntry, error: mileageError } = await supabase
-              .from("car_mileage_entries")
-              .select("current_mileage")
-              .eq("car_id", car.id)
-              .order("entry_date", { ascending: false })
-              .limit(1)
-              .single();
-
-            let currentMileage = car.initial_mileage;
-            if (mileageError && mileageError.code !== 'PGRST116') { // PGRST116 means no rows found
-              console.error(`Error fetching mileage for car ${car.id}:`, mileageError);
-              // If it's a real error, currentMileage remains initial_mileage
-            } else if (latestMileageEntry) {
-              currentMileage = latestMileageEntry.current_mileage;
+            const currentMileage = mileageResults.find(m => m.carId === car.id)?.currentMileage || car.initial_mileage;
+            const milesUntil = ((Math.floor(currentMileage / car.service_interval_miles) + 1) * car.service_interval_miles) - currentMileage;
+            if (minMiles === null || milesUntil < minMiles) {
+              minMiles = milesUntil;
+              carName = `${car.make} ${car.model}`;
             }
-
-            const serviceInterval = car.service_interval_miles;
-            const intervalsPassed = Math.floor(currentMileage / serviceInterval);
-            const nextServiceMiles = (intervalsPassed + 1) * serviceInterval;
-            const milesUntilService = nextServiceMiles - currentMileage;
-
-            if (minMilesUntilService === null || milesUntilService < minMilesUntilService) {
-              minMilesUntilService = milesUntilService;
-              carNameForService = `${car.make} ${car.model}`;
-            }
-          }
-        }
-        setMilesUntilNextServiceDashboard(minMilesUntilService);
-        setCarNeedingService(carNameForService);
-      } else {
-        setMilesUntilNextServiceDashboard(null);
-        setCarNeedingService(null);
-      }
-
-      // Fetch Pre-Paid Hours Summary and students with low hours
-      const { data: prePaidHoursData, error: prePaidHoursError } = await supabase
-        .from("pre_paid_hours")
-        .select("package_hours, remaining_hours, students(name)") // Select student name
-        .eq("user_id", user.id);
-
-      if (prePaidHoursError) {
-        console.error("Error fetching pre-paid hours summary:", prePaidHoursError);
-        showError("Failed to load pre-paid hours summary.");
-        setTotalPrePaidHoursPurchased(null);
-        setTotalPrePaidHoursRemaining(null);
-        setStudentsWithLowPrePaidHours([]);
-      } else {
-        let totalPurchased = 0;
-        let totalRemaining = 0;
-        const studentRemainingHours: { [studentName: string]: number } = {};
-
-        prePaidHoursData.forEach(pkg => {
-          totalPurchased += pkg.package_hours;
-          totalRemaining += pkg.remaining_hours;
-
-          const studentName = pkg.students?.name || "Unknown Student";
-          if (studentRemainingHours[studentName]) {
-            studentRemainingHours[studentName] += pkg.remaining_hours;
-          } else {
-            studentRemainingHours[studentName] = pkg.remaining_hours;
           }
         });
-
-        const lowHoursStudents: string[] = [];
-        for (const name in studentRemainingHours) {
-          // Only include students with more than 0 but 2 or fewer hours
-          if (studentRemainingHours[name] <= 2 && studentRemainingHours[name] > 0) {
-            lowHoursStudents.push(name);
-          }
-        }
-
-        setTotalPrePaidHoursPurchased(totalPurchased);
-        setTotalPrePaidHoursRemaining(totalRemaining);
-        setStudentsWithLowPrePaidHours(lowHoursStudents);
+        setMilesUntilNextServiceDashboard(minMiles);
+        setCarNeedingService(carName);
       }
 
-    } catch (error) {
-      console.error("Unhandled error fetching dashboard data:", error);
-      showError("An unexpected error occurred while loading dashboard data.");
+      // 7. Pre-Paid Hours
+      if (prePaidHoursRes.data) {
+        let purchased = 0, remaining = 0;
+        const studentMap: { [name: string]: number } = {};
+        prePaidHoursRes.data.forEach(pkg => {
+          purchased += pkg.package_hours;
+          remaining += pkg.remaining_hours;
+          const name = pkg.students?.name || "Unknown";
+          studentMap[name] = (studentMap[name] || 0) + pkg.remaining_hours;
+        });
+        setTotalPrePaidHoursPurchased(purchased);
+        setTotalPrePaidHoursRemaining(remaining);
+        setStudentsWithLowPrePaidHours(Object.keys(studentMap).filter(name => studentMap[name] <= 2 && studentMap[name] > 0));
+      }
+
+    } catch (err) {
+      console.error("Dashboard fetch error:", err);
+      showError("Failed to load dashboard data.");
     } finally {
       setIsLoadingDashboard(false);
     }
   }, [user, revenueTimeframe]);
 
   useEffect(() => {
-    if (!isSessionLoading) {
-      fetchDashboardData();
-    }
+    if (!isSessionLoading) fetchDashboardData();
   }, [isSessionLoading, fetchDashboardData]);
 
-  // Effect to fetch booked hours for the selected week whenever selectedWeekStartISO changes
   useEffect(() => {
-    if (!isSessionLoading && user) {
-      fetchBookedHoursForWeek(selectedWeekStartISO);
-    }
+    if (!isSessionLoading && user) fetchBookedHoursForWeek(selectedWeekStartISO);
   }, [isSessionLoading, user, selectedWeekStartISO, fetchBookedHoursForWeek]);
-
-  const displayInstructorName = instructorName || "Instructor";
 
   const generateWeekOptions = useMemo(() => {
     const options = [];
     const now = new Date();
-
-    // Past 4 weeks
     for (let i = 4; i >= 1; i--) {
-      const weekStart = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
-      options.push({
-        label: `${format(weekStart, "MMM dd")} - ${format(weekEnd, "MMM dd")}`,
-        value: weekStart.toISOString(),
-      });
+      const start = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
+      options.push({ label: `${format(start, "MMM dd")} - ${format(endOfWeek(start, { weekStartsOn: 1 }), "MMM dd")}`, value: start.toISOString() });
     }
-
-    // Current week
-    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
-    options.push({
-      label: "Current Week",
-      value: currentWeekStart.toISOString(),
-    });
-
-    // Next 4 weeks
+    const currentStart = startOfWeek(now, { weekStartsOn: 1 });
+    options.push({ label: "Current Week", value: currentStart.toISOString() });
     for (let i = 1; i <= 4; i++) {
-      const weekStart = startOfWeek(addWeeks(now, i), { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(addWeeks(now, i), { weekStartsOn: 1 });
-      options.push({
-        label: `${format(weekStart, "MMM dd")} - ${format(weekEnd, "MMM dd")}`,
-        value: weekStart.toISOString(),
-      });
+      const start = startOfWeek(addWeeks(now, i), { weekStartsOn: 1 });
+      options.push({ label: `${format(start, "MMM dd")} - ${format(endOfWeek(start, { weekStartsOn: 1 }), "MMM dd")}`, value: start.toISOString() });
     }
     return options;
   }, []);
-
-  const selectedWeekLabel = useMemo(() => {
-    const selectedOption = generateWeekOptions.find(option => option.value === selectedWeekStartISO);
-    return selectedOption ? selectedOption.label : "Select Week";
-  }, [generateWeekOptions, selectedWeekStartISO]);
-
 
   if (isSessionLoading || isLoadingDashboard) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-64" />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
         </div>
-        <Skeleton className="h-8 w-48" />
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
         </div>
-        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new section title */}
-        <div className="grid gap-4 md:grid-cols-2"> {/* Skeleton for the new section cards */}
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
-        </div>
-        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Miles Until Next Service card */}
-        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Pre-Paid Hours Summary card */}
-        <Skeleton className="h-8 w-48" /> {/* Skeleton for the new Booked Hours card */}
       </div>
     );
   }
@@ -486,9 +266,8 @@ const Dashboard: React.FC = () => {
   return (
     <React.Fragment>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">{getGreeting()}, {displayInstructorName}</h1>
+        <h1 className="text-3xl font-bold">{getGreeting()}, {instructorName || "Instructor"}</h1>
 
-        {/* Row of 4 Key Metric Cards */}
         <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -496,7 +275,7 @@ const Dashboard: React.FC = () => {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalStudents !== null ? totalStudents : <Skeleton className="h-6 w-1/4" />}</div>
+              <div className="text-2xl font-bold">{totalStudents ?? 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -505,7 +284,7 @@ const Dashboard: React.FC = () => {
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{upcomingLessonsCount !== null ? upcomingLessonsCount : <Skeleton className="h-6 w-1/4" />}</div>
+              <div className="text-2xl font-bold">{upcomingLessonsCount ?? 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -526,75 +305,60 @@ const Dashboard: React.FC = () => {
               <PoundSterling className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {currentHourlyRate === null || currentHourlyRate === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  Set your <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> in settings to calculate revenue.
-                </div>
-              ) : (
+              {currentHourlyRate ? (
                 <>
-                  <div className="text-2xl font-bold">£{currentRevenue !== null ? currentRevenue.toFixed(2) : <Skeleton className="h-6 w-1/2" />}</div>
-                  <p className="text-xs text-muted-foreground">
-                    (from completed lessons this period)
-                  </p>
+                  <div className="text-2xl font-bold">£{(currentRevenue ?? 0).toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">(from completed lessons)</p>
                 </>
+              ) : (
+                <div className="text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> to calculate.</div>
               )}
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-medium">Upcoming Driving Tests</CardTitle>
+                <CardTitle className="text-sm font-medium">Upcoming Tests</CardTitle>
                 <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
-                  <Link to="/driving-test-bookings">
-                    View All <ArrowRight className="ml-1 h-3 w-3" />
-                  </Link>
+                  <Link to="/driving-test-bookings">View All <ArrowRight className="ml-1 h-3 w-3" /></Link>
                 </Button>
               </div>
               <Car className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount !== null ? upcomingDrivingTestBookingsCount : <Skeleton className="h-6 w-1/4" />}</div>
+              <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount ?? 0}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Combined section for Driving Test Overview and Upcoming Lessons */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Upcoming Lessons Section */}
           <Card className="flex flex-col">
             <CardHeader>
               <CardTitle className="text-2xl font-bold">Upcoming Lessons</CardTitle>
             </CardHeader>
             <CardContent className="flex-1">
               {upcomingLessons.length === 0 ? (
-                <p className="text-muted-foreground">No upcoming lessons scheduled. Go to the Schedule page to add one!</p>
+                <p className="text-muted-foreground">No upcoming lessons scheduled.</p>
               ) : (
                 <ScrollArea className="h-96 pr-4">
                   <div className="grid gap-4">
                     {upcomingLessons.map((booking) => (
-                      <Card key={booking.id} className="flex flex-col">
-                        <CardHeader>
+                      <Card key={booking.id}>
+                        <CardHeader className="pb-2">
                           <CardTitle className="text-lg">{booking.title}</CardTitle>
-                          {booking.students?.name && (
-                            <CardDescription className="flex items-center text-muted-foreground">
-                              <Users className="mr-2 h-4 w-4" />
-                              <span>Student: {booking.students.name}</span>
-                            </CardDescription>
-                          )}
+                          <CardDescription className="flex items-center text-muted-foreground">
+                            <Users className="mr-2 h-4 w-4" />
+                            <span>Student: {booking.students?.name || "Unknown"}</span>
+                          </CardDescription>
                         </CardHeader>
-                        <CardContent className="flex-1 space-y-2 text-sm">
-                          {booking.description && (
-                            <p className="text-muted-foreground italic">{booking.description}</p>
-                          )}
+                        <CardContent className="text-sm space-y-1">
                           <div className="flex items-center text-muted-foreground">
                             <CalendarDays className="mr-2 h-4 w-4" />
                             <span>{format(new Date(booking.start_time), "PPP")}</span>
                           </div>
                           <div className="flex items-center text-muted-foreground">
                             <Clock className="mr-2 h-4 w-4" />
-                            <span>
-                              {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                            </span>
+                            <span>{format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}</span>
                           </div>
                         </CardContent>
                       </Card>
@@ -605,237 +369,124 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Right column: Driving Test Overview and Next Driving Tests */}
           <Card className="flex flex-col p-6 space-y-6">
-            {/* Driving Test Overview Section */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <CardTitle className="text-2xl font-bold">Driving Test Overview (Last 12 Months)</CardTitle>
+                <CardTitle className="text-2xl font-bold">Test Overview (12m)</CardTitle>
                 <Button asChild variant="outline" size="sm">
-                  <Link to="/driving-tests">
-                    View All <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
+                  <Link to="/driving-tests">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
                 </Button>
               </div>
               {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Tests Taken</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{drivingTestStats.totalTests}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={cn(
-                    drivingTestStats.passRate <= 55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                  )}>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Pass Rate</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={cn(
-                    drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                  )}>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Avg. Driving Faults</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={cn(
-                    drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                  )}>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Avg. Serious Faults</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={cn(
-                    drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                  )}>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Examiner Action Rate</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
-                    </CardContent>
-                  </Card>
+                <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+                  <div className="p-2 border rounded-md text-center">
+                    <p className="text-xs text-muted-foreground">Tests</p>
+                    <p className="text-xl font-bold">{drivingTestStats.totalTests}</p>
+                  </div>
+                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.passRate <= 55 ? "bg-orange-50" : "bg-green-50")}>
+                    <p className="text-xs text-muted-foreground">Pass %</p>
+                    <p className="text-xl font-bold">{drivingTestStats.passRate.toFixed(0)}%</p>
+                  </div>
+                  <div className="p-2 border rounded-md text-center">
+                    <p className="text-xs text-muted-foreground">Avg D.F.</p>
+                    <p className="text-xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                  </div>
+                  <div className="p-2 border rounded-md text-center">
+                    <p className="text-xs text-muted-foreground">Avg S.F.</p>
+                    <p className="text-xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                  </div>
+                  <div className="p-2 border rounded-md text-center">
+                    <p className="text-xs text-muted-foreground">Ex. Act.</p>
+                    <p className="text-xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(0)}%</p>
+                  </div>
                 </div>
-              ) : (
-                <p className="text-muted-foreground">No driving test data available for the last 12 months.</p>
-              )}
+              ) : <p className="text-muted-foreground">No test data available.</p>}
             </div>
 
-            {/* Next 2 Driving Test Bookings Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-2xl font-bold">Next Driving Tests</CardTitle>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/driving-test-bookings">
-                    View All <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
               </div>
               {nextDrivingTestBookings.length === 0 ? (
-                <p className="text-muted-foreground">No upcoming driving test bookings found. Go to the Schedule page to add one!</p>
+                <p className="text-muted-foreground">No upcoming tests.</p>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   {nextDrivingTestBookings.map((booking) => (
-                    <Card key={booking.id} className="flex flex-col">
-                      <CardHeader>
-                        <CardTitle className="text-lg">{booking.title}</CardTitle>
-                        {booking.students?.name && (
-                          <CardDescription className="flex items-center text-muted-foreground">
-                            <Users className="mr-2 h-4 w-4" />
-                            <span>Student: {booking.students.name}</span>
-                          </CardDescription>
-                        )}
+                    <Card key={booking.id}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">{booking.title}</CardTitle>
                       </CardHeader>
-                      <CardContent className="flex-1 space-y-2 text-sm">
-                          {booking.description && (
-                            <p className="text-muted-foreground italic">{booking.description}</p>
-                          )}
-                          <div className="flex items-center text-muted-foreground">
-                            <CalendarDays className="mr-2 h-4 w-4" />
-                            <span>{format(new Date(booking.start_time), "PPP")}</span>
-                          </div>
-                          <div className="flex items-center text-muted-foreground">
-                            <Clock className="mr-2 h-4 w-4" />
-                            <span>
-                              {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                            </span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Card>
-          </div>
-
-          {/* New Grid for the remaining three cards */}
-          <div className="grid gap-6 lg:grid-cols-3"> {/* Changed to lg:grid-cols-3 */}
-            {/* Miles Until Next Service Card */}
-            <Card className={cn(
-              "lg:col-span-1", // Changed to lg:col-span-1
-              milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-100 text-orange-800" : ""
-            )}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Miles Until Next Service</CardTitle>
-                <Gauge className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {milesUntilNextServiceDashboard !== null ? (
-                  <>
-                    <div className="text-2xl font-bold">
-                      {milesUntilNextServiceDashboard.toFixed(0)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
-                    </div>
-                    {carNeedingService && (
-                      <p className="text-xs text-muted-foreground">
-                        ({carNeedingService} needs service soonest)
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No cars with service intervals or mileage data. Add a <Link to="/mileage-tracker" className="text-blue-500 hover:underline">car</Link> to track.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Pre-Paid Hours Summary Card */}
-            <Card className={cn(
-              "lg:col-span-1", // Changed to lg:col-span-1
-              totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-100 text-orange-800" : ""
-            )}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pre-Paid Hours Summary</CardTitle>
-                <Hourglass className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {totalPrePaidHoursPurchased !== null && totalPrePaidHoursRemaining !== null ? (
-                  <>
-                    <div className="text-2xl font-bold">
-                      {totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">hours remaining</span>
-                    </div>
-                    {studentsWithLowPrePaidHours.length > 0 && (
-                      <p className="text-sm text-orange-800 mt-2">
-                        <span className="font-semibold">Low hours for:</span> {studentsWithLowPrePaidHours.join(", ")}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Total hours purchased across all students.
-                    </p>
-                    <Button asChild variant="outline" size="sm" className="mt-4">
-                      <Link to="/pre-paid-hours">
-                        View All Pre-Paid Hours <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No pre-paid hours data available. Add <Link to="/pre-paid-hours" className="text-blue-500 hover:underline">pre-paid hours</Link> to track.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* New Card: Booked Hours for Selected Week */}
-            <Card className="lg:col-span-1"> {/* Changed to lg:col-span-1 */}
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
-                  <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                    <SelectTrigger className="w-[180px] h-7 text-xs">
-                      <SelectValue placeholder="Select Week" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {generateWeekOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <CardContent className="text-xs space-y-1">
+                        <div className="flex items-center text-muted-foreground">
+                          <CalendarDays className="mr-1 h-3 w-3" />
+                          <span>{format(new Date(booking.start_time), "MMM dd")}</span>
+                        </div>
+                        <div className="flex items-center text-muted-foreground">
+                          <Clock className="mr-1 h-3 w-3" />
+                          <span>{format(new Date(booking.start_time), "p")}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {totalBookedHoursForSelectedWeek !== null ? (
-                  <>
-                    <div className="text-2xl font-bold">
-                      {totalBookedHoursForSelectedWeek.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">hours</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Total scheduled and completed bookings for {selectedWeekLabel}.
-                    </p>
-                    <Button asChild variant="outline" size="sm" className="mt-4">
-                      <Link to="/schedule">
-                        View Schedule <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No scheduled or completed bookings found for {selectedWeekLabel}.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </div>
+          </Card>
         </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className={cn(milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50" : "")}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Next Service</CardTitle>
+              <Gauge className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {milesUntilNextServiceDashboard !== null ? (
+                <>
+                  <div className="text-2xl font-bold">{milesUntilNextServiceDashboard.toFixed(0)} <span className="text-sm font-normal text-muted-foreground">miles</span></div>
+                  {carNeedingService && <p className="text-xs text-muted-foreground">({carNeedingService})</p>}
+                </>
+              ) : <p className="text-xs text-muted-foreground">No car data available.</p>}
+            </CardContent>
+          </Card>
+
+          <Card className={cn(totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-50" : "")}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pre-Paid Hours</CardTitle>
+              <Hourglass className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {totalPrePaidHoursRemaining !== null ? (
+                <>
+                  <div className="text-2xl font-bold">{totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased?.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">hrs</span></div>
+                  {studentsWithLowPrePaidHours.length > 0 && <p className="text-xs text-orange-800 mt-1">Low: {studentsWithLowPrePaidHours.join(", ")}</p>}
+                </>
+              ) : <p className="text-xs text-muted-foreground">No pre-paid data.</p>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
+                <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
+                  <SelectTrigger className="w-[130px] h-7 text-xs">
+                    <SelectValue placeholder="Select Week" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-sm font-normal text-muted-foreground">hrs</span></div>
+              <p className="text-xs text-muted-foreground mt-1">Scheduled & completed bookings.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </React.Fragment>
   );
 };
