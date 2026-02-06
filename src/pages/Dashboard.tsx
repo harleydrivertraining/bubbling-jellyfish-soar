@@ -381,7 +381,7 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div className="text-center">
                       <p className="text-xs font-medium uppercase tracking-wider opacity-70">Pass Rate</p>
-                      <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(0)}%</p>
+                      <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
                     </div>
                   </div>
 
@@ -423,7 +423,7 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div className="text-center">
                       <p className="text-xs font-medium uppercase tracking-wider opacity-70">Ex. Act.</p>
-                      <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(0)}%</p>
+                      <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
                     </div>
                   </div>
                 </div>
