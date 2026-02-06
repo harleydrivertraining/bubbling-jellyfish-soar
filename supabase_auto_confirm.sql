@@ -1,8 +1,13 @@
--- 1. Create a function that confirms the user by updating email_confirmed_at
--- The 'confirmed_at' column will update automatically as it is a generated column.
-CREATE OR REPLACE FUNCTION public.handle_auto_confirm_user()
+-- This script creates a trigger that automatically marks new users as confirmed.
+-- Run this in your Supabase SQL Editor.
+
+-- 1. Create the function that will handle the confirmation
+CREATE OR REPLACE FUNCTION public.handle_new_user_confirmation()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- We only update email_confirmed_at. 
+  -- In newer Supabase versions, 'confirmed_at' is a generated column 
+  -- that automatically updates when email_confirmed_at is set.
   UPDATE auth.users
   SET email_confirmed_at = NOW()
   WHERE id = NEW.id;
@@ -10,13 +15,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 2. Create a trigger that runs the function after a user is created
-DROP TRIGGER IF EXISTS on_auth_user_created_auto_confirm ON auth.users;
-CREATE TRIGGER on_auth_user_created_auto_confirm
+-- 2. Create the trigger on the auth.users table
+-- We use AFTER INSERT because we need the user record to exist first
+DROP TRIGGER IF EXISTS on_auth_user_created_confirm ON auth.users;
+CREATE TRIGGER on_auth_user_created_confirm
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_auto_confirm_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_confirmation();
 
--- 3. (Optional) Confirm all existing unconfirmed users right now
-UPDATE auth.users 
-SET email_confirmed_at = NOW() 
-WHERE email_confirmed_at IS NULL;
+-- 3. (Optional) Uncomment the line below to confirm all existing users who haven't confirmed yet
+-- UPDATE auth.users SET email_confirmed_at = NOW() WHERE email_confirmed_at IS NULL;
