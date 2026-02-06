@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -110,7 +110,6 @@ const Dashboard: React.FC = () => {
     const now = new Date();
 
     try {
-      // Fire off all independent primary queries in parallel
       const [
         profileRes,
         studentsCountRes,
@@ -127,16 +126,13 @@ const Dashboard: React.FC = () => {
         supabase.from("pre_paid_hours").select("package_hours, remaining_hours, students(name)").eq("user_id", user.id)
       ]);
 
-      // 1. Profile & Hourly Rate
       if (profileRes.data) {
         setInstructorName(`${profileRes.data.first_name || ""} ${profileRes.data.last_name || ""}`.trim());
         setCurrentHourlyRate(profileRes.data.hourly_rate);
       }
 
-      // 2. Students Count
       setTotalStudents(studentsCountRes.count);
 
-      // 3. Bookings Processing (Upcoming Lessons & Tests)
       const scheduledBookings = allScheduledBookingsRes.data || [];
       setUpcomingLessonsCount(scheduledBookings.length);
       setUpcomingLessons(scheduledBookings.slice(0, 5) as unknown as Booking[]);
@@ -145,7 +141,6 @@ const Dashboard: React.FC = () => {
       setUpcomingDrivingTestBookingsCount(testBookings.length);
       setNextDrivingTestBookings(testBookings.slice(0, 2) as unknown as Booking[]);
 
-      // 4. Historical Test Stats
       const twelveMonthsAgo = subYears(now, 1);
       const recentTests = (historicalTestsRes.data || []).filter(test => isAfter(new Date(test.test_date), twelveMonthsAgo));
       if (recentTests.length > 0) {
@@ -161,7 +156,6 @@ const Dashboard: React.FC = () => {
         setDrivingTestStats({ totalTests: 0, passRate: 0, avgDrivingFaults: 0, avgSeriousFaults: 0, examinerActionPercentage: 0 });
       }
 
-      // 5. Revenue Calculation (Needs to be separate because it depends on timeframe)
       const hourlyRate = profileRes.data?.hourly_rate || 0;
       if (hourlyRate > 0) {
         let startDate: Date, endDate: Date;
@@ -177,7 +171,6 @@ const Dashboard: React.FC = () => {
         setCurrentRevenue(0);
       }
 
-      // 6. Car Service Logic (Parallelized mileage fetches)
       if (carsRes.data && carsRes.data.length > 0) {
         const mileageResults = await Promise.all(carsRes.data.map(async (car) => {
           const { data } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).single();
@@ -201,7 +194,6 @@ const Dashboard: React.FC = () => {
         setCarNeedingService(carName);
       }
 
-      // 7. Pre-Paid Hours
       if (prePaidHoursRes.data) {
         let purchased = 0, remaining = 0;
         const studentMap: { [name: string]: number } = {};
@@ -371,35 +363,74 @@ const Dashboard: React.FC = () => {
 
           <Card className="flex flex-col p-6 space-y-6">
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-6">
                 <CardTitle className="text-2xl font-bold">Test Overview (12m)</CardTitle>
                 <Button asChild variant="outline" size="sm">
                   <Link to="/driving-tests">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
                 </Button>
               </div>
               {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-                <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.passRate <= 55 ? "bg-orange-50" : "bg-green-50")}>
-                    <p className="text-xs text-muted-foreground">Pass %</p>
-                    <p className="text-xl font-bold">{drivingTestStats.passRate.toFixed(0)}%</p>
+                <div className="grid gap-4 grid-cols-2">
+                  {/* Pass Rate */}
+                  <div className={cn(
+                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                    drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  )}>
+                    <div className="p-2 rounded-full bg-white/50">
+                      <TrendingUp className="h-6 w-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Pass Rate</p>
+                      <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(0)}%</p>
+                    </div>
                   </div>
-                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50" : "bg-green-50")}>
-                    <p className="text-xs text-muted-foreground">Avg D.F.</p>
-                    <p className="text-xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+
+                  {/* Avg Driving Faults */}
+                  <div className={cn(
+                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                    drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  )}>
+                    <div className="p-2 rounded-full bg-white/50">
+                      <Car className="h-6 w-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg D.F.</p>
+                      <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                    </div>
                   </div>
-                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50" : "bg-green-50")}>
-                    <p className="text-xs text-muted-foreground">Avg S.F.</p>
-                    <p className="text-xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+
+                  {/* Avg Serious Faults */}
+                  <div className={cn(
+                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                    drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  )}>
+                    <div className="p-2 rounded-full bg-white/50">
+                      <ShieldAlert className="h-6 w-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg S.F.</p>
+                      <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                    </div>
                   </div>
-                  <div className={cn("p-2 border rounded-md text-center", drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50" : "bg-green-50")}>
-                    <p className="text-xs text-muted-foreground">Ex. Act.</p>
-                    <p className="text-xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(0)}%</p>
+
+                  {/* Examiner Action */}
+                  <div className={cn(
+                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                    drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  )}>
+                    <div className="p-2 rounded-full bg-white/50">
+                      <Hand className="h-6 w-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Ex. Act.</p>
+                      <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(0)}%</p>
+                    </div>
                   </div>
                 </div>
               ) : <p className="text-muted-foreground">No test data available.</p>}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-2xl font-bold">Next Driving Tests</CardTitle>
               </div>
@@ -408,7 +439,7 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   {nextDrivingTestBookings.map((booking) => (
-                    <Card key={booking.id}>
+                    <Card key={booking.id} className="bg-muted/30">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base">{booking.title}</CardTitle>
                       </CardHeader>
