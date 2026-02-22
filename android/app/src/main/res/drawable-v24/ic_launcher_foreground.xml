@@ -1,9 +1,32 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Outer Ring of Steering Wheel -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M19,17h2c0.6,0 1,-0.4 1,-1v-3c0,-0.9 -0.7,-1.7 -1.5,-1.9C18.7,10.6 16,10 16,10s-1.3,-1.4 -2.2,-2.3c-0.5,-0.4 -1.1,-0.7 -1.8,-0.7H5C4.4,7 3.9,7.4 3.6,7.9L2.2,10.8A3.7,3.7 0 0 0 2,12v4c0,0.6 0.4,1 1,1h2M7,17a2,2 0 1 0 0,4 2,2 0 1 0 0,-4zM17,17a2,2 0 1 0 0,4 2,2 0 1 0 0,-4zM5,17h10" />
+        android:fillColor="#17405D"
+        android:pathData="M50,20 A30,30 0 1,0 50,80 A30,30 0 1,0 50,20 M50,24 A26,26 0 1,1 50,76 A26,26 0 1,1 50,24" />
+    <!-- Steering Wheel Spokes -->
+    <path
+        android:fillColor="#17405D"
+        android:pathData="M24,48 L40,48 L40,52 L24,52 Z" />
+    <path
+        android:fillColor="#17405D"
+        android:pathData="M60,48 L76,48 L76,52 L60,52 Z" />
+    <path
+        android:fillColor="#17405D"
+        android:pathData="M48,60 L48,76 L52,76 L52,60 Z" />
+    <!-- Center Hub -->
+    <path
+        android:fillColor="#17405D"
+        android:pathData="M50,42 A8,8 0 1,0 50,58 A8,8 0 1,0 50,42" />
+    
+    <!-- HDT Text Branding -->
+    <!-- H -->
+    <path android:fillColor="#17405D" android:pathData="M38,30 L40,30 L40,34 L42,34 L42,30 L44,30 L44,38 L42,38 L42,35 L40,35 L40,38 L38,38 Z" />
+    <!-- D -->
+    <path android:fillColor="#17405D" android:pathData="M46,30 L49,30 C51,30 52,31 52,34 C52,37 51,38 49,38 L46,38 Z M48,32 L48,36 L49,36 C50,36 50,32 49,32 Z" />
+    <!-- T -->
+    <path android:fillColor="#17405D" android:pathData="M54,30 L60,30 L60,32 L58,32 L58,38 L56,38 L56,32 L54,32 Z" />
 </vector>
