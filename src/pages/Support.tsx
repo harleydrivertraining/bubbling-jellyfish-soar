@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Plus, ArrowLeft, Clock } from "lucide-react";
+import { MessageSquare, Plus, ArrowLeft, Clock, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
@@ -24,6 +24,7 @@ interface SupportMessage {
     first_name: string;
     last_name: string;
   };
+  has_owner_reply?: boolean;
 }
 
 const Support: React.FC = () => {
@@ -46,7 +47,7 @@ const Support: React.FC = () => {
     
     setIsOwner(profile?.role === 'owner');
 
-    const { data, error } = await supabase
+    const { data: msgs, error } = await supabase
       .from("support_messages")
       .select("*, profiles(first_name, last_name)")
       .eq("user_id", user.id)
@@ -54,8 +55,19 @@ const Support: React.FC = () => {
 
     if (error) {
       showError("Failed to load messages: " + error.message);
-    } else {
-      setMessages(data || []);
+    } else if (msgs) {
+      // For each message, check if there's a reply from the owner
+      const messagesWithReplyStatus = await Promise.all(msgs.map(async (msg) => {
+        const { data: replies } = await supabase
+          .from("support_replies")
+          .select("sender_id, profiles(role)")
+          .eq("message_id", msg.id);
+        
+        const hasOwnerReply = replies?.some(r => (r.profiles as any)?.role === 'owner');
+        return { ...msg, has_owner_reply: hasOwnerReply };
+      }));
+      
+      setMessages(messagesWithReplyStatus);
     }
     setIsLoading(false);
   }, [user]);
@@ -142,7 +154,14 @@ const Support: React.FC = () => {
                       onClick={() => setSelectedMessage(msg)}
                     >
                       <div className="space-y-1">
-                        <h3 className="font-bold">{msg.subject}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold">{msg.subject}</h3>
+                          {msg.has_owner_reply && (
+                            <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] h-5 px-1.5">
+                              <Bell className="mr-1 h-3 w-3" /> REPLIED
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           {format(new Date(msg.created_at), "PPP")}
