@@ -1,4 +1,4 @@
-package com.hdt.calendar;
+package com.hdt.app;
 
 import com.getcapacitor.BridgeActivity;
 
