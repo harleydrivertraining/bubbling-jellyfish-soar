@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { User, Mail, MessageSquare, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 interface SupportMessage {
   id: string;
