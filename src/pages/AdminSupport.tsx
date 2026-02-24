@@ -5,22 +5,20 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError, showSuccess } from "@/utils/toast";
+import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { User, Mail, MessageSquare, ArrowLeft } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { User, ArrowLeft, MessageSquare, Clock } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import SupportConversation from "@/components/SupportConversation";
 
 interface SupportMessage {
   id: string;
   subject: string;
   message: string;
   status: string;
-  response?: string;
   created_at: string;
   user_id: string;
   profiles: {
@@ -34,7 +32,7 @@ const AdminSupport: React.FC = () => {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [responses, setResponses] = useState<{ [key: string]: string }>({});
+  const [selectedMessage, setSelectedMessage] = useState<SupportMessage | null>(null);
 
   const fetchAllMessages = useCallback(async () => {
     if (!user) return;
@@ -69,88 +67,98 @@ const AdminSupport: React.FC = () => {
     if (!isSessionLoading) fetchAllMessages();
   }, [isSessionLoading, fetchAllMessages]);
 
-  const handleSendResponse = async (msgId: string) => {
-    const responseText = responses[msgId];
-    if (!responseText?.trim()) return;
-
-    const { error } = await supabase
-      .from("support_messages")
-      .update({
-        response: responseText,
-        status: 'closed',
-        responded_at: new Date().toISOString(),
-      })
-      .eq("id", msgId);
-
-    if (error) {
-      showError("Failed to send response: " + error.message);
-    } else {
-      showSuccess("Response sent!");
-      setResponses(prev => ({ ...prev, [msgId]: "" }));
-      fetchAllMessages();
-    }
-  };
-
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-64 w-full" /></div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button asChild variant="ghost" size="icon">
-          <Link to="/support"><ArrowLeft className="h-5 w-5" /></Link>
-        </Button>
-        <h1 className="text-3xl font-bold">Admin Support Center</h1>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {selectedMessage && (
+            <Button variant="ghost" size="icon" onClick={() => setSelectedMessage(null)}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <h1 className="text-3xl font-bold">Admin Support Center</h1>
+        </div>
       </div>
 
-      <div className="grid gap-4">
-        {messages.length === 0 ? (
-          <Card><CardContent className="p-12 text-center text-muted-foreground">No support messages found.</CardContent></Card>
-        ) : (
-          messages.map((msg) => (
-            <Card key={msg.id} className={cn(msg.status === 'open' ? "border-primary/50" : "opacity-80")}>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <CardTitle className="text-xl">{msg.subject}</CardTitle>
-                    <CardDescription className="flex items-center gap-2">
-                      <User className="h-3 w-3" />
-                      {msg.profiles?.first_name} {msg.profiles?.last_name} • {format(new Date(msg.created_at), "PPP p")}
-                    </CardDescription>
+      {selectedMessage ? (
+        <div className="space-y-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-2xl font-bold">{selectedMessage.subject}</h2>
+              <p className="text-muted-foreground flex items-center gap-2 mt-1">
+                <User className="h-4 w-4" />
+                From: {selectedMessage.profiles?.first_name} {selectedMessage.profiles?.last_name}
+              </p>
+            </div>
+            <Badge variant={selectedMessage.status === 'open' ? 'default' : 'secondary'}>
+              {selectedMessage.status.toUpperCase()}
+            </Badge>
+          </div>
+          
+          <SupportConversation 
+            messageId={selectedMessage.id}
+            initialMessage={selectedMessage.message}
+            initialCreatedAt={selectedMessage.created_at}
+            userFirstName={selectedMessage.profiles?.first_name}
+            userLastName={selectedMessage.profiles?.last_name}
+          />
+        </div>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>All Support Requests</CardTitle>
+            <CardDescription>Manage and respond to instructor support requests.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {messages.length === 0 ? (
+              <div className="text-center py-12">
+                <MessageSquare className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
+                <p className="text-muted-foreground">No support requests found.</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {messages.map((msg) => (
+                  <div 
+                    key={msg.id} 
+                    className={cn(
+                      "py-4 flex items-center justify-between hover:bg-muted/30 px-4 cursor-pointer transition-colors rounded-lg",
+                      msg.status === 'open' && "bg-primary/5"
+                    )}
+                    onClick={() => setSelectedMessage(msg)}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold">{msg.subject}</h3>
+                        {msg.status === 'open' && <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          {msg.profiles?.first_name} {msg.profiles?.last_name}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(msg.created_at), "PPP p")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant={msg.status === 'open' ? 'default' : 'secondary'}>
+                        {msg.status}
+                      </Badge>
+                      <Button variant="ghost" size="sm">Open Thread</Button>
+                    </div>
                   </div>
-                  <Badge variant={msg.status === 'open' ? 'default' : 'secondary'}>
-                    {msg.status.toUpperCase()}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-muted rounded-lg text-sm">
-                  {msg.message}
-                </div>
-                
-                {msg.status === 'open' ? (
-                  <div className="space-y-2">
-                    <Textarea 
-                      placeholder="Type your response here..."
-                      value={responses[msg.id] || ""}
-                      onChange={(e) => setResponses(prev => ({ ...prev, [msg.id]: e.target.value }))}
-                    />
-                    <Button onClick={() => handleSendResponse(msg.id)} className="w-full">
-                      <Mail className="mr-2 h-4 w-4" /> Send Response & Close Ticket
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-primary/5 border border-primary/10 rounded-lg text-sm italic">
-                    <span className="font-bold not-italic block mb-1">Your Response:</span>
-                    {msg.response}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Send, Clock, CheckCircle2 } from "lucide-react";
+import { MessageSquare, Plus, ArrowLeft, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import SupportMessageForm from "@/components/SupportMessageForm";
+import SupportConversation from "@/components/SupportConversation";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -18,9 +19,11 @@ interface SupportMessage {
   subject: string;
   message: string;
   status: string;
-  response?: string;
-  responded_at?: string;
   created_at: string;
+  profiles: {
+    first_name: string;
+    last_name: string;
+  };
 }
 
 const Support: React.FC = () => {
@@ -28,6 +31,8 @@ const Support: React.FC = () => {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<SupportMessage | null>(null);
+  const [showNewForm, setShowNewForm] = useState(false);
 
   const fetchMessages = useCallback(async () => {
     if (!user) return;
@@ -43,7 +48,7 @@ const Support: React.FC = () => {
 
     const { data, error } = await supabase
       .from("support_messages")
-      .select("*")
+      .select("*, profiles(first_name, last_name)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -64,74 +69,98 @@ const Support: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Support</h1>
-        {isOwner && (
-          <Button asChild variant="outline">
-            <a href="/admin/support">Go to Admin View</a>
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {isOwner && (
+            <Button asChild variant="outline">
+              <a href="/admin/support">Admin View</a>
+            </Button>
+          )}
+          {!showNewForm && !selectedMessage && (
+            <Button onClick={() => setShowNewForm(true)}>
+              <Plus className="mr-2 h-4 w-4" /> New Request
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg">New Message</CardTitle>
-            <CardDescription>Send a message to the app owner.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SupportMessageForm onSuccess={fetchMessages} />
-          </CardContent>
-        </Card>
+      {(showNewForm || selectedMessage) && (
+        <Button variant="ghost" onClick={() => { setShowNewForm(false); setSelectedMessage(null); }} className="mb-2">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to List
+        </Button>
+      )}
 
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg">Message History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {messages.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No messages sent yet.</p>
-            ) : (
-              <ScrollArea className="h-[500px] pr-4">
-                <div className="space-y-4">
+      <div className="grid gap-6">
+        {showNewForm ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>New Support Request</CardTitle>
+              <CardDescription>Describe your issue and we'll get back to you as soon as possible.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SupportMessageForm onSuccess={() => { setShowNewForm(false); fetchMessages(); }} />
+            </CardContent>
+          </Card>
+        ) : selectedMessage ? (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">{selectedMessage.subject}</h2>
+              <Badge variant={selectedMessage.status === 'open' ? 'secondary' : 'default'}>
+                {selectedMessage.status.toUpperCase()}
+              </Badge>
+            </div>
+            <SupportConversation 
+              messageId={selectedMessage.id}
+              initialMessage={selectedMessage.message}
+              initialCreatedAt={selectedMessage.created_at}
+              userFirstName={selectedMessage.profiles?.first_name}
+              userLastName={selectedMessage.profiles?.last_name}
+            />
+          </div>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Support Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {messages.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No support requests yet.</p>
+                  <Button variant="outline" className="mt-4" onClick={() => setShowNewForm(true)}>
+                    Create your first request
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y">
                   {messages.map((msg) => (
-                    <Card key={msg.id} className="bg-muted/30">
-                      <CardContent className="p-4 space-y-3">
-                        <div className="flex justify-between items-start">
-                          <h3 className="font-bold">{msg.subject}</h3>
-                          <Badge variant={msg.status === 'open' ? 'secondary' : 'default'}>
-                            {msg.status}
-                          </Badge>
+                    <div 
+                      key={msg.id} 
+                      className="py-4 flex items-center justify-between hover:bg-muted/30 px-4 cursor-pointer transition-colors rounded-lg"
+                      onClick={() => setSelectedMessage(msg)}
+                    >
+                      <div className="space-y-1">
+                        <h3 className="font-bold">{msg.subject}</h3>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(msg.created_at), "PPP")}
                         </div>
-                        <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                        <div className="text-[10px] text-muted-foreground flex items-center">
-                          <Clock className="mr-1 h-3 w-3" />
-                          {format(new Date(msg.created_at), "PPP p")}
-                        </div>
-                        
-                        {msg.response && (
-                          <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                            <div className="flex items-center gap-2 mb-1">
-                              <CheckCircle2 className="h-3 w-3 text-primary" />
-                              <span className="text-xs font-bold text-primary">Response from Owner:</span>
-                            </div>
-                            <p className="text-sm italic">{msg.response}</p>
-                            {msg.responded_at && (
-                              <div className="text-[10px] text-muted-foreground mt-1">
-                                {format(new Date(msg.responded_at), "PPP p")}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant={msg.status === 'open' ? 'secondary' : 'default'}>
+                          {msg.status}
+                        </Badge>
+                        <Button variant="ghost" size="sm">View</Button>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
