@@ -23,7 +23,8 @@ import {
   Library,
   ListChecks,
   Gauge,
-  BarChart3, // New icon for Statistics
+  BarChart3,
+  LifeBuoy,
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -78,11 +79,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     { to: "/progress", icon: TrendingUp, label: "Progress" },
     { to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
     { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
-    { to: "/test-statistics", icon: BarChart3, label: "Test Statistics" }, // New nav item
+    { to: "/test-statistics", icon: BarChart3, label: "Test Statistics" },
     { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
     { to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
     { to: "/resources", icon: Library, label: "Resources" },
     { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
+    { to: "/support", icon: LifeBuoy, label: "Support" },
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
 

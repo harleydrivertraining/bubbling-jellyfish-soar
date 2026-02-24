@@ -19,7 +19,9 @@ import PrePaidHoursDetails from "./pages/PrePaidHoursDetails";
 import Resources from "./pages/Resources";
 import ManageTopics from "./pages/ManageTopics";
 import MileageTracker from "./pages/MileageTracker";
-import TestStatistics from "./pages/TestStatistics"; // New import
+import TestStatistics from "./pages/TestStatistics";
+import Support from "./pages/Support";
+import AdminSupport from "./pages/AdminSupport";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import { SessionContextProvider } from "./components/auth/SessionContextProvider";
@@ -45,12 +47,14 @@ const App = () => (
               <Route path="progress" element={<Progress />} />
               <Route path="driving-test-bookings" element={<DrivingTestBookings />} />
               <Route path="driving-tests" element={<DrivingTests />} />
-              <Route path="test-statistics" element={<TestStatistics />} /> {/* New route */}
+              <Route path="test-statistics" element={<TestStatistics />} />
               <Route path="pre-paid-hours" element={<PrePaidHours />} />
               <Route path="pre-paid-hours/:packageId" element={<PrePaidHoursDetails />} />
               <Route path="resources" element={<Resources />} />
               <Route path="manage-topics" element={<ManageTopics />} />
               <Route path="mileage-tracker" element={<MileageTracker />} />
+              <Route path="support" element={<Support />} />
+              <Route path="admin/support" element={<AdminSupport />} />
               <Route path="settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />
             </Route>
