@@ -138,7 +138,8 @@ const Dashboard: React.FC = () => {
 
       const scheduledBookings = allScheduledBookingsRes.data || [];
       setUpcomingLessonsCount(scheduledBookings.length);
-      setUpcomingLessons(scheduledBookings.slice(0, 10) as unknown as Booking[]);
+      // Fetch up to 20 lessons for the expanded view
+      setUpcomingLessons(scheduledBookings.slice(0, 20) as unknown as Booking[]);
       
       const testBookings = scheduledBookings.filter(b => b.lesson_type === "Driving Test");
       setUpcomingDrivingTestBookingsCount(testBookings.length);
@@ -412,12 +413,12 @@ const Dashboard: React.FC = () => {
                         variant="ghost" 
                         size="sm" 
                         onClick={() => setShowAllLessons(!showAllLessons)}
-                        className="text-primary font-semibold hover:bg-primary/5"
+                        className="text-primary font-semibold hover:bg-primary/5 w-full"
                       >
                         {showAllLessons ? (
                           <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
                         ) : (
-                          <>View More <ChevronDown className="ml-2 h-4 w-4" /></>
+                          <>View More ({upcomingLessons.length - 3} more) <ChevronDown className="ml-2 h-4 w-4" /></>
                         )}
                       </Button>
                     </div>
