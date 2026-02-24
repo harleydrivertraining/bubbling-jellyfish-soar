@@ -2,13 +2,17 @@
 
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import ProfileSettingsForm from "@/components/ProfileSettingsForm"; // Import the new component
-import ChangePasswordForm from "@/components/ChangePasswordForm"; // New import
+import ProfileSettingsForm from "@/components/ProfileSettingsForm";
+import ChangePasswordForm from "@/components/ChangePasswordForm";
+import SubscriptionCard from "@/components/SubscriptionCard";
 
 const Settings: React.FC = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Settings</h1>
+      
+      <SubscriptionCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Profile Settings</CardTitle>
@@ -26,7 +30,6 @@ const Settings: React.FC = () => {
           <ChangePasswordForm />
         </CardContent>
       </Card>
-      {/* Other settings cards can go here */}
     </div>
   );
 };
