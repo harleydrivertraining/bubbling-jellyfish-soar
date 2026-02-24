@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -65,6 +65,8 @@ const Dashboard: React.FC = () => {
 
   const [totalBookedHoursForSelectedWeek, setTotalBookedHoursForSelectedWeek] = useState<number | null>(null);
   const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
+  
+  const [showAllLessons, setShowAllLessons] = useState(false);
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -241,6 +243,10 @@ const Dashboard: React.FC = () => {
     return options;
   }, []);
 
+  const displayedLessons = useMemo(() => {
+    return showAllLessons ? upcomingLessons : upcomingLessons.slice(0, 3);
+  }, [upcomingLessons, showAllLessons]);
+
   if (isSessionLoading || isLoadingDashboard) {
     return (
       <div className="space-y-6">
@@ -349,9 +355,9 @@ const Dashboard: React.FC = () => {
                   </Button>
                 </div>
               ) : (
-                <ScrollArea className="h-[500px]">
+                <ScrollArea className="max-h-[500px]">
                   <div className="divide-y">
-                    {upcomingLessons.map((booking) => {
+                    {displayedLessons.map((booking) => {
                       const startTime = new Date(booking.start_time);
                       const isLessonToday = isToday(startTime);
                       
@@ -400,6 +406,22 @@ const Dashboard: React.FC = () => {
                       );
                     })}
                   </div>
+                  {upcomingLessons.length > 3 && (
+                    <div className="p-4 text-center border-t bg-muted/10">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setShowAllLessons(!showAllLessons)}
+                        className="text-primary font-semibold hover:bg-primary/5"
+                      >
+                        {showAllLessons ? (
+                          <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
+                        ) : (
+                          <>View More <ChevronDown className="ml-2 h-4 w-4" /></>
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </ScrollArea>
               )}
             </CardContent>
