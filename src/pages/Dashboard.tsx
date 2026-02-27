@@ -461,7 +461,7 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <CardTitle className="text-lg font-bold">Test Performance</CardTitle>
-                <CardDescription>Last 12 months</CardDescription>
+                <CardDescription className="text-sm">Last 12 months</CardDescription>
               </div>
               <Button asChild variant="ghost" size="sm" className="text-primary font-semibold">
                 <Link to="/test-statistics">Full Stats <ArrowRight className="ml-2 h-4 w-4" /></Link>
@@ -474,32 +474,32 @@ const Dashboard: React.FC = () => {
                   drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <TrendingUp className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Pass Rate</p>
-                  <p className="text-xl font-black">{drivingTestStats.passRate.toFixed(1)}%</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Pass Rate</p>
+                  <p className="text-2xl font-black">{drivingTestStats.passRate.toFixed(1)}%</p>
                 </div>
                 <div className={cn(
                   "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
                   drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <Car className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Avg D.F.</p>
-                  <p className="text-xl font-black">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg D.F.</p>
+                  <p className="text-2xl font-black">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
                 </div>
                 <div className={cn(
                   "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
                   drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <ShieldAlert className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Avg S.F.</p>
-                  <p className="text-xl font-black">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg S.F.</p>
+                  <p className="text-2xl font-black">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
                 </div>
                 <div className={cn(
                   "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
                   drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <Hand className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Ex. Act.</p>
-                  <p className="text-xl font-black">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Ex. Act.</p>
+                  <p className="text-2xl font-black">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
                 </div>
               </div>
             ) : <p className="text-sm text-muted-foreground text-center py-4">No test data available.</p>}
@@ -517,16 +517,16 @@ const Dashboard: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {nextDrivingTestBookings.map((booking) => (
-                  <div key={booking.id} className="p-3 rounded-lg bg-muted/40 border border-muted flex items-center justify-between">
+                  <div key={booking.id} className="p-4 rounded-lg bg-muted/40 border border-muted flex items-center justify-between">
                     <div className="min-w-0">
-                      <p className="font-bold text-sm truncate">{booking.students?.name || "Unknown Student"}</p>
-                      <div className="flex items-center text-[10px] text-muted-foreground mt-1">
-                        <CalendarDays className="mr-1 h-3 w-3" />
+                      <p className="font-bold text-base truncate">{booking.students?.name || "Unknown Student"}</p>
+                      <div className="flex items-center text-xs text-muted-foreground mt-1">
+                        <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
                         <span>{format(new Date(booking.start_time), "MMM dd")} at {format(new Date(booking.start_time), "p")}</span>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                      <Link to="/driving-test-bookings"><ArrowRight className="h-4 w-4" /></Link>
+                    <Button variant="ghost" size="icon" className="h-10 w-10" asChild>
+                      <Link to="/driving-test-bookings"><ArrowRight className="h-5 w-5" /></Link>
                     </Button>
                   </div>
                 ))}
@@ -545,7 +545,7 @@ const Dashboard: React.FC = () => {
               {milesUntilNextServiceDashboard !== null ? (
                 <>
                   <div className="text-2xl font-black">{milesUntilNextServiceDashboard.toFixed(0)} <span className="text-xs font-bold text-muted-foreground uppercase">miles</span></div>
-                  {carNeedingService && <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tight">{carNeedingService}</p>}
+                  {carNeedingService && <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-tight">{carNeedingService}</p>}
                   {milesUntilNextServiceDashboard < 1000 && (
                     <Badge variant="outline" className="mt-2 bg-white text-orange-700 border-orange-200 text-[10px] font-bold">SERVICE SOON</Badge>
                   )}
@@ -567,8 +567,8 @@ const Dashboard: React.FC = () => {
                   <div className="text-2xl font-black">{totalPrePaidHoursRemaining.toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
                   {studentsWithLowPrePaidHours.length > 0 && (
                     <div className="mt-2 space-y-1">
-                      <p className="text-[10px] font-bold text-red-700 uppercase">Low Balance:</p>
-                      <p className="text-[10px] text-red-600 truncate">{studentsWithLowPrePaidHours.join(", ")}</p>
+                      <p className="text-xs font-bold text-red-700 uppercase">Low Balance:</p>
+                      <p className="text-xs text-red-600 truncate">{studentsWithLowPrePaidHours.join(", ")}</p>
                     </div>
                   )}
                 </>
@@ -612,8 +612,7 @@ const Dashboard: React.FC = () => {
               key={widget.id} 
               className={cn(
                 widget.id === "quick_stats" && "lg:col-span-3",
-                widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
-                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons") && "lg:col-span-1"
+                widget.id !== "quick_stats" && "lg:col-span-1"
               )}
             >
               {renderWidget(widget.id)}
