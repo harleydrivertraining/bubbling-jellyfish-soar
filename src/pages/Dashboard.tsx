@@ -604,9 +604,6 @@ const Dashboard: React.FC = () => {
             <h1 className="text-4xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorName || "Instructor"}</h1>
             <p className="text-muted-foreground font-medium mt-1">Here's what's happening with your driving school today.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)} className="shadow-sm font-bold">
-            <Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard
-          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -615,12 +612,19 @@ const Dashboard: React.FC = () => {
               key={widget.id} 
               className={cn(
                 widget.id === "quick_stats" && "lg:col-span-3",
-                widget.id !== "quick_stats" && "lg:col-span-1"
+                widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
+                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons") && "lg:col-span-1"
               )}
             >
               {renderWidget(widget.id)}
             </div>
           ))}
+        </div>
+
+        <div className="flex justify-center pt-8 border-t">
+          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)} className="shadow-sm font-bold">
+            <Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard
+          </Button>
         </div>
       </div>
 
