@@ -282,7 +282,7 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const displayedLessons = useMemo(() => {
-    return showAllLessons ? upcomingLessons : upcomingLessons.slice(0, 5);
+    return showAllLessons ? upcomingLessons : upcomingLessons.slice(0, 3);
   }, [upcomingLessons, showAllLessons]);
 
   const renderWidget = (id: string) => {
@@ -352,7 +352,7 @@ const Dashboard: React.FC = () => {
         );
       case "upcoming_lessons":
         return (
-          <Card key={id} className="flex flex-col overflow-hidden shadow-md border-none">
+          <Card key={id} className="flex flex-col overflow-hidden shadow-md border-none h-full">
             <CardHeader className="bg-primary text-primary-foreground">
               <div className="flex items-center justify-between">
                 <div>
@@ -376,7 +376,7 @@ const Dashboard: React.FC = () => {
                   </Button>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[600px]">
+                <ScrollArea className="h-full">
                   <div className="divide-y divide-muted">
                     {displayedLessons.map((booking) => {
                       const startTime = new Date(booking.start_time);
@@ -427,7 +427,7 @@ const Dashboard: React.FC = () => {
                       );
                     })}
                   </div>
-                  {upcomingLessons.length > 5 && (
+                  {upcomingLessons.length > 3 && (
                     <div className="p-4 text-center border-t bg-muted/5">
                       <Button 
                         variant="ghost" 
@@ -438,7 +438,7 @@ const Dashboard: React.FC = () => {
                         {showAllLessons ? (
                           <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
                         ) : (
-                          <>View More ({upcomingLessons.length - 5} more) <ChevronDown className="ml-2 h-4 w-4" /></>
+                          <>View More ({upcomingLessons.length - 3} more) <ChevronDown className="ml-2 h-4 w-4" /></>
                         )}
                       </Button>
                     </div>
@@ -450,7 +450,7 @@ const Dashboard: React.FC = () => {
         );
       case "test_stats":
         return (
-          <Card key={id} className="p-6 shadow-sm">
+          <Card key={id} className="p-6 shadow-sm h-full">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <CardTitle className="text-lg font-bold">Test Performance</CardTitle>
@@ -500,7 +500,7 @@ const Dashboard: React.FC = () => {
         );
       case "next_tests":
         return (
-          <Card key={id} className="p-6 shadow-sm">
+          <Card key={id} className="p-6 shadow-sm h-full">
             <CardTitle className="text-lg font-bold mb-4 flex items-center">
               <GraduationCap className="mr-2 h-5 w-5 text-primary" />
               Next Driving Tests
@@ -529,7 +529,7 @@ const Dashboard: React.FC = () => {
         );
       case "service_info":
         return (
-          <Card key={id} className={cn("shadow-sm", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50 border-orange-200" : "")}>
+          <Card key={id} className={cn("shadow-sm h-full", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50 border-orange-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-bold">Vehicle Service</CardTitle>
               <Gauge className={cn("h-4 w-4", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "text-orange-600" : "text-muted-foreground")} />
@@ -549,7 +549,7 @@ const Dashboard: React.FC = () => {
         );
       case "prepaid_info":
         return (
-          <Card key={id} className={cn("shadow-sm", totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-red-50 border-red-200" : "")}>
+          <Card key={id} className={cn("shadow-sm h-full", totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-red-50 border-red-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-bold">Pre-Paid Hours</CardTitle>
               <Hourglass className={cn("h-4 w-4", totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "text-red-600" : "text-muted-foreground")} />
@@ -571,7 +571,7 @@ const Dashboard: React.FC = () => {
         );
       case "booked_hours":
         return (
-          <Card key={id} className="shadow-sm">
+          <Card key={id} className="shadow-sm h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-2">
                 <CardTitle className="text-sm font-bold">Booked Hours</CardTitle>
@@ -599,7 +599,7 @@ const Dashboard: React.FC = () => {
 
   if (isSessionLoading || isLoadingDashboard) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <Skeleton className="h-10 w-64" />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
@@ -614,7 +614,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <React.Fragment>
-      <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="space-y-8 w-full px-4 lg:px-8 py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-4xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorName || "Instructor"}</h1>
@@ -631,7 +631,7 @@ const Dashboard: React.FC = () => {
               key={widget.id} 
               className={cn(
                 widget.id === "quick_stats" && "lg:col-span-3",
-                widget.id === "upcoming_lessons" && "lg:col-span-2 lg:row-span-3",
+                widget.id === "upcoming_lessons" && "lg:col-span-2 lg:row-span-2",
                 (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons") && "lg:col-span-1"
               )}
             >
