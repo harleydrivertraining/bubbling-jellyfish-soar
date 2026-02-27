@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -86,12 +86,10 @@ const Dashboard: React.FC = () => {
     if (savedWidgets) {
       try {
         const parsed = JSON.parse(savedWidgets);
-        // Merge with default to ensure new widgets are added if we update the app
         const merged = DEFAULT_WIDGETS.map(def => {
           const saved = parsed.find((p: DashboardWidget) => p.id === def.id);
           return saved ? saved : def;
         });
-        // Also add any saved widgets that aren't in defaults (if any)
         const extra = parsed.filter((p: DashboardWidget) => !DEFAULT_WIDGETS.find(def => def.id === p.id));
         setWidgets([...merged, ...extra]);
       } catch (e) {
@@ -284,38 +282,40 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const displayedLessons = useMemo(() => {
-    return showAllLessons ? upcomingLessons : upcomingLessons.slice(0, 3);
+    return showAllLessons ? upcomingLessons : upcomingLessons.slice(0, 5);
   }, [upcomingLessons, showAllLessons]);
 
   const renderWidget = (id: string) => {
     switch (id) {
       case "quick_stats":
         return (
-          <div key={id} className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
+          <div key={id} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
+                <Users className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{totalStudents ?? 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">Active learners</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Upcoming Lessons</CardTitle>
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Lessons</CardTitle>
+                <CalendarDays className="h-4 w-4 text-purple-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{upcomingLessonsCount ?? 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">Scheduled sessions</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-l-4 border-l-green-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium">Income</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Income</CardTitle>
                   <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                    <SelectTrigger className="w-[100px] h-7 text-xs">
+                    <SelectTrigger className="w-[90px] h-6 text-[10px] px-2">
                       <SelectValue placeholder="Timeframe" />
                     </SelectTrigger>
                     <SelectContent>
@@ -325,124 +325,120 @@ const Dashboard: React.FC = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <PoundSterling className="h-4 w-4 text-muted-foreground" />
+                <PoundSterling className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
                 {currentHourlyRate ? (
                   <>
                     <div className="text-2xl font-bold">£{(currentRevenue ?? 0).toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">(from completed lessons)</p>
+                    <p className="text-xs text-muted-foreground mt-1">From completed lessons</p>
                   </>
                 ) : (
-                  <div className="text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> to calculate.</div>
+                  <div className="text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link></div>
                 )}
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-l-4 border-l-orange-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium">Upcoming Tests</CardTitle>
-                  <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
-                    <Link to="/driving-test-bookings">View All <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                  </Button>
-                </div>
-                <Car className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Tests</CardTitle>
+                <Car className="h-4 w-4 text-orange-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount ?? 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">Driving test bookings</p>
               </CardContent>
             </Card>
           </div>
         );
       case "upcoming_lessons":
         return (
-          <Card key={id} className="flex flex-col overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b">
+          <Card key={id} className="flex flex-col overflow-hidden shadow-md border-none">
+            <CardHeader className="bg-primary text-primary-foreground">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold">Upcoming Lessons</CardTitle>
-                  <CardDescription>Your next scheduled sessions</CardDescription>
+                  <CardTitle className="text-xl font-bold">Upcoming Lessons</CardTitle>
+                  <CardDescription className="text-primary-foreground/70">Your next scheduled sessions</CardDescription>
                 </div>
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="secondary" size="sm" className="h-8">
                   <Link to="/schedule" className="flex items-center">
                     Full Schedule <Calendar className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="p-0 flex-1">
+            <CardContent className="p-0 flex-1 bg-card">
               {upcomingLessons.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Calendar className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
-                  <p className="text-muted-foreground">No upcoming lessons scheduled.</p>
+                <div className="p-12 text-center">
+                  <Calendar className="h-16 w-16 text-muted-foreground/20 mx-auto mb-4" />
+                  <p className="text-muted-foreground font-medium">No upcoming lessons scheduled.</p>
                   <Button asChild variant="outline" className="mt-4">
                     <Link to="/schedule">Book a Lesson</Link>
                   </Button>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[500px]">
-                  <div className="divide-y">
+                <ScrollArea className="max-h-[600px]">
+                  <div className="divide-y divide-muted">
                     {displayedLessons.map((booking) => {
                       const startTime = new Date(booking.start_time);
                       const isLessonToday = isToday(startTime);
                       
                       return (
                         <div key={booking.id} className={cn(
-                          "p-4 transition-colors hover:bg-muted/50 flex items-start gap-4",
-                          isLessonToday && "bg-primary/5"
+                          "p-5 transition-all hover:bg-muted/30 flex items-start gap-5",
+                          isLessonToday && "bg-primary/5 border-l-4 border-l-primary"
                         )}>
-                          <div className="flex flex-col items-center justify-center min-w-[60px] py-1 rounded-lg bg-muted border">
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground">{format(startTime, "MMM")}</span>
-                            <span className="text-xl font-bold leading-none">{format(startTime, "dd")}</span>
+                          <div className="flex flex-col items-center justify-center min-w-[64px] py-2 rounded-xl bg-muted border shadow-sm">
+                            <span className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">{format(startTime, "MMM")}</span>
+                            <span className="text-2xl font-black leading-none">{format(startTime, "dd")}</span>
                           </div>
                           
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <h4 className="font-semibold text-base truncate pr-2">{booking.students?.name || "Unknown Student"}</h4>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <h4 className="font-bold text-lg truncate pr-2 text-foreground">{booking.students?.name || "Unknown Student"}</h4>
                               {isLessonToday && (
-                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] h-5 px-1.5">TODAY</Badge>
+                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] font-bold h-5 px-2">TODAY</Badge>
                               )}
                             </div>
                             
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
                               <div className="flex items-center">
-                                <Clock className="mr-1.5 h-3.5 w-3.5" />
-                                <span>{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
+                                <Clock className="mr-2 h-4 w-4 text-primary/60" />
+                                <span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
                               </div>
                               <div className="flex items-center">
-                                <BookOpen className="mr-1.5 h-3.5 w-3.5" />
-                                <span className="capitalize">{booking.lesson_type}</span>
+                                <BookOpen className="mr-2 h-4 w-4 text-primary/60" />
+                                <span className="capitalize font-medium">{booking.lesson_type}</span>
                               </div>
                             </div>
                             
                             {booking.description && (
-                              <p className="mt-2 text-xs text-muted-foreground italic line-clamp-1 border-l-2 pl-2 border-muted-foreground/20">
-                                {booking.description}
+                              <p className="mt-3 text-xs text-muted-foreground italic line-clamp-2 bg-muted/50 p-2 rounded-md border-l-2 border-primary/30">
+                                "{booking.description}"
                               </p>
                             )}
                           </div>
                           
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" asChild>
+                          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors" asChild>
                             <Link to="/schedule">
-                              <ArrowRight className="h-4 w-4" />
+                              <ArrowRight className="h-5 w-5" />
                             </Link>
                           </Button>
                         </div>
                       );
                     })}
                   </div>
-                  {upcomingLessons.length > 3 && (
-                    <div className="p-4 text-center border-t bg-muted/10">
+                  {upcomingLessons.length > 5 && (
+                    <div className="p-4 text-center border-t bg-muted/5">
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         onClick={() => setShowAllLessons(!showAllLessons)}
-                        className="text-primary font-semibold hover:bg-primary/5 w-full"
+                        className="text-primary font-bold hover:bg-primary/5 w-full py-6"
                       >
                         {showAllLessons ? (
                           <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
                         ) : (
-                          <>View More ({upcomingLessons.length - 3} more) <ChevronDown className="ml-2 h-4 w-4" /></>
+                          <>View More ({upcomingLessons.length - 5} more) <ChevronDown className="ml-2 h-4 w-4" /></>
                         )}
                       </Button>
                     </div>
@@ -454,83 +450,78 @@ const Dashboard: React.FC = () => {
         );
       case "test_stats":
         return (
-          <Card key={id} className="p-6">
+          <Card key={id} className="p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <CardTitle className="text-2xl font-bold">Test Overview (12m)</CardTitle>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/driving-tests">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <div>
+                <CardTitle className="text-lg font-bold">Test Performance</CardTitle>
+                <CardDescription>Last 12 months</CardDescription>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="text-primary font-semibold">
+                <Link to="/test-statistics">Full Stats <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </div>
             {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-              <div className="grid gap-4 grid-cols-2">
+              <div className="grid gap-3 grid-cols-2">
                 <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                  drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
+                  drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
-                  <div className="p-2 rounded-full bg-white/50"><TrendingUp className="h-6 w-6" /></div>
-                  <div className="text-center">
-                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Pass Rate</p>
-                    <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
-                  </div>
+                  <TrendingUp className="h-5 w-5 opacity-60" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Pass Rate</p>
+                  <p className="text-xl font-black">{drivingTestStats.passRate.toFixed(1)}%</p>
                 </div>
                 <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                  drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
+                  drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
-                  <div className="p-2 rounded-full bg-white/50"><Car className="h-6 w-6" /></div>
-                  <div className="text-center">
-                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg D.F.</p>
-                    <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
-                  </div>
+                  <Car className="h-5 w-5 opacity-60" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Avg D.F.</p>
+                  <p className="text-xl font-black">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
                 </div>
                 <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                  drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
+                  drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
-                  <div className="p-2 rounded-full bg-white/50"><ShieldAlert className="h-6 w-6" /></div>
-                  <div className="text-center">
-                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg S.F.</p>
-                    <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
-                  </div>
+                  <ShieldAlert className="h-5 w-5 opacity-60" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Avg S.F.</p>
+                  <p className="text-xl font-black">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
                 </div>
                 <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                  drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
+                  drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
-                  <div className="p-2 rounded-full bg-white/50"><Hand className="h-6 w-6" /></div>
-                  <div className="text-center">
-                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Ex. Act.</p>
-                    <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
-                  </div>
+                  <Hand className="h-5 w-5 opacity-60" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Ex. Act.</p>
+                  <p className="text-xl font-black">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
                 </div>
               </div>
-            ) : <p className="text-muted-foreground">No test data available.</p>}
+            ) : <p className="text-sm text-muted-foreground text-center py-4">No test data available.</p>}
           </Card>
         );
       case "next_tests":
         return (
-          <Card key={id} className="p-6">
-            <CardTitle className="text-2xl font-bold mb-4">Next Driving Tests</CardTitle>
+          <Card key={id} className="p-6 shadow-sm">
+            <CardTitle className="text-lg font-bold mb-4 flex items-center">
+              <GraduationCap className="mr-2 h-5 w-5 text-primary" />
+              Next Driving Tests
+            </CardTitle>
             {nextDrivingTestBookings.length === 0 ? (
-              <p className="text-muted-foreground">No upcoming tests.</p>
+              <p className="text-sm text-muted-foreground italic">No upcoming tests scheduled.</p>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
                 {nextDrivingTestBookings.map((booking) => (
-                  <Card key={booking.id} className="bg-muted/30">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">{booking.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-xs space-y-1">
-                      <div className="flex items-center text-muted-foreground">
+                  <div key={booking.id} className="p-3 rounded-lg bg-muted/40 border border-muted flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm truncate">{booking.students?.name || "Unknown Student"}</p>
+                      <div className="flex items-center text-[10px] text-muted-foreground mt-1">
                         <CalendarDays className="mr-1 h-3 w-3" />
-                        <span>{format(new Date(booking.start_time), "MMM dd")}</span>
+                        <span>{format(new Date(booking.start_time), "MMM dd")} at {format(new Date(booking.start_time), "p")}</span>
                       </div>
-                      <div className="flex items-center text-muted-foreground">
-                        <Clock className="mr-1 h-3 w-3" />
-                        <span>{format(new Date(booking.start_time), "p")}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                      <Link to="/driving-test-bookings"><ArrowRight className="h-4 w-4" /></Link>
+                    </Button>
+                  </div>
                 ))}
               </div>
             )}
@@ -538,16 +529,19 @@ const Dashboard: React.FC = () => {
         );
       case "service_info":
         return (
-          <Card key={id} className={cn(milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50" : "")}>
+          <Card key={id} className={cn("shadow-sm", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50 border-orange-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Next Service</CardTitle>
-              <Gauge className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-bold">Vehicle Service</CardTitle>
+              <Gauge className={cn("h-4 w-4", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "text-orange-600" : "text-muted-foreground")} />
             </CardHeader>
             <CardContent>
               {milesUntilNextServiceDashboard !== null ? (
                 <>
-                  <div className="text-2xl font-bold">{milesUntilNextServiceDashboard.toFixed(0)} <span className="text-sm font-normal text-muted-foreground">miles</span></div>
-                  {carNeedingService && <p className="text-xs text-muted-foreground">({carNeedingService})</p>}
+                  <div className="text-2xl font-black">{milesUntilNextServiceDashboard.toFixed(0)} <span className="text-xs font-bold text-muted-foreground uppercase">miles</span></div>
+                  {carNeedingService && <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tight">{carNeedingService}</p>}
+                  {milesUntilNextServiceDashboard < 1000 && (
+                    <Badge variant="outline" className="mt-2 bg-white text-orange-700 border-orange-200 text-[10px] font-bold">SERVICE SOON</Badge>
+                  )}
                 </>
               ) : <p className="text-xs text-muted-foreground">No car data available.</p>}
             </CardContent>
@@ -555,16 +549,21 @@ const Dashboard: React.FC = () => {
         );
       case "prepaid_info":
         return (
-          <Card key={id} className={cn(totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-50" : "")}>
+          <Card key={id} className={cn("shadow-sm", totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-red-50 border-red-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pre-Paid Hours</CardTitle>
-              <Hourglass className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-bold">Pre-Paid Hours</CardTitle>
+              <Hourglass className={cn("h-4 w-4", totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "text-red-600" : "text-muted-foreground")} />
             </CardHeader>
             <CardContent>
               {totalPrePaidHoursRemaining !== null ? (
                 <>
-                  <div className="text-2xl font-bold">{totalPrePaidHoursRemaining.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">hrs</span></div>
-                  {studentsWithLowPrePaidHours.length > 0 && <p className="text-xs text-orange-800 mt-1">Low: {studentsWithLowPrePaidHours.join(", ")}</p>}
+                  <div className="text-2xl font-black">{totalPrePaidHoursRemaining.toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
+                  {studentsWithLowPrePaidHours.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[10px] font-bold text-red-700 uppercase">Low Balance:</p>
+                      <p className="text-[10px] text-red-600 truncate">{studentsWithLowPrePaidHours.join(", ")}</p>
+                    </div>
+                  )}
                 </>
               ) : <p className="text-xs text-muted-foreground">No pre-paid data.</p>}
             </CardContent>
@@ -572,12 +571,12 @@ const Dashboard: React.FC = () => {
         );
       case "booked_hours":
         return (
-          <Card key={id}>
+          <Card key={id} className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
+                <CardTitle className="text-sm font-bold">Booked Hours</CardTitle>
                 <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                  <SelectTrigger className="w-[130px] h-7 text-xs">
+                  <SelectTrigger className="w-[110px] h-6 text-[10px] px-2">
                     <SelectValue placeholder="Select Week" />
                   </SelectTrigger>
                   <SelectContent>
@@ -588,8 +587,8 @@ const Dashboard: React.FC = () => {
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-sm font-normal text-muted-foreground">hrs</span></div>
-              <p className="text-xs text-muted-foreground mt-1">Scheduled & completed bookings.</p>
+              <div className="text-2xl font-black">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
+              <p className="text-[10px] text-muted-foreground mt-1 font-medium">Scheduled & completed bookings.</p>
             </CardContent>
           </Card>
         );
@@ -605,9 +604,9 @@ const Dashboard: React.FC = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
         </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2"><Skeleton className="h-[500px] w-full" /></div>
+          <div className="space-y-6"><Skeleton className="h-[240px] w-full" /><Skeleton className="h-[240px] w-full" /></div>
         </div>
       </div>
     );
@@ -615,18 +614,27 @@ const Dashboard: React.FC = () => {
 
   return (
     <React.Fragment>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{getGreeting()}, {instructorName || "Instructor"}</h1>
-          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)}>
+      <div className="space-y-8 max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorName || "Instructor"}</h1>
+            <p className="text-muted-foreground font-medium mt-1">Here's what's happening with your driving school today.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)} className="shadow-sm font-bold">
             <Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard
           </Button>
         </div>
 
-        <div className="space-y-6">
-          {/* Render widgets in order, but handle the grid layout for specific combinations */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {widgets.filter(w => w.visible).map((widget) => (
-            <div key={widget.id}>
+            <div 
+              key={widget.id} 
+              className={cn(
+                widget.id === "quick_stats" && "lg:col-span-3",
+                widget.id === "upcoming_lessons" && "lg:col-span-2 lg:row-span-3",
+                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons") && "lg:col-span-1"
+              )}
+            >
               {renderWidget(widget.id)}
             </div>
           ))}
