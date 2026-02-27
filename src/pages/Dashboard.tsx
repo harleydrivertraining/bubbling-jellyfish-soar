@@ -439,7 +439,7 @@ const Dashboard: React.FC = () => {
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => showAllLessons ? setShowAllLessons(false) : setShowAllLessons(true)}
+                        onClick={() => setShowAllLessons(!showAllLessons)}
                         className="text-primary font-bold hover:bg-primary/5 w-full py-6"
                       >
                         {showAllLessons ? (
@@ -615,8 +615,7 @@ const Dashboard: React.FC = () => {
               key={widget.id} 
               className={cn(
                 widget.id === "quick_stats" && "lg:col-span-3",
-                widget.id === "upcoming_lessons" && "lg:col-span-2 lg:row-span-2",
-                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons") && "lg:col-span-1"
+                widget.id !== "quick_stats" && "lg:col-span-1"
               )}
             >
               {renderWidget(widget.id)}
