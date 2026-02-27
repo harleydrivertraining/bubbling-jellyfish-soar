@@ -52,14 +52,12 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "next_tests", label: "Next Driving Tests", visible: true },
   { id: "service_info", label: "Vehicle Service", visible: true },
   { id: "prepaid_info", label: "Pre-Paid Hours", visible: true },
-  { id: "booked_hours", label: "Weekly Booked Hours", visible: true },
 ];
 
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [instructorName, setInstructorName] = useState<string | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
-  const [upcomingLessonsCount, setUpcomingLessonsCount] = useState<number | null>(null);
   const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
   const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null);
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
@@ -177,7 +175,6 @@ const Dashboard: React.FC = () => {
       setTotalStudents(studentsCountRes.count);
 
       const scheduledBookings = allScheduledBookingsRes.data || [];
-      setUpcomingLessonsCount(scheduledBookings.length);
       setUpcomingLessons(scheduledBookings.slice(0, 20) as unknown as Booking[]);
       
       const testBookings = scheduledBookings.filter(b => b.lesson_type === "Driving Test");
@@ -302,11 +299,21 @@ const Dashboard: React.FC = () => {
             </Card>
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Lessons</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Booked Hours</CardTitle>
+                  <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
+                    <SelectTrigger className="w-[110px] h-6 text-[10px] px-2">
+                      <SelectValue placeholder="Select Week" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <CalendarDays className="h-4 w-4 text-purple-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{upcomingLessonsCount ?? 0}</div>
+                <div className="text-2xl font-bold">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
                 <p className="text-xs text-muted-foreground mt-1">Scheduled sessions</p>
               </CardContent>
             </Card>
@@ -432,7 +439,7 @@ const Dashboard: React.FC = () => {
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => setShowAllLessons(!showAllLessons)}
+                        onClick={() => showAllLessons ? setShowAllLessons(false) : setShowAllLessons(true)}
                         className="text-primary font-bold hover:bg-primary/5 w-full py-6"
                       >
                         {showAllLessons ? (
@@ -566,29 +573,6 @@ const Dashboard: React.FC = () => {
                   )}
                 </>
               ) : <p className="text-xs text-muted-foreground">No pre-paid data.</p>}
-            </CardContent>
-          </Card>
-        );
-      case "booked_hours":
-        return (
-          <Card key={id} className="shadow-sm h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-bold">Booked Hours</CardTitle>
-                <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                  <SelectTrigger className="w-[110px] h-6 text-[10px] px-2">
-                    <SelectValue placeholder="Select Week" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-black">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
-              <p className="text-[10px] text-muted-foreground mt-1 font-medium">Scheduled & completed bookings.</p>
             </CardContent>
           </Card>
         );
