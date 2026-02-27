@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 
 interface Booking {
   id: string;
@@ -44,6 +45,16 @@ interface DrivingTestStats {
 
 type RevenueTimeframe = "daily" | "weekly" | "monthly";
 
+const DEFAULT_WIDGETS: DashboardWidget[] = [
+  { id: "quick_stats", label: "Quick Stats Row", visible: true },
+  { id: "upcoming_lessons", label: "Upcoming Lessons List", visible: true },
+  { id: "test_stats", label: "Test Performance (12m)", visible: true },
+  { id: "next_tests", label: "Next Driving Tests", visible: true },
+  { id: "service_info", label: "Vehicle Service", visible: true },
+  { id: "prepaid_info", label: "Pre-Paid Hours", visible: true },
+  { id: "booked_hours", label: "Weekly Booked Hours", visible: true },
+];
+
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [instructorName, setInstructorName] = useState<string | null>(null);
@@ -66,6 +77,38 @@ const Dashboard: React.FC = () => {
   const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
   
   const [showAllLessons, setShowAllLessons] = useState(false);
+  const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
+  const [widgets, setWidgets] = useState<DashboardWidget[]>(DEFAULT_WIDGETS);
+
+  // Load widgets from localStorage
+  useEffect(() => {
+    const savedWidgets = localStorage.getItem("dashboard_widgets");
+    if (savedWidgets) {
+      try {
+        const parsed = JSON.parse(savedWidgets);
+        // Merge with default to ensure new widgets are added if we update the app
+        const merged = DEFAULT_WIDGETS.map(def => {
+          const saved = parsed.find((p: DashboardWidget) => p.id === def.id);
+          return saved ? saved : def;
+        });
+        // Also add any saved widgets that aren't in defaults (if any)
+        const extra = parsed.filter((p: DashboardWidget) => !DEFAULT_WIDGETS.find(def => def.id === p.id));
+        setWidgets([...merged, ...extra]);
+      } catch (e) {
+        console.error("Failed to parse saved widgets", e);
+      }
+    }
+  }, []);
+
+  const saveWidgets = (newWidgets: DashboardWidget[]) => {
+    setWidgets(newWidgets);
+    localStorage.setItem("dashboard_widgets", JSON.stringify(newWidgets));
+  };
+
+  const resetWidgets = () => {
+    setWidgets(DEFAULT_WIDGETS);
+    localStorage.removeItem("dashboard_widgets");
+  };
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -137,7 +180,6 @@ const Dashboard: React.FC = () => {
 
       const scheduledBookings = allScheduledBookingsRes.data || [];
       setUpcomingLessonsCount(scheduledBookings.length);
-      // Fetch up to 20 lessons for the expanded view
       setUpcomingLessons(scheduledBookings.slice(0, 20) as unknown as Booking[]);
       
       const testBookings = scheduledBookings.filter(b => b.lesson_type === "Driving Test");
@@ -245,91 +287,76 @@ const Dashboard: React.FC = () => {
     return showAllLessons ? upcomingLessons : upcomingLessons.slice(0, 3);
   }, [upcomingLessons, showAllLessons]);
 
-  if (isSessionLoading || isLoadingDashboard) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
-        </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <React.Fragment>
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold">{getGreeting()}, {instructorName || "Instructor"}</h1>
-
-        <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalStudents ?? 0}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Upcoming Lessons</CardTitle>
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{upcomingLessonsCount ?? 0}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-medium">Income</CardTitle>
-                <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                  <SelectTrigger className="w-[100px] h-7 text-xs">
-                    <SelectValue placeholder="Timeframe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <PoundSterling className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {currentHourlyRate ? (
-                <>
-                  <div className="text-2xl font-bold">£{(currentRevenue ?? 0).toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">(from completed lessons)</p>
-                </>
-              ) : (
-                <div className="text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> to calculate.</div>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-medium">Upcoming Tests</CardTitle>
-                <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
-                  <Link to="/driving-test-bookings">View All <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </div>
-              <Car className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount ?? 0}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="flex flex-col overflow-hidden">
+  const renderWidget = (id: string) => {
+    switch (id) {
+      case "quick_stats":
+        return (
+          <div key={id} className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalStudents ?? 0}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Upcoming Lessons</CardTitle>
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{upcomingLessonsCount ?? 0}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium">Income</CardTitle>
+                  <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
+                    <SelectTrigger className="w-[100px] h-7 text-xs">
+                      <SelectValue placeholder="Timeframe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <PoundSterling className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {currentHourlyRate ? (
+                  <>
+                    <div className="text-2xl font-bold">£{(currentRevenue ?? 0).toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">(from completed lessons)</p>
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link> to calculate.</div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium">Upcoming Tests</CardTitle>
+                  <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+                    <Link to="/driving-test-bookings">View All <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                  </Button>
+                </div>
+                <Car className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount ?? 0}</div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      case "upcoming_lessons":
+        return (
+          <Card key={id} className="flex flex-col overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
               <div className="flex items-center justify-between">
                 <div>
@@ -424,109 +451,94 @@ const Dashboard: React.FC = () => {
               )}
             </CardContent>
           </Card>
-
-          <Card className="flex flex-col p-6 space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <CardTitle className="text-2xl font-bold">Test Overview (12m)</CardTitle>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/driving-tests">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
-                </Button>
-              </div>
-              {drivingTestStats && drivingTestStats.totalTests > 0 ? (
-                <div className="grid gap-4 grid-cols-2">
-                  {/* Pass Rate */}
-                  <div className={cn(
-                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                    drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
-                  )}>
-                    <div className="p-2 rounded-full bg-white/50">
-                      <TrendingUp className="h-6 w-6" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Pass Rate</p>
-                      <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
-                    </div>
-                  </div>
-
-                  {/* Avg Driving Faults */}
-                  <div className={cn(
-                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                    drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
-                  )}>
-                    <div className="p-2 rounded-full bg-white/50">
-                      <Car className="h-6 w-6" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg D.F.</p>
-                      <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
-                    </div>
-                  </div>
-
-                  {/* Avg Serious Faults */}
-                  <div className={cn(
-                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                    drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
-                  )}>
-                    <div className="p-2 rounded-full bg-white/50">
-                      <ShieldAlert className="h-6 w-6" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg S.F.</p>
-                      <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
-                    </div>
-                  </div>
-
-                  {/* Examiner Action */}
-                  <div className={cn(
-                    "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
-                    drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
-                  )}>
-                    <div className="p-2 rounded-full bg-white/50">
-                      <Hand className="h-6 w-6" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium uppercase tracking-wider opacity-70">Ex. Act.</p>
-                      <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
-                    </div>
+        );
+      case "test_stats":
+        return (
+          <Card key={id} className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <CardTitle className="text-2xl font-bold">Test Overview (12m)</CardTitle>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/driving-tests">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+            </div>
+            {drivingTestStats && drivingTestStats.totalTests > 0 ? (
+              <div className="grid gap-4 grid-cols-2">
+                <div className={cn(
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                  drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                )}>
+                  <div className="p-2 rounded-full bg-white/50"><TrendingUp className="h-6 w-6" /></div>
+                  <div className="text-center">
+                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Pass Rate</p>
+                    <p className="text-2xl font-bold">{drivingTestStats.passRate.toFixed(1)}%</p>
                   </div>
                 </div>
-              ) : <p className="text-muted-foreground">No test data available.</p>}
-            </div>
-
-            <div className="space-y-4 pt-4 border-t">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-2xl font-bold">Next Driving Tests</CardTitle>
-              </div>
-              {nextDrivingTestBookings.length === 0 ? (
-                <p className="text-muted-foreground">No upcoming tests.</p>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {nextDrivingTestBookings.map((booking) => (
-                    <Card key={booking.id} className="bg-muted/30">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base">{booking.title}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="text-xs space-y-1">
-                        <div className="flex items-center text-muted-foreground">
-                          <CalendarDays className="mr-1 h-3 w-3" />
-                          <span>{format(new Date(booking.start_time), "MMM dd")}</span>
-                        </div>
-                        <div className="flex items-center text-muted-foreground">
-                          <Clock className="mr-1 h-3 w-3" />
-                          <span>{format(new Date(booking.start_time), "p")}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className={cn(
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                  drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                )}>
+                  <div className="p-2 rounded-full bg-white/50"><Car className="h-6 w-6" /></div>
+                  <div className="text-center">
+                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg D.F.</p>
+                    <p className="text-2xl font-bold">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                  </div>
                 </div>
-              )}
-            </div>
+                <div className={cn(
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                  drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                )}>
+                  <div className="p-2 rounded-full bg-white/50"><ShieldAlert className="h-6 w-6" /></div>
+                  <div className="text-center">
+                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Avg S.F.</p>
+                    <p className="text-2xl font-bold">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                  </div>
+                </div>
+                <div className={cn(
+                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-2 transition-all hover:shadow-md",
+                  drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-200 text-orange-900" : "bg-green-50 border-green-200 text-green-900"
+                )}>
+                  <div className="p-2 rounded-full bg-white/50"><Hand className="h-6 w-6" /></div>
+                  <div className="text-center">
+                    <p className="text-xs font-medium uppercase tracking-wider opacity-70">Ex. Act.</p>
+                    <p className="text-2xl font-bold">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+                  </div>
+                </div>
+              </div>
+            ) : <p className="text-muted-foreground">No test data available.</p>}
           </Card>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className={cn(milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50" : "")}>
+        );
+      case "next_tests":
+        return (
+          <Card key={id} className="p-6">
+            <CardTitle className="text-2xl font-bold mb-4">Next Driving Tests</CardTitle>
+            {nextDrivingTestBookings.length === 0 ? (
+              <p className="text-muted-foreground">No upcoming tests.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {nextDrivingTestBookings.map((booking) => (
+                  <Card key={booking.id} className="bg-muted/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">{booking.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-xs space-y-1">
+                      <div className="flex items-center text-muted-foreground">
+                        <CalendarDays className="mr-1 h-3 w-3" />
+                        <span>{format(new Date(booking.start_time), "MMM dd")}</span>
+                      </div>
+                      <div className="flex items-center text-muted-foreground">
+                        <Clock className="mr-1 h-3 w-3" />
+                        <span>{format(new Date(booking.start_time), "p")}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      case "service_info":
+        return (
+          <Card key={id} className={cn(milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Next Service</CardTitle>
               <Gauge className="h-4 w-4 text-muted-foreground" />
@@ -540,8 +552,10 @@ const Dashboard: React.FC = () => {
               ) : <p className="text-xs text-muted-foreground">No car data available.</p>}
             </CardContent>
           </Card>
-
-          <Card className={cn(totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-50" : "")}>
+        );
+      case "prepaid_info":
+        return (
+          <Card key={id} className={cn(totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-orange-50" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pre-Paid Hours</CardTitle>
               <Hourglass className="h-4 w-4 text-muted-foreground" />
@@ -555,8 +569,10 @@ const Dashboard: React.FC = () => {
               ) : <p className="text-xs text-muted-foreground">No pre-paid data.</p>}
             </CardContent>
           </Card>
-
-          <Card>
+        );
+      case "booked_hours":
+        return (
+          <Card key={id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-2">
                 <CardTitle className="text-sm font-medium">Booked Hours</CardTitle>
@@ -576,8 +592,54 @@ const Dashboard: React.FC = () => {
               <p className="text-xs text-muted-foreground mt-1">Scheduled & completed bookings.</p>
             </CardContent>
           </Card>
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (isSessionLoading || isLoadingDashboard) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+          <Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <React.Fragment>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">{getGreeting()}, {instructorName || "Instructor"}</h1>
+          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)}>
+            <Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard
+          </Button>
+        </div>
+
+        <div className="space-y-6">
+          {/* Render widgets in order, but handle the grid layout for specific combinations */}
+          {widgets.filter(w => w.visible).map((widget) => (
+            <div key={widget.id}>
+              {renderWidget(widget.id)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <DashboardCustomizer
+        isOpen={isCustomizerOpen}
+        onClose={() => setIsCustomizerOpen(false)}
+        widgets={widgets}
+        onUpdateWidgets={saveWidgets}
+        onReset={resetWidgets}
+      />
     </React.Fragment>
   );
 };
