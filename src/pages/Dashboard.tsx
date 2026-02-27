@@ -59,7 +59,6 @@ const Dashboard: React.FC = () => {
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
   const [milesUntilNextServiceDashboard, setMilesUntilNextServiceDashboard] = useState<number | null>(null);
   const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
-  const [totalPrePaidHoursPurchased, setTotalPrePaidHoursPurchased] = useState<number | null>(null);
   const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
   const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]);
 
@@ -199,15 +198,13 @@ const Dashboard: React.FC = () => {
       }
 
       if (prePaidHoursRes.data) {
-        let purchased = 0, remaining = 0;
+        let remaining = 0;
         const studentMap: { [name: string]: number } = {};
         prePaidHoursRes.data.forEach(pkg => {
-          purchased += pkg.package_hours;
           remaining += pkg.remaining_hours;
           const name = pkg.students?.name || "Unknown";
           studentMap[name] = (studentMap[name] || 0) + pkg.remaining_hours;
         });
-        setTotalPrePaidHoursPurchased(purchased);
         setTotalPrePaidHoursRemaining(remaining);
         setStudentsWithLowPrePaidHours(Object.keys(studentMap).filter(name => studentMap[name] <= 2 && studentMap[name] > 0));
       }
@@ -552,7 +549,7 @@ const Dashboard: React.FC = () => {
             <CardContent>
               {totalPrePaidHoursRemaining !== null ? (
                 <>
-                  <div className="text-2xl font-bold">{totalPrePaidHoursRemaining.toFixed(1)} / {totalPrePaidHoursPurchased?.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">hrs</span></div>
+                  <div className="text-2xl font-bold">{totalPrePaidHoursRemaining.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">hrs</span></div>
                   {studentsWithLowPrePaidHours.length > 0 && <p className="text-xs text-orange-800 mt-1">Low: {studentsWithLowPrePaidHours.join(", ")}</p>}
                 </>
               ) : <p className="text-xs text-muted-foreground">No pre-paid data.</p>}
