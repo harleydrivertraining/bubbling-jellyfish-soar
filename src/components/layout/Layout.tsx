@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import MobileMenuButton from "./MobileMenuButton";
 import BottomNav from "./BottomNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -51,14 +52,14 @@ const Layout = () => {
         {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
 
         <div className="flex flex-col flex-1">
-          {/* Action Bar (Header) */}
-          <header className={cn(
-            "flex items-center gap-4 border-b bg-card px-4 lg:px-6 shrink-0 z-10",
-            isMobile 
-              ? "pt-[env(safe-area-inset-top,20px)] pb-3 h-auto" 
-              : "h-16"
-          )}>
-            {isMobile === false && (
+          {/* Mobile Status Bar Spacer */}
+          {isMobile && (
+            <div className="h-[env(safe-area-inset-top,44px)] bg-background w-full shrink-0" />
+          )}
+
+          {/* Header - Desktop Only */}
+          {isMobile === false && (
+            <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
               <Button
                 variant="ghost"
                 size="icon"
@@ -71,15 +72,15 @@ const Layout = () => {
                   <ChevronLeft className="h-4 w-4" />
                 )}
               </Button>
-            )}
-            <h2 className="text-lg font-bold tracking-tight">
-              HDT Instructor App
-            </h2>
-          </header>
+              <h2 className="text-lg font-semibold">
+                HDT Instructor App
+              </h2>
+            </header>
+          )}
           
           <main className={cn(
             "flex-1 overflow-auto p-4 lg:p-6",
-            isMobile ? "pb-32" : "pb-6"
+            isMobile ? "pb-32 pt-2" : "pb-6"
           )}>
             <Outlet />
           </main>
