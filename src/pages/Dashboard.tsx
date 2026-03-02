@@ -287,30 +287,43 @@ const Dashboard: React.FC = () => {
       case "quick_stats":
         return (
           <div key={id} className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            {/* Row 1: Total Students & Upcoming Tests */}
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Total Students</CardTitle>
-                <Users className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
+                <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Total Students</CardTitle>
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="text-2xl sm:text-3xl font-black">{totalStudents ?? 0}</div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Active learners</p>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-purple-500 shadow-sm">
+            <Card className="border-l-4 border-l-orange-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Booked Hours</CardTitle>
-                  <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                    <SelectTrigger className="w-[70px] sm:w-[110px] h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2">
-                      <SelectValue placeholder="Week" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] sm:text-xs">{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Upcoming Tests</CardTitle>
+                <Car className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-2xl sm:text-3xl font-black">{upcomingDrivingTestBookingsCount ?? 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
+              </CardContent>
+            </Card>
+
+            {/* Row 2: Booked Hours & Income */}
+            <Card className="border-l-4 border-l-purple-500 shadow-sm">
+              <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
+                <div className="flex items-center justify-between w-full">
+                  <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Booked Hours</CardTitle>
+                  <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
                 </div>
-                <CalendarDays className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500" />
+                <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
+                  <SelectTrigger className="w-full h-8 text-xs px-2">
+                    <SelectValue placeholder="Select Week" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="text-2xl sm:text-3xl font-black">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
@@ -318,21 +331,21 @@ const Dashboard: React.FC = () => {
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Income</CardTitle>
-                  <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                    <SelectTrigger className="w-[60px] sm:w-[90px] h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2">
-                      <SelectValue placeholder="Time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily" className="text-[10px] sm:text-xs">Daily</SelectItem>
-                      <SelectItem value="weekly" className="text-[10px] sm:text-xs">Weekly</SelectItem>
-                      <SelectItem value="monthly" className="text-[10px] sm:text-xs">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
+                <div className="flex items-center justify-between w-full">
+                  <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Income</CardTitle>
+                  <PoundSterling className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                 </div>
-                <PoundSterling className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
+                <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
+                  <SelectTrigger className="w-full h-8 text-xs px-2">
+                    <SelectValue placeholder="Timeframe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily" className="text-xs">Daily</SelectItem>
+                    <SelectItem value="weekly" className="text-xs">Weekly</SelectItem>
+                    <SelectItem value="monthly" className="text-xs">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 {currentHourlyRate ? (
@@ -343,16 +356,6 @@ const Dashboard: React.FC = () => {
                 ) : (
                   <div className="text-[10px] sm:text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">rate</Link></div>
                 )}
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-orange-500 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Upcoming Tests</CardTitle>
-                <Car className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500" />
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <div className="text-2xl sm:text-3xl font-black">{upcomingDrivingTestBookingsCount ?? 0}</div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
               </CardContent>
             </Card>
           </div>
@@ -407,7 +410,7 @@ const Dashboard: React.FC = () => {
                               )}
                             </div>
                             
-                            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+                            <div className="flex wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
                               <div className="flex items-center">
                                 <Clock className="mr-2 h-4 w-4 text-primary/60" />
                                 <span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
