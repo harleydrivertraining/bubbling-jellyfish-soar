@@ -1,13 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { showLoading, dismissToast } from "@/utils/toast";
-import { startOfMonth, endOfMonth, addMonths } from "date-fns"; // Import date-fns utilities
+import { startOfMonth, endOfMonth, addMonths } from "date-fns";
 
-interface Booking { // Define a minimal booking interface for pre-fetching
+interface Booking {
   id: string;
   title: string;
   description?: string;
@@ -25,8 +24,8 @@ interface SessionContextType {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
-  initialBookings: Booking[] | null; // Add initial bookings
-  isLoadingInitialBookings: boolean; // Add loading state for initial bookings
+  initialBookings: Booking[] | null;
+  isLoadingInitialBookings: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -35,16 +34,18 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null); // State for initial bookings
-  const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(true); // State for initial bookings loading
+  const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null);
+  const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const isInitialMount = useRef(true);
 
   const fetchInitialBookings = useCallback(async (userId: string) => {
+    if (isLoadingInitialBookings) return;
     setIsLoadingInitialBookings(true);
     const now = new Date();
-    const threeMonthsAgo = startOfMonth(addMonths(now, -3)); // Start 3 months ago
-    const threeMonthsFromNow = endOfMonth(addMonths(now, 3)); // End 3 months from now
+    const threeMonthsAgo = startOfMonth(addMonths(now, -3));
+    const threeMonthsFromNow = endOfMonth(addMonths(now, 3));
 
     const { data, error } = await supabase
       .from("bookings")
@@ -60,74 +61,65 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       setInitialBookings(data || []);
     }
     setIsLoadingInitialBookings(false);
-  }, []);
+  }, [isLoadingInitialBookings]);
 
   useEffect(() => {
+    // Initial session check - do this immediately
+    const getInitialSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
+          fetchInitialBookings(initialSession.user.id);
+          if (location.pathname === "/login") {
+            navigate("/", { replace: true });
+          }
+        } else {
+          if (location.pathname !== "/login") {
+            navigate("/login", { replace: true });
+          }
+        }
+      } catch (error) {
+        console.error("Error getting initial session:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (isInitialMount.current) {
+      getInitialSession();
+      isInitialMount.current = false;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUser(null);
-        setIsLoading(false);
-        setInitialBookings(null); // Clear bookings on sign out
-        setIsLoadingInitialBookings(false);
-        if (location.pathname !== "/login") {
-          navigate("/login");
-        }
-      } else if (currentSession) {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(currentSession);
-        setUser(currentSession.user);
-        setIsLoading(false);
-        if (location.pathname === "/login") {
-          navigate("/"); // Redirect to dashboard after login
+        setUser(currentSession?.user ?? null);
+        if (currentSession?.user) {
+          fetchInitialBookings(currentSession.user.id);
         }
-        // Fetch initial bookings after user is set
-        fetchInitialBookings(currentSession.user.id);
-      } else {
+        if (location.pathname === "/login") {
+          navigate("/", { replace: true });
+        }
+      } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
-        setIsLoading(false);
-        setInitialBookings(null); // Clear bookings if no session
-        setIsLoadingInitialBookings(false);
+        setInitialBookings(null);
         if (location.pathname !== "/login") {
-          navigate("/login");
+          navigate("/login", { replace: true });
         }
       }
     });
 
-    // Initial session check
-    const getInitialSession = async () => {
-      const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error("Error getting initial session:", error);
-      }
-      if (initialSession) {
-        setSession(initialSession);
-        setUser(initialSession.user);
-        if (location.pathname === "/login") {
-          navigate("/");
-        }
-        // Fetch initial bookings after user is set
-        fetchInitialBookings(initialSession.user.id);
-      } else {
-        if (location.pathname !== "/login") {
-          navigate("/login");
-        }
-        setIsLoadingInitialBookings(false); // No user, so no bookings to load
-      }
-      setIsLoading(false);
-    };
-
-    getInitialSession();
-
     return () => subscription.unsubscribe();
   }, [navigate, location.pathname, fetchInitialBookings]);
 
-
   if (isLoading) {
-    // You might want a loading spinner here
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading authentication...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-muted-foreground font-medium animate-pulse">Securing session...</p>
       </div>
     );
   }
