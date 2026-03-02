@@ -337,7 +337,7 @@ const Dashboard: React.FC = () => {
                   <PoundSterling className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                 </div>
                 <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                  <SelectTrigger className="w-full h-8 sm:h-10 text-xs sm:text-sm px-2">
+                  <SelectTrigger className="w-full h-8 text-xs sm:text-sm px-2">
                     <SelectValue placeholder="Timeframe" />
                   </SelectTrigger>
                   <SelectContent>
@@ -363,14 +363,11 @@ const Dashboard: React.FC = () => {
       case "upcoming_lessons":
         return (
           <Card key={id} className="flex flex-col overflow-hidden shadow-md border-none h-full">
-            <CardHeader className="bg-primary text-primary-foreground">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl font-bold">Upcoming Lessons</CardTitle>
-                  <CardDescription className="text-primary-foreground/70">Your next scheduled sessions</CardDescription>
-                </div>
-                <Button asChild variant="secondary" size="sm" className="h-8">
-                  <Link to="/schedule" className="flex items-center">
+            <CardHeader className="bg-primary text-primary-foreground p-4">
+              <div className="flex flex-col gap-3">
+                <CardTitle className="text-xl font-bold">Upcoming Lessons</CardTitle>
+                <Button asChild variant="secondary" size="sm" className="w-full h-9">
+                  <Link to="/schedule" className="flex items-center justify-center">
                     Full Schedule <Calendar className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
@@ -402,23 +399,22 @@ const Dashboard: React.FC = () => {
                             <span className="text-2xl font-black leading-none">{format(startTime, "dd")}</span>
                           </div>
                           
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <h4 className="font-bold text-lg truncate pr-2 text-foreground">{booking.students?.name || "Unknown Student"}</h4>
+                          <div className="flex-1 min-w-0 flex flex-col gap-1">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-lg truncate text-foreground">{booking.students?.name || "Unknown Student"}</h4>
                               {isLessonToday && (
-                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] font-bold h-5 px-2">TODAY</Badge>
+                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] font-bold h-5 px-2 shrink-0">TODAY</Badge>
                               )}
                             </div>
                             
-                            <div className="flex wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
-                              <div className="flex items-center">
-                                <Clock className="mr-2 h-4 w-4 text-primary/60" />
-                                <span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <BookOpen className="mr-2 h-4 w-4 text-primary/60" />
-                                <span className="capitalize font-medium">{booking.lesson_type}</span>
-                              </div>
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <Clock className="mr-2 h-4 w-4 text-primary/60 shrink-0" />
+                              <span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
+                            </div>
+                            
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <BookOpen className="mr-2 h-4 w-4 text-primary/60 shrink-0" />
+                              <span className="capitalize font-medium">{booking.lesson_type}</span>
                             </div>
                             
                             {booking.description && (
@@ -428,7 +424,7 @@ const Dashboard: React.FC = () => {
                             )}
                           </div>
                           
-                          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors" asChild>
+                          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors shrink-0" asChild>
                             <Link to="/schedule">
                               <ArrowRight className="h-5 w-5" />
                             </Link>
