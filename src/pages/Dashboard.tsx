@@ -351,7 +351,7 @@ const Dashboard: React.FC = () => {
                 {currentHourlyRate ? (
                   <>
                     <div className="text-2xl sm:text-3xl font-black">£{(currentRevenue ?? 0).toFixed(2)}</div>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">From completed</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">From Completed Lessons</p>
                   </>
                 ) : (
                   <div className="text-[10px] sm:text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">rate</Link></div>
