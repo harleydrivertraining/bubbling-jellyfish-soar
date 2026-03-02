@@ -289,18 +289,18 @@ const Dashboard: React.FC = () => {
           <div key={id} className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Total Students</CardTitle>
+                <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Total Students</CardTitle>
                 <Users className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-lg sm:text-2xl font-bold">{totalStudents ?? 0}</div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Active learners</p>
+                <div className="text-2xl sm:text-3xl font-black">{totalStudents ?? 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Active learners</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Booked Hours</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Booked Hours</CardTitle>
                   <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
                     <SelectTrigger className="w-[70px] sm:w-[110px] h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2">
                       <SelectValue placeholder="Week" />
@@ -313,14 +313,14 @@ const Dashboard: React.FC = () => {
                 <CalendarDays className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-lg sm:text-2xl font-bold">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-[8px] sm:text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Scheduled sessions</p>
+                <div className="text-2xl sm:text-3xl font-black">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Scheduled sessions</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Income</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Income</CardTitle>
                   <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
                     <SelectTrigger className="w-[60px] sm:w-[90px] h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2">
                       <SelectValue placeholder="Time" />
@@ -337,8 +337,8 @@ const Dashboard: React.FC = () => {
               <CardContent className="p-3 pt-0">
                 {currentHourlyRate ? (
                   <>
-                    <div className="text-lg sm:text-2xl font-bold">£{(currentRevenue ?? 0).toFixed(2)}</div>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">From completed</p>
+                    <div className="text-2xl sm:text-3xl font-black">£{(currentRevenue ?? 0).toFixed(2)}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">From completed</p>
                   </>
                 ) : (
                   <div className="text-[10px] sm:text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">rate</Link></div>
@@ -347,12 +347,12 @@ const Dashboard: React.FC = () => {
             </Card>
             <Card className="border-l-4 border-l-orange-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Upcoming Tests</CardTitle>
+                <CardTitle className="text-xs sm:text-sm font-bold text-muted-foreground">Upcoming Tests</CardTitle>
                 <Car className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-lg sm:text-2xl font-bold">{upcomingDrivingTestBookingsCount ?? 0}</div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Test bookings</p>
+                <div className="text-2xl sm:text-3xl font-black">{upcomingDrivingTestBookingsCount ?? 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
               </CardContent>
             </Card>
           </div>
