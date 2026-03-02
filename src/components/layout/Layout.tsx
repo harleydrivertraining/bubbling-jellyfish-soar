@@ -52,6 +52,11 @@ const Layout = () => {
         {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
 
         <div className="flex flex-col flex-1">
+          {/* Mobile Status Bar Spacer */}
+          {isMobile && (
+            <div className="h-[env(safe-area-inset-top,44px)] bg-background w-full shrink-0" />
+          )}
+
           {/* Header - Desktop Only */}
           {isMobile === false && (
             <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
@@ -75,7 +80,7 @@ const Layout = () => {
           
           <main className={cn(
             "flex-1 overflow-auto p-4 lg:p-6",
-            isMobile ? "pb-32 pt-[env(safe-area-inset-top,24px)]" : "pb-6"
+            isMobile ? "pb-32 pt-2" : "pb-6"
           )}>
             <Outlet />
           </main>
