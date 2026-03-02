@@ -290,21 +290,21 @@ const Dashboard: React.FC = () => {
             {/* Row 1: Total Students & Upcoming Tests */}
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Total Students</CardTitle>
+                <CardTitle className="text-sm sm:text-lg font-bold text-muted-foreground">Total Students</CardTitle>
                 <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-2xl sm:text-3xl font-black">{totalStudents ?? 0}</div>
+                <div className="text-3xl sm:text-4xl font-black">{totalStudents ?? 0}</div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Active learners</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-orange-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-                <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Upcoming Tests</CardTitle>
+                <CardTitle className="text-sm sm:text-lg font-bold text-muted-foreground">Upcoming Tests</CardTitle>
                 <Car className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-2xl sm:text-3xl font-black">{upcomingDrivingTestBookingsCount ?? 0}</div>
+                <div className="text-3xl sm:text-4xl font-black">{upcomingDrivingTestBookingsCount ?? 0}</div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
               </CardContent>
             </Card>
@@ -313,44 +313,44 @@ const Dashboard: React.FC = () => {
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">
-                  <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Booked Hours</CardTitle>
+                  <CardTitle className="text-sm sm:text-lg font-bold text-muted-foreground">Booked Hours</CardTitle>
                   <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
                 </div>
                 <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                  <SelectTrigger className="w-full h-8 text-xs px-2">
+                  <SelectTrigger className="w-full h-8 sm:h-10 text-xs sm:text-sm px-2">
                     <SelectValue placeholder="Select Week" />
                   </SelectTrigger>
                   <SelectContent>
-                    {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+                    {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-xs sm:text-sm">{o.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-2xl sm:text-3xl font-black">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
+                <div className="text-3xl sm:text-4xl font-black">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">hrs</span></div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Scheduled sessions</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">
-                  <CardTitle className="text-sm sm:text-base font-bold text-muted-foreground">Income</CardTitle>
+                  <CardTitle className="text-sm sm:text-lg font-bold text-muted-foreground">Income</CardTitle>
                   <PoundSterling className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                 </div>
                 <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                  <SelectTrigger className="w-full h-8 text-xs px-2">
+                  <SelectTrigger className="w-full h-8 sm:h-10 text-xs sm:text-sm px-2">
                     <SelectValue placeholder="Timeframe" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily" className="text-xs">Daily</SelectItem>
-                    <SelectItem value="weekly" className="text-xs">Weekly</SelectItem>
-                    <SelectItem value="monthly" className="text-xs">Monthly</SelectItem>
+                    <SelectItem value="daily" className="text-xs sm:text-sm">Today</SelectItem>
+                    <SelectItem value="weekly" className="text-xs sm:text-sm">This Week</SelectItem>
+                    <SelectItem value="monthly" className="text-xs sm:text-sm">This Month</SelectItem>
                   </SelectContent>
                 </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 {currentHourlyRate ? (
                   <>
-                    <div className="text-2xl sm:text-3xl font-black">£{(currentRevenue ?? 0).toFixed(2)}</div>
+                    <div className="text-3xl sm:text-4xl font-black">£{(currentRevenue ?? 0).toFixed(2)}</div>
                     <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">From Completed Lessons</p>
                   </>
                 ) : (
