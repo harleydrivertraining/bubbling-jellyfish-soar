@@ -208,17 +208,17 @@ const TestStatistics: React.FC = () => {
   }, [selectedStudentTests]);
 
   const TrendIndicator = ({ current, previous, higherIsBetter = true }: { current: number, previous: number | undefined, higherIsBetter?: boolean }) => {
-    if (previous === undefined) return <Minus className="h-3 w-3 text-muted-foreground" />;
+    if (previous === undefined) return <Minus className="h-4 w-4 text-muted-foreground" />;
     
     const diff = current - previous;
-    if (Math.abs(diff) < 0.01) return <Minus className="h-3 w-3 text-muted-foreground" />;
+    if (Math.abs(diff) < 0.01) return <Minus className="h-4 w-4 text-muted-foreground" />;
 
     const isPositiveChange = higherIsBetter ? diff > 0 : diff < 0;
     const Icon = diff > 0 ? ArrowUpRight : ArrowDownRight;
 
     return (
-      <div className={cn("flex items-center text-[10px] font-bold", isPositiveChange ? "text-green-600" : "text-destructive")}>
-        <Icon className="h-3 w-3 mr-0.5" />
+      <div className={cn("flex items-center text-sm font-bold", isPositiveChange ? "text-green-600" : "text-destructive")}>
+        <Icon className="h-4 w-4 mr-0.5" />
         {Math.abs(diff).toFixed(1)}{higherIsBetter ? "%" : ""}
       </div>
     );
@@ -453,21 +453,21 @@ const TestStatistics: React.FC = () => {
                   <CardDescription>How your metrics have changed over time.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-3 gap-4 text-center mb-4">
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Metric</div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Since Last Test</div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Since Last Month</div>
+                  <div className="grid grid-cols-3 gap-4 text-center mb-6">
+                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Metric</div>
+                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Since Last Test</div>
+                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Since Last Month</div>
                   </div>
                   
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {[
                       { label: "Pass Rate", key: "passRate", higherIsBetter: true },
                       { label: "Driving Faults", key: "avgDrivingFaults", higherIsBetter: false },
                       { label: "Serious Faults", key: "avgSeriousFaults", higherIsBetter: false },
                       { label: "Ex. Action", key: "examinerActionRate", higherIsBetter: false },
                     ].map((metric) => (
-                      <div key={metric.label} className="grid grid-cols-3 gap-4 items-center py-2 border-b last:border-0">
-                        <div className="text-xs font-medium text-left">{metric.label}</div>
+                      <div key={metric.label} className="grid grid-cols-3 gap-4 items-center py-3 border-b last:border-0">
+                        <div className="text-sm font-bold text-left">{metric.label}</div>
                         <div className="flex justify-center">
                           <TrendIndicator 
                             current={stats[metric.key as keyof ComparisonStats] as number} 
