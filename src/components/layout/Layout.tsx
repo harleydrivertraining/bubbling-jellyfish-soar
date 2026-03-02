@@ -52,11 +52,6 @@ const Layout = () => {
         {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
 
         <div className="flex flex-col flex-1">
-          {/* Mobile Status Bar Spacer - Ensures content starts below the status bar */}
-          {isMobile && (
-            <div className="h-[env(safe-area-inset-top,20px)] bg-background w-full shrink-0" />
-          )}
-
           {/* Header - Desktop Only */}
           {isMobile === false && (
             <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
