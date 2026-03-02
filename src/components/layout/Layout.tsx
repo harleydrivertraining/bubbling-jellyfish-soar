@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils"; // Added missing import
+import { cn } from "@/lib/utils";
 
 const Layout = () => {
   const isMobile = useIsMobile();
@@ -75,7 +75,7 @@ const Layout = () => {
           
           <main className={cn(
             "flex-1 overflow-auto p-4 lg:p-6",
-            isMobile ? "pb-32 pt-6" : "pb-6"
+            isMobile ? "pb-32 pt-[env(safe-area-inset-top,24px)]" : "pb-6"
           )}>
             <Outlet />
           </main>
