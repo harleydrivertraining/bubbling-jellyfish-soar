@@ -286,73 +286,73 @@ const Dashboard: React.FC = () => {
     switch (id) {
       case "quick_stats":
         return (
-          <div key={id} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div key={id} className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
-                <Users className="h-4 w-4 text-blue-500" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+                <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Total Students</CardTitle>
+                <Users className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalStudents ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Active learners</p>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg sm:text-2xl font-bold">{totalStudents ?? 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Active learners</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Booked Hours</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Booked Hours</CardTitle>
                   <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                    <SelectTrigger className="w-[110px] h-6 text-[10px] px-2">
-                      <SelectValue placeholder="Select Week" />
+                    <SelectTrigger className="w-[70px] sm:w-[110px] h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2">
+                      <SelectValue placeholder="Week" />
                     </SelectTrigger>
                     <SelectContent>
-                      {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] sm:text-xs">{o.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <CalendarDays className="h-4 w-4 text-purple-500" />
+                <CalendarDays className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
-                <p className="text-xs text-muted-foreground mt-1">Scheduled sessions</p>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg sm:text-2xl font-bold">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-[8px] sm:text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Scheduled sessions</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Income</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Income</CardTitle>
                   <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                    <SelectTrigger className="w-[90px] h-6 text-[10px] px-2">
-                      <SelectValue placeholder="Timeframe" />
+                    <SelectTrigger className="w-[60px] sm:w-[90px] h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2">
+                      <SelectValue placeholder="Time" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="daily" className="text-[10px] sm:text-xs">Daily</SelectItem>
+                      <SelectItem value="weekly" className="text-[10px] sm:text-xs">Weekly</SelectItem>
+                      <SelectItem value="monthly" className="text-[10px] sm:text-xs">Monthly</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <PoundSterling className="h-4 w-4 text-green-500" />
+                <PoundSterling className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0">
                 {currentHourlyRate ? (
                   <>
-                    <div className="text-2xl font-bold">£{(currentRevenue ?? 0).toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">From completed lessons</p>
+                    <div className="text-lg sm:text-2xl font-bold">£{(currentRevenue ?? 0).toFixed(2)}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">From completed</p>
                   </>
                 ) : (
-                  <div className="text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">hourly rate</Link></div>
+                  <div className="text-[10px] sm:text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">rate</Link></div>
                 )}
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-orange-500 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Tests</CardTitle>
-                <Car className="h-4 w-4 text-orange-500" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+                <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Upcoming Tests</CardTitle>
+                <Car className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{upcomingDrivingTestBookingsCount ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Driving test bookings</p>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg sm:text-2xl font-bold">{upcomingDrivingTestBookingsCount ?? 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Test bookings</p>
               </CardContent>
             </Card>
           </div>
@@ -474,32 +474,32 @@ const Dashboard: React.FC = () => {
                   drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <TrendingUp className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Pass Rate</p>
-                  <p className="text-xl font-black">{drivingTestStats.passRate.toFixed(1)}%</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Pass Rate</p>
+                  <p className="text-2xl font-black">{drivingTestStats.passRate.toFixed(1)}%</p>
                 </div>
                 <div className={cn(
                   "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
                   drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <Car className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Avg D.F.</p>
-                  <p className="text-xl font-black">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg D.F.</p>
+                  <p className="text-2xl font-black">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
                 </div>
                 <div className={cn(
                   "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
                   drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <ShieldAlert className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Avg S.F.</p>
-                  <p className="text-xl font-black">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg S.F.</p>
+                  <p className="text-2xl font-black">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
                 </div>
                 <div className={cn(
                   "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
                   drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
                 )}>
                   <Hand className="h-5 w-5 opacity-60" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Ex. Act.</p>
-                  <p className="text-xl font-black">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Ex. Act.</p>
+                  <p className="text-2xl font-black">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
                 </div>
               </div>
             ) : <p className="text-sm text-muted-foreground text-center py-4">No test data available.</p>}
