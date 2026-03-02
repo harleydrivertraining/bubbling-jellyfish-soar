@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import MobileMenuButton from "./MobileMenuButton"; // New import
+import MobileMenuButton from "./MobileMenuButton";
+import BottomNav from "./BottomNav"; // New import
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -77,13 +78,16 @@ const Layout = () => {
               {/* User profile/settings could go here */}
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-4 lg:p-6">
+          <main className="flex-1 overflow-auto p-4 lg:p-6 pb-24 md:pb-6">
             <Outlet />
           </main>
-          <footer className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          <footer className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 pb-20 md:pb-4">
             Harley Driver Training
           </footer>
         </div>
+        
+        {/* Mobile Bottom Navigation */}
+        <BottomNav logoUrl={logoUrl} />
       </div>
     </React.Fragment>
   );
