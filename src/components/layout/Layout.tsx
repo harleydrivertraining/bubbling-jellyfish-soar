@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import MobileMenuButton from "./MobileMenuButton";
-import BottomNav from "./BottomNav"; // New import
+import BottomNav from "./BottomNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -21,7 +21,6 @@ const Layout = () => {
     setIsCollapsed(!isCollapsed);
   };
 
-  // Fetch logo URL when user is available
   useEffect(() => {
     const fetchLogo = async () => {
       if (user) {
@@ -38,26 +37,23 @@ const Layout = () => {
           setLogoUrl(data.logo_url);
         }
       } else {
-        setLogoUrl(null); // Clear logo if user logs out
+        setLogoUrl(null);
       }
     };
 
     fetchLogo();
-  }, [user]); // Re-fetch when user changes
+  }, [user]);
 
   return (
     <React.Fragment>
       <div className="flex min-h-screen bg-background text-foreground">
-        {/* Render desktop sidebar if not mobile */}
+        {/* Desktop Sidebar */}
         {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
 
         <div className="flex flex-col flex-1">
-          <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
-            {isMobile ? (
-              // Render mobile menu button here
-              <MobileMenuButton logoUrl={logoUrl} />
-            ) : (
-              // Render desktop toggle button here
+          {/* Header - Desktop Only */}
+          {isMobile === false && (
+            <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
               <Button
                 variant="ghost"
                 size="icon"
@@ -70,18 +66,23 @@ const Layout = () => {
                   <ChevronLeft className="h-4 w-4" />
                 )}
               </Button>
-            )}
-            <h2 className="text-lg font-semibold">
-              HDT Instructor App
-            </h2>
-            <div className="ml-auto flex items-center gap-4">
-              {/* User profile/settings could go here */}
-            </div>
-          </header>
-          <main className="flex-1 overflow-auto p-4 lg:p-6 pb-24 md:pb-6">
+              <h2 className="text-lg font-semibold">
+                HDT Instructor App
+              </h2>
+            </header>
+          )}
+          
+          <main className={cn(
+            "flex-1 overflow-auto p-4 lg:p-6",
+            isMobile ? "pb-32 pt-6" : "pb-6" // Extra padding for mobile bottom nav and top spacing
+          )}>
             <Outlet />
           </main>
-          <footer className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 pb-20 md:pb-4">
+          
+          <footer className={cn(
+            "p-4 text-center text-sm text-gray-500 dark:text-gray-400",
+            isMobile ? "pb-28" : "pb-4"
+          )}>
             Harley Driver Training
           </footer>
         </div>
