@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { subMonths, subYears, isAfter, format, parseISO } from "date-fns";
+import { subMonths, subYears, isAfter, format, parseISO, startOfMonth, isBefore } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users, CalendarDays, ShieldAlert } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, Car, Hand, TrendingUp, Users, CalendarDays, ShieldAlert, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,13 @@ interface StudentStat {
   passCount: number;
   avgDrivingFaults: number;
   avgSeriousFaults: number;
+}
+
+interface ComparisonStats {
+  passRate: number;
+  avgDrivingFaults: number;
+  avgSeriousFaults: number;
+  examinerActionRate: number;
 }
 
 type StudentFilter = "all" | "passed" | "not-passed";
@@ -114,14 +121,35 @@ const TestStatistics: React.FC = () => {
     return allTests.filter(test => isAfter(parseISO(test.test_date), cutoff!));
   }, [allTests, timeframe]);
 
+  const calculateMetrics = (tests: DrivingTest[]): ComparisonStats | null => {
+    if (tests.length === 0) return null;
+    const total = tests.length;
+    const passed = tests.filter(t => t.passed).length;
+    const totalDrivingFaults = tests.reduce((sum, t) => sum + t.driving_faults, 0);
+    const totalSeriousFaults = tests.reduce((sum, t) => sum + t.serious_faults, 0);
+    const examinerActions = tests.filter(t => t.examiner_action).length;
+
+    return {
+      passRate: (passed / total) * 100,
+      avgDrivingFaults: totalDrivingFaults / total,
+      avgSeriousFaults: totalSeriousFaults / total,
+      examinerActionRate: (examinerActions / total) * 100,
+    };
+  };
+
   const stats = useMemo(() => {
     if (filteredTests.length === 0) return null;
 
-    const total = filteredTests.length;
-    const passed = filteredTests.filter(t => t.passed).length;
-    const totalDrivingFaults = filteredTests.reduce((sum, t) => sum + t.driving_faults, 0);
-    const totalSeriousFaults = filteredTests.reduce((sum, t) => sum + t.serious_faults, 0);
-    const examinerActions = filteredTests.filter(t => t.examiner_action).length;
+    const currentMetrics = calculateMetrics(filteredTests);
+    if (!currentMetrics) return null;
+
+    // Stats before the last test
+    const beforeLastMetrics = calculateMetrics(filteredTests.slice(1));
+
+    // Stats before the current month
+    const startOfThisMonth = startOfMonth(new Date());
+    const beforeMonthTests = filteredTests.filter(t => isBefore(parseISO(t.test_date), startOfThisMonth));
+    const beforeMonthMetrics = calculateMetrics(beforeMonthTests);
 
     const studentMap = new Map<string, StudentStat>();
     filteredTests.forEach(t => {
@@ -162,11 +190,10 @@ const TestStatistics: React.FC = () => {
     });
 
     return {
-      total,
-      passRate: (passed / total) * 100,
-      avgDrivingFaults: totalDrivingFaults / total,
-      avgSeriousFaults: totalSeriousFaults / total,
-      examinerActionRate: (examinerActions / total) * 100,
+      total: filteredTests.length,
+      ...currentMetrics,
+      beforeLastMetrics,
+      beforeMonthMetrics,
       studentStats,
     };
   }, [filteredTests, studentFilter, studentSort]);
@@ -179,6 +206,23 @@ const TestStatistics: React.FC = () => {
   const selectedStudentName = useMemo(() => {
     return selectedStudentTests[0]?.student_name || "Student History";
   }, [selectedStudentTests]);
+
+  const TrendIndicator = ({ current, previous, higherIsBetter = true }: { current: number, previous: number | undefined, higherIsBetter?: boolean }) => {
+    if (previous === undefined) return <Minus className="h-3 w-3 text-muted-foreground" />;
+    
+    const diff = current - previous;
+    if (Math.abs(diff) < 0.01) return <Minus className="h-3 w-3 text-muted-foreground" />;
+
+    const isPositiveChange = higherIsBetter ? diff > 0 : diff < 0;
+    const Icon = diff > 0 ? ArrowUpRight : ArrowDownRight;
+
+    return (
+      <div className={cn("flex items-center text-[10px] font-bold", isPositiveChange ? "text-green-600" : "text-destructive")}>
+        <Icon className="h-3 w-3 mr-0.5" />
+        {Math.abs(diff).toFixed(1)}{higherIsBetter ? "%" : ""}
+      </div>
+    );
+  };
 
   if (isSessionLoading || isLoading) {
     return (
@@ -282,120 +326,168 @@ const TestStatistics: React.FC = () => {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="flex items-center">
-                      <Users className="mr-2 h-5 w-5" />
-                      Performance by Student
-                    </CardTitle>
-                    <CardDescription>Click a student name to view their full test history.</CardDescription>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="flex items-center">
+                        <Users className="mr-2 h-5 w-5" />
+                        Performance by Student
+                      </CardTitle>
+                      <CardDescription>Click a student name to view their full test history.</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Select value={studentFilter} onValueChange={(v) => setStudentFilter(v as StudentFilter)}>
+                        <SelectTrigger className="w-[130px] h-8 text-xs">
+                          <SelectValue placeholder="Filter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Students</SelectItem>
+                          <SelectItem value="passed">Has Passed</SelectItem>
+                          <SelectItem value="not-passed">Not Passed Yet</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={studentSort} onValueChange={(v) => setStudentSort(v as StudentSort)}>
+                        <SelectTrigger className="w-[130px] h-8 text-xs">
+                          <SelectValue placeholder="Sort" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tests-desc">Most Tests</SelectItem>
+                          <SelectItem value="tests-asc">Least Tests</SelectItem>
+                          <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Select value={studentFilter} onValueChange={(v) => setStudentFilter(v as StudentFilter)}>
-                      <SelectTrigger className="w-[130px] h-8 text-xs">
-                        <SelectValue placeholder="Filter" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Students</SelectItem>
-                        <SelectItem value="passed">Has Passed</SelectItem>
-                        <SelectItem value="not-passed">Not Passed Yet</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={studentSort} onValueChange={(v) => setStudentSort(v as StudentSort)}>
-                      <SelectTrigger className="w-[130px] h-8 text-xs">
-                        <SelectValue placeholder="Sort" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="tests-desc">Most Tests</SelectItem>
-                        <SelectItem value="tests-asc">Least Tests</SelectItem>
-                        <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead className="text-center">Tests</TableHead>
-                      <TableHead className="text-center">Passes</TableHead>
-                      <TableHead className="text-right">Avg. Faults</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {stats.studentStats.map((s) => (
-                      <TableRow key={s.studentId}>
-                        <TableCell className="font-medium">
-                          <button 
-                            onClick={() => setSelectedStudentId(s.studentId)}
-                            className="text-blue-600 hover:underline text-left"
-                          >
-                            {s.studentName}
-                          </button>
-                        </TableCell>
-                        <TableCell className="text-center">{s.totalTests}</TableCell>
-                        <TableCell className="text-center">
-                          <span className={cn(s.passCount > 0 ? "text-green-600 font-semibold" : "text-muted-foreground")}>
-                            {s.passCount}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {s.avgDrivingFaults.toFixed(1)} / {s.avgSeriousFaults.toFixed(1)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {stats.studentStats.length === 0 && (
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          No students match the selected filter.
-                        </TableCell>
+                        <TableHead>Student</TableHead>
+                        <TableHead className="text-center">Tests</TableHead>
+                        <TableHead className="text-center">Passes</TableHead>
+                        <TableHead className="text-right">Avg. Faults</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {stats.studentStats.map((s) => (
+                        <TableRow key={s.studentId}>
+                          <TableCell className="font-medium">
+                            <button 
+                              onClick={() => setSelectedStudentId(s.studentId)}
+                              className="text-blue-600 hover:underline text-left"
+                            >
+                              {s.studentName}
+                            </button>
+                          </TableCell>
+                          <TableCell className="text-center">{s.totalTests}</TableCell>
+                          <TableCell className="text-center">
+                            <span className={cn(s.passCount > 0 ? "text-green-600 font-semibold" : "text-muted-foreground")}>
+                              {s.passCount}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {s.avgDrivingFaults.toFixed(1)} / {s.avgSeriousFaults.toFixed(1)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {stats.studentStats.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                            No students match the selected filter.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Hand className="mr-2 h-5 w-5" />
-                  Safety Metrics
-                </CardTitle>
-                <CardDescription>Analysis of examiner interventions and serious faults.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Examiner Action Rate</span>
-                    <span className="font-semibold">{stats.examinerActionRate.toFixed(1)}%</span>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Hand className="mr-2 h-5 w-5" />
+                    Safety Metrics
+                  </CardTitle>
+                  <CardDescription>Analysis of examiner interventions and serious faults.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Examiner Action Rate</span>
+                      <span className="font-semibold">{stats.examinerActionRate.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className={cn(
+                          "h-full transition-all",
+                          stats.examinerActionRate >= 10 ? "bg-orange-500" : "bg-green-500"
+                        )} 
+                        style={{ width: `${Math.min(100, stats.examinerActionRate)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Percentage of tests where the examiner had to take physical action.</p>
                   </div>
-                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full transition-all",
-                        stats.examinerActionRate >= 10 ? "bg-orange-500" : "bg-green-500"
-                      )} 
-                      style={{ width: `${Math.min(100, stats.examinerActionRate)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">Percentage of tests where the examiner had to take physical action.</p>
-                </div>
 
-                <div className="pt-4 border-t">
-                  <h4 className="text-sm font-semibold mb-2">Quick Insights</h4>
-                  <ul className="text-sm space-y-2 text-muted-foreground">
-                    <li>• Most students pass within {stats.total > 0 ? (stats.total / stats.studentStats.length).toFixed(1) : 0} attempts on average.</li>
-                    <li>• Serious faults are {stats.avgSeriousFaults < 0.55 ? "relatively low" : "a common area for improvement"}.</li>
-                    <li>• Your current pass rate is {stats.passRate > 55 ? "above" : "below"} your target benchmark.</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="pt-4 border-t">
+                    <h4 className="text-sm font-semibold mb-2">Quick Insights</h4>
+                    <ul className="text-sm space-y-2 text-muted-foreground">
+                      <li>• Most students pass within {stats.total > 0 ? (stats.total / stats.studentStats.length).toFixed(1) : 0} attempts on average.</li>
+                      <li>• Serious faults are {stats.avgSeriousFaults < 0.55 ? "relatively low" : "a common area for improvement"}.</li>
+                      <li>• Your current pass rate is {stats.passRate > 55 ? "above" : "below"} your target benchmark.</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5" />
+                    Statistical Trends
+                  </CardTitle>
+                  <CardDescription>How your metrics have changed over time.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 text-center mb-4">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Metric</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Since Last Test</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Since Last Month</div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {[
+                      { label: "Pass Rate", key: "passRate", higherIsBetter: true },
+                      { label: "Driving Faults", key: "avgDrivingFaults", higherIsBetter: false },
+                      { label: "Serious Faults", key: "avgSeriousFaults", higherIsBetter: false },
+                      { label: "Ex. Action", key: "examinerActionRate", higherIsBetter: false },
+                    ].map((metric) => (
+                      <div key={metric.label} className="grid grid-cols-3 gap-4 items-center py-2 border-b last:border-0">
+                        <div className="text-xs font-medium text-left">{metric.label}</div>
+                        <div className="flex justify-center">
+                          <TrendIndicator 
+                            current={stats[metric.key as keyof ComparisonStats] as number} 
+                            previous={stats.beforeLastMetrics?.[metric.key as keyof ComparisonStats]} 
+                            higherIsBetter={metric.higherIsBetter}
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <TrendIndicator 
+                            current={stats[metric.key as keyof ComparisonStats] as number} 
+                            previous={stats.beforeMonthMetrics?.[metric.key as keyof ComparisonStats]} 
+                            higherIsBetter={metric.higherIsBetter}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </>
       )}
