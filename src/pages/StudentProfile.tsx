@@ -32,7 +32,8 @@ import {
   Ban,
   CreditCard,
   Plus,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquare
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -76,6 +77,12 @@ interface Booking {
   is_covered?: boolean;
 }
 
+interface Topic {
+  id: string;
+  name: string;
+  is_default: boolean;
+}
+
 interface ProgressEntry {
   topic_id: string;
   topic_name: string;
@@ -92,7 +99,8 @@ const StudentProfile: React.FC = () => {
   
   const [student, setStudent] = useState<Student | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [progressEntries, setProgressEntries] = useState<ProgressEntry[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [progressEntries, setProgressEntries] = useState<Record<string, ProgressEntry>>({});
   const [totalPrepaidHours, setTotalPrepaidHours] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -106,12 +114,14 @@ const StudentProfile: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes] = await Promise.all([
+      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes, topicsRes, hiddenRes] = await Promise.all([
         supabase.from("students").select("*").eq("id", studentId).single(),
         supabase.from("pre_paid_hours").select("remaining_hours").eq("student_id", studentId),
         supabase.from("bookings").select("*").eq("student_id", studentId).order("start_time", { ascending: false }),
         supabase.from("student_progress_entries").select("*, progress_topics(name)").eq("student_id", studentId).order("entry_date", { ascending: false }),
-        supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id)
+        supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id),
+        supabase.from("progress_topics").select("id, name, is_default").or(`user_id.eq.${user.id},is_default.eq.true`).order("is_default", { ascending: false }).order("name", { ascending: true }),
+        supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", user.id)
       ]);
 
       if (studentRes.error) throw studentRes.error;
@@ -155,6 +165,12 @@ const StudentProfile: React.FC = () => {
       
       setBookings(formattedBookings);
 
+      // Process topics
+      const hiddenIds = new Set((hiddenRes.data || []).map(h => h.topic_id));
+      const visibleTopics = (topicsRes.data || []).filter(t => !hiddenIds.has(t.id));
+      setTopics(visibleTopics);
+
+      // Process progress entries
       const latestProgress: Record<string, ProgressEntry> = {};
       progressRes.data?.forEach(entry => {
         if (!latestProgress[entry.topic_id]) {
@@ -167,7 +183,7 @@ const StudentProfile: React.FC = () => {
           };
         }
       });
-      setProgressEntries(Object.values(latestProgress));
+      setProgressEntries(latestProgress);
 
     } catch (error: any) {
       console.error("Error fetching student data:", error);
@@ -595,33 +611,54 @@ const StudentProfile: React.FC = () => {
             </Button>
           </div>
 
-          {progressEntries.length === 0 ? (
+          {topics.length === 0 ? (
             <Card className="p-12 text-center">
-              <p className="text-muted-foreground mb-4">No progress data recorded yet.</p>
+              <p className="text-muted-foreground mb-4">No progress topics available.</p>
               <Button asChild>
-                <Link to={`/progress/${student.id}`}>Start Tracking Progress</Link>
+                <Link to="/manage-topics">Manage Topics</Link>
               </Button>
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {progressEntries.map(entry => (
-                <Card key={entry.topic_id}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-bold">{entry.topic_name}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map(star => (
-                        <Star key={star} className={cn("h-4 w-4", star <= entry.rating ? "fill-yellow-400 text-yellow-400" : "text-muted")} />
-                      ))}
-                    </div>
-                    {entry.comment && (
-                      <p className="text-sm text-muted-foreground italic line-clamp-2">"{entry.comment}"</p>
-                    )}
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Last updated: {format(new Date(entry.entry_date), "MMM d, yyyy")}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              {topics.map(topic => {
+                const entry = progressEntries[topic.id];
+                return (
+                  <Card key={topic.id} className={cn(
+                    "transition-all",
+                    !entry && "opacity-60 bg-muted/10"
+                  )}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-bold">{topic.name}</CardTitle>
+                        {topic.is_default && <Badge variant="secondary" className="text-[8px] h-3 px-1">DEFAULT</Badge>}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <Star 
+                            key={star} 
+                            className={cn(
+                              "h-4 w-4", 
+                              entry && star <= entry.rating ? "fill-yellow-400 text-yellow-400" : "text-muted"
+                            )} 
+                          />
+                        ))}
+                      </div>
+                      {entry ? (
+                        <>
+                          {entry.comment && (
+                            <p className="text-sm text-muted-foreground italic line-clamp-2">"{entry.comment}"</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground uppercase font-bold">Last updated: {format(new Date(entry.entry_date), "MMM d, yyyy")}</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No rating recorded yet.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
