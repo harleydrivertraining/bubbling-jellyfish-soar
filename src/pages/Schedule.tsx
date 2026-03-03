@@ -179,7 +179,7 @@ const Schedule: React.FC = () => {
       <CalendarLegend />
 
       <Dialog open={isAddBookingDialogOpen} onOpenChange={handleCloseAddBookingDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Booking</DialogTitle>
           </DialogHeader>

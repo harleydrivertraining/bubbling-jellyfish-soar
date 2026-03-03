@@ -90,7 +90,7 @@ const Resources: React.FC = () => {
       showError("Failed to load resources: " + resourcesError.message);
       setResources([]);
     } else {
-      setResources(resourcesData || []);
+      setResources(data || []);
     }
     setIsLoading(false);
   }, [user, currentFolder]);
@@ -314,7 +314,7 @@ const Resources: React.FC = () => {
                 <Folder className="mr-2 h-4 w-4" /> Add New Folder
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Folder</DialogTitle>
               </DialogHeader>
@@ -343,7 +343,7 @@ const Resources: React.FC = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> Add New Resource
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Resource</DialogTitle>
               </DialogHeader>
@@ -480,7 +480,7 @@ const Resources: React.FC = () => {
       )}
 
       <Dialog open={isEditResourceDialogOpen} onOpenChange={handleCloseEditResourceDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Resource</DialogTitle>
           </DialogHeader>

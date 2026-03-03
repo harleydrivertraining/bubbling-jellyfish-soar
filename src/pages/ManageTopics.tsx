@@ -222,7 +222,7 @@ const ManageTopics: React.FC = () => {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTopic ? "Edit Topic" : "Add New Topic"}</DialogTitle>
           </DialogHeader>

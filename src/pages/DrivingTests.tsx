@@ -247,7 +247,7 @@ const DrivingTests: React.FC = () => {
               <PlusCircle className="mr-2 h-4 w-4" /> Add Test Record
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Driving Test Record</DialogTitle>
             </DialogHeader>
@@ -372,7 +372,7 @@ const DrivingTests: React.FC = () => {
       )}
 
       <Dialog open={isEditTestDialogOpen} onOpenChange={handleCloseEditTestDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Driving Test Record</DialogTitle>
           </DialogHeader>

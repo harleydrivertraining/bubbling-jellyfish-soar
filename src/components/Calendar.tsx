@@ -305,7 +305,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
       </div>
 
       <Dialog open={isEditBookingDialogOpen} onOpenChange={setIsEditBookingDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Booking</DialogTitle>
           </DialogHeader>

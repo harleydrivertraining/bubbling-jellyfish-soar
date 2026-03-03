@@ -441,7 +441,7 @@ const MileageTracker: React.FC = () => {
                 <Car className="mr-2 h-4 w-4" /> Add New Car
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Car</DialogTitle>
               </DialogHeader>
@@ -455,7 +455,7 @@ const MileageTracker: React.FC = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Mileage Entry
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Mileage Entry</DialogTitle>
               </DialogHeader>
@@ -499,7 +499,7 @@ const MileageTracker: React.FC = () => {
                     <Pencil className="mr-2 h-4 w-4" /> Edit Car
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Edit Car Details</DialogTitle>
                   </DialogHeader>

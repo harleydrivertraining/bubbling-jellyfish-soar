@@ -208,7 +208,7 @@ const DrivingTestBookings: React.FC = () => {
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Test Booking
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Driving Test Booking</DialogTitle>
             </DialogHeader>
@@ -307,7 +307,7 @@ const DrivingTestBookings: React.FC = () => {
       )}
 
       <Dialog open={isEditBookingDialogOpen} onOpenChange={handleCloseEditBookingDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Driving Test Booking</DialogTitle>
           </DialogHeader>
@@ -323,7 +323,7 @@ const DrivingTestBookings: React.FC = () => {
       </Dialog>
 
       <Dialog open={isAddTestResultDialogOpen} onOpenChange={handleCloseAddTestResultDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Driving Test Result</DialogTitle>
           </DialogHeader>

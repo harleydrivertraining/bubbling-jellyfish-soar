@@ -166,7 +166,7 @@ const Students: React.FC = () => {
               <PlusCircle className="mr-2 h-4 w-4" /> Add Student
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Student</DialogTitle>
             </DialogHeader>
@@ -288,7 +288,7 @@ const Students: React.FC = () => {
       )}
 
       <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Student</DialogTitle>
           </DialogHeader>

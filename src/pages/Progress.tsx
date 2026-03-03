@@ -280,7 +280,7 @@ const Progress: React.FC = () => {
       )}
 
       <Dialog open={isAddEntryDialogOpen} onOpenChange={handleCloseAddEntryDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Progress Entry for {selectedStudentForEntry?.name}</DialogTitle>
           </DialogHeader>
@@ -295,7 +295,7 @@ const Progress: React.FC = () => {
       </Dialog>
 
       <Dialog open={isEditEntryDialogOpen} onOpenChange={handleCloseEditEntryDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Progress Entry</DialogTitle>
           </DialogHeader>
