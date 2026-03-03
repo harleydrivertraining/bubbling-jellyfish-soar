@@ -53,6 +53,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Progress } from "@/components/ui/progress";
 
 interface Student {
   id: string;
@@ -300,6 +301,16 @@ const StudentProfile: React.FC = () => {
 
     return { delivered, cancelled, booked };
   }, [bookings]);
+
+  const completionPercentage = useMemo(() => {
+    if (topics.length === 0) return 0;
+    const totalPossibleStars = topics.length * 5;
+    const totalEarnedStars = topics.reduce((sum, topic) => {
+      const entry = progressEntries[topic.id];
+      return sum + (entry ? entry.rating : 0);
+    }, 0);
+    return Math.round((totalEarnedStars / totalPossibleStars) * 100);
+  }, [topics, progressEntries]);
 
   const SummaryCards = () => (
     <React.Fragment>
@@ -604,9 +615,15 @@ const StudentProfile: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="progress" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold flex items-center"><TrendingUp className="mr-2 h-5 w-5 text-primary" /> Proficiency Levels</h3>
-            <Button asChild variant="outline" size="sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-xl border shadow-sm">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-bold flex items-center"><TrendingUp className="mr-2 h-5 w-5 text-primary" /> Course Completion</h3>
+                <span className="text-2xl font-black text-green-600">{completionPercentage}%</span>
+              </div>
+              <Progress value={completionPercentage} className="h-2" />
+            </div>
+            <Button asChild variant="outline" size="sm" className="font-bold shrink-0">
               <Link to={`/progress/${student.id}`}>Update Progress</Link>
             </Button>
           </div>
