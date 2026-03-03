@@ -75,6 +75,7 @@ const StudentProfile: React.FC = () => {
   const [totalPrepaidHours, setTotalPrepaidHours] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [activeLessonView, setActiveLessonView] = useState<'future' | 'past'>('future');
 
   const fetchData = useCallback(async () => {
     if (!user || !studentId) return;
@@ -295,51 +296,73 @@ const StudentProfile: React.FC = () => {
             </Card>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold flex items-center"><Clock className="mr-2 h-5 w-5 text-blue-600" /> Upcoming Lessons</h3>
-            {upcomingBookings.length === 0 ? (
-              <p className="text-muted-foreground italic bg-muted/20 p-4 rounded-lg">No upcoming lessons scheduled.</p>
-            ) : (
-              <div className="grid gap-3">
-                {upcomingBookings.map(booking => (
-                  <Card key={booking.id} className="border-l-4 border-l-blue-500">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="font-bold">{format(new Date(booking.start_time), "EEEE, MMMM do")}</p>
-                        <p className="text-sm text-muted-foreground flex items-center">
-                          <Clock className="mr-1.5 h-3.5 w-3.5" /> {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="capitalize">{booking.lesson_type}</Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+          {/* View Toggle Buttons */}
+          <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+            <Button 
+              variant={activeLessonView === 'future' ? 'default' : 'ghost'} 
+              size="sm"
+              onClick={() => setActiveLessonView('future')}
+              className="font-bold"
+            >
+              <Clock className="mr-2 h-4 w-4" /> Future Lessons
+            </Button>
+            <Button 
+              variant={activeLessonView === 'past' ? 'default' : 'ghost'} 
+              size="sm"
+              onClick={() => setActiveLessonView('past')}
+              className="font-bold"
+            >
+              <History className="mr-2 h-4 w-4" /> Past Lessons
+            </Button>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold flex items-center"><History className="mr-2 h-5 w-5 text-muted-foreground" /> Past Lessons</h3>
-            {pastBookings.length === 0 ? (
-              <p className="text-muted-foreground italic">No past lessons recorded.</p>
-            ) : (
-              <div className="grid gap-3">
-                {pastBookings.map(booking => (
-                  <Card key={booking.id} className="opacity-80">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="font-medium">{format(new Date(booking.start_time), "MMM do, yyyy")}</p>
-                        <p className="text-xs text-muted-foreground">{booking.lesson_type}</p>
-                      </div>
-                      <Badge variant={booking.status === 'completed' ? 'default' : 'secondary'} className="capitalize">
-                        {booking.status}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+          {activeLessonView === 'future' ? (
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold flex items-center"><Clock className="mr-2 h-5 w-5 text-blue-600" /> Upcoming Lessons</h3>
+              {upcomingBookings.length === 0 ? (
+                <p className="text-muted-foreground italic bg-muted/20 p-4 rounded-lg">No upcoming lessons scheduled.</p>
+              ) : (
+                <div className="grid gap-3">
+                  {upcomingBookings.map(booking => (
+                    <Card key={booking.id} className="border-l-4 border-l-blue-500">
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="font-bold">{format(new Date(booking.start_time), "EEEE, MMMM do")}</p>
+                          <p className="text-sm text-muted-foreground flex items-center">
+                            <Clock className="mr-1.5 h-3.5 w-3.5" /> {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="capitalize">{booking.lesson_type}</Badge>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold flex items-center"><History className="mr-2 h-5 w-5 text-muted-foreground" /> Past Lessons</h3>
+              {pastBookings.length === 0 ? (
+                <p className="text-muted-foreground italic">No past lessons recorded.</p>
+              ) : (
+                <div className="grid gap-3">
+                  {pastBookings.map(booking => (
+                    <Card key={booking.id} className="opacity-80">
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="font-medium">{format(new Date(booking.start_time), "MMM do, yyyy")}</p>
+                          <p className="text-xs text-muted-foreground">{booking.lesson_type}</p>
+                        </div>
+                        <Badge variant={booking.status === 'completed' ? 'default' : 'secondary'} className="capitalize">
+                          {booking.status}
+                        </Badge>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         {/* Progress Tab */}
