@@ -133,7 +133,6 @@ const StudentProgressDetail: React.FC = () => {
     if (error) {
       showError("Failed to save progress: " + error.message);
     } else {
-      // Update local state to reflect the saved values
       setEntries(prev => ({
         ...prev,
         [topicId]: { topic_id: topicId, rating, comment }
@@ -143,7 +142,7 @@ const StudentProgressDetail: React.FC = () => {
         showSuccess("Rating saved!");
       } else {
         showSuccess("Notes saved!");
-        setExpandedTopicId(null); // Collapse after saving notes
+        setExpandedTopicId(null);
       }
     }
     setSavingTopicId(null);
@@ -168,7 +167,7 @@ const StudentProgressDetail: React.FC = () => {
   };
 
   if (isSessionLoading || isLoading) {
-    return <div className="space-y-6"><Skeleton className="h-10 w-64" /><div className="space-y-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-32 w-full" />)}</div></div>;
+    return <div className="space-y-6"><Skeleton className="h-10 w-64" /><div className="grid grid-cols-2 gap-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 w-full" />)}</div></div>;
   }
 
   return (
@@ -195,7 +194,7 @@ const StudentProgressDetail: React.FC = () => {
           <Button asChild variant="outline"><Link to="/manage-topics">Manage Topics</Link></Button>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {topics.map((topic) => {
             const entry = entries[topic.id] || { rating: 0, comment: "" };
             const isSaving = savingTopicId === topic.id;
@@ -203,40 +202,44 @@ const StudentProgressDetail: React.FC = () => {
 
             return (
               <Card key={topic.id} className={cn(
-                "overflow-hidden transition-all duration-200 border-l-4",
-                entry.rating > 0 ? "border-l-green-500" : "border-l-muted"
+                "overflow-hidden transition-all duration-200 border-l-4 flex flex-col",
+                entry.rating > 0 ? "border-l-green-500" : "border-l-muted",
+                isExpanded && "col-span-2"
               )}>
-                <div className="p-4 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
+                <div className={cn(
+                  "p-3 sm:p-4 flex flex-col h-full",
+                  isExpanded && "sm:flex-row sm:items-center sm:justify-between"
+                )}>
+                  <div className="flex-1 min-w-0 mb-2 sm:mb-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-bold truncate">{topic.name}</h3>
-                      {topic.is_default && <Badge variant="secondary" className="text-[10px] h-4 px-1">DEFAULT</Badge>}
+                      <h3 className="text-sm sm:text-lg font-bold truncate">{topic.name}</h3>
+                      {topic.is_default && <Badge variant="secondary" className="text-[8px] sm:text-[10px] h-3 sm:h-4 px-1">DEFAULT</Badge>}
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4">
                       <StarRatingInput 
                         value={entry.rating} 
                         onChange={(val) => handleRatingChange(topic.id, val)} 
                         disabled={isSaving}
                       />
                       {isSaving && savingTopicId === topic.id && (
-                        <span className="text-[10px] font-bold text-muted-foreground animate-pulse uppercase">Saving...</span>
+                        <span className="text-[8px] sm:text-[10px] font-bold text-muted-foreground animate-pulse uppercase">Saving...</span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 mt-auto sm:mt-0">
                     {entry.comment && !isExpanded && (
-                      <Badge variant="outline" className="hidden sm:flex items-center gap-1 text-muted-foreground">
-                        <MessageSquare className="h-3 w-3" /> Notes
+                      <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground text-[10px] px-1.5 py-0">
+                        <MessageSquare className="h-3 w-3" />
                       </Badge>
                     )}
                     <Button 
                       variant="ghost" 
                       size="icon" 
                       onClick={() => toggleExpand(topic.id)}
-                      className="rounded-full"
+                      className="h-8 w-8 rounded-full"
                     >
-                      {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
