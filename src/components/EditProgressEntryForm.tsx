@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -77,18 +77,27 @@ const EditProgressEntryForm: React.FC<EditProgressEntryFormProps> = ({
       if (!user) return;
 
       setIsLoadingTopics(true);
-      const { data: topicData, error: topicError } = await supabase
+      // Fetch topics
+      const { data: topicsData, error: topicsError } = await supabase
         .from("progress_topics")
-        .select("id, name")
-        .eq("user_id", user.id)
+        .select("id, name, is_default")
+        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order("name", { ascending: true });
 
-      if (topicError) {
-        console.error("Error fetching topics for edit progress entry form:", topicError);
-        showError("Failed to load topics: " + topicError.message);
-        setTopics([]);
+      // Fetch hidden topic IDs
+      const { data: hiddenData } = await supabase
+        .from("hidden_progress_topics")
+        .select("topic_id")
+        .eq("user_id", user.id);
+      
+      const hiddenIds = new Set((hiddenData || []).map(h => h.topic_id));
+      const visibleTopics = (topicsData || []).filter(t => !hiddenIds.has(t.id));
+
+      if (topicsError) {
+        console.error("Error fetching topics:", topicsError);
+        showError("Failed to load topics.");
       } else {
-        setTopics(topicData || []);
+        setTopics(visibleTopics);
       }
       setIsLoadingTopics(false);
 
@@ -102,7 +111,7 @@ const EditProgressEntryForm: React.FC<EditProgressEntryFormProps> = ({
 
       if (entryError) {
         console.error("Error fetching progress entry details:", entryError);
-        showError("Failed to load progress entry details: " + entryError.message);
+        showError("Failed to load progress entry details.");
         onClose();
       } else if (entryData) {
         form.reset({
@@ -208,7 +217,7 @@ const EditProgressEntryForm: React.FC<EditProgressEntryFormProps> = ({
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                   <Command>
                     <CommandInput placeholder="Search topic..." />
-                    <CommandEmpty>No topic found. Go to 'Manage Topics' to add some!</CommandEmpty>
+                    <CommandEmpty>No topic found.</CommandEmpty>
                     <CommandGroup>
                       {topics.map((topic) => (
                         <CommandItem

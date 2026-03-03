@@ -27,7 +27,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import StarRatingInput from "@/components/StarRatingInput"; // Import the new StarRatingInput
+import StarRatingInput from "@/components/StarRatingInput";
 
 interface ProgressTopic {
   id: string;
@@ -61,7 +61,7 @@ const AddProgressEntryForm: React.FC<AddProgressEntryFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       topic_id: "",
-      rating: 3, // Default rating
+      rating: 3,
       comment: "",
       targets: "",
     },
@@ -71,18 +71,28 @@ const AddProgressEntryForm: React.FC<AddProgressEntryFormProps> = ({
     const fetchTopics = async () => {
       if (!user) return;
       setIsLoadingTopics(true);
-      const { data, error } = await supabase
+      
+      // Fetch topics
+      const { data: topicsData, error: topicsError } = await supabase
         .from("progress_topics")
-        .select("id, name")
-        .eq("user_id", user.id)
+        .select("id, name, is_default")
+        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order("name", { ascending: true });
 
-      if (error) {
-        console.error("Error fetching topics for progress entry form:", error);
-        showError("Failed to load topics: " + error.message);
-        setTopics([]);
+      // Fetch hidden topic IDs
+      const { data: hiddenData } = await supabase
+        .from("hidden_progress_topics")
+        .select("topic_id")
+        .eq("user_id", user.id);
+      
+      const hiddenIds = new Set((hiddenData || []).map(h => h.topic_id));
+      const visibleTopics = (topicsData || []).filter(t => !hiddenIds.has(t.id));
+
+      if (topicsError) {
+        console.error("Error fetching topics:", topicsError);
+        showError("Failed to load topics.");
       } else {
-        setTopics(data || []);
+        setTopics(visibleTopics);
       }
       setIsLoadingTopics(false);
     };
@@ -105,8 +115,7 @@ const AddProgressEntryForm: React.FC<AddProgressEntryFormProps> = ({
         rating: values.rating,
         comment: values.comment,
         targets: values.targets,
-      })
-      .select();
+      });
 
     if (error) {
       console.error("Error adding progress entry:", error);
@@ -150,7 +159,7 @@ const AddProgressEntryForm: React.FC<AddProgressEntryFormProps> = ({
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                   <Command>
                     <CommandInput placeholder="Search topic..." />
-                    <CommandEmpty>No topic found. Go to 'Manage Topics' to add some!</CommandEmpty>
+                    <CommandEmpty>No topic found.</CommandEmpty>
                     <CommandGroup>
                       {topics.map((topic) => (
                         <CommandItem

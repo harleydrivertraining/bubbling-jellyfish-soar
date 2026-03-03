@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import StarRatingInput from "@/components/StarRatingInput";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 interface Topic {
   id: string;
@@ -54,7 +55,7 @@ const StudentProgressDetail: React.FC = () => {
       if (studentError) throw studentError;
       setStudent(studentData);
 
-      // Fetch both custom and default topics
+      // Fetch topics
       const { data: topicsData, error: topicsError } = await supabase
         .from("progress_topics")
         .select("id, name, is_default")
@@ -63,7 +64,16 @@ const StudentProgressDetail: React.FC = () => {
         .order("name", { ascending: true });
 
       if (topicsError) throw topicsError;
-      setTopics(topicsData || []);
+
+      // Fetch hidden topic IDs
+      const { data: hiddenData } = await supabase
+        .from("hidden_progress_topics")
+        .select("topic_id")
+        .eq("user_id", user.id);
+      
+      const hiddenIds = new Set((hiddenData || []).map(h => h.topic_id));
+      const visibleTopics = (topicsData || []).filter(t => !hiddenIds.has(t.id));
+      setTopics(visibleTopics);
 
       const { data: entriesData, error: entriesError } = await supabase
         .from("student_progress_entries")
