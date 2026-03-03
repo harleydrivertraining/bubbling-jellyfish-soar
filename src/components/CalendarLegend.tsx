@@ -2,7 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
-import { PoundSterling, X, Check, Circle } from "lucide-react";
+import { PoundSterling, Circle } from "lucide-react";
 
 const LegendItem = ({ colorClass, label }: { colorClass: string; label: string }) => (
   <div className="flex items-center gap-2">
@@ -11,11 +11,11 @@ const LegendItem = ({ colorClass, label }: { colorClass: string; label: string }
   </div>
 );
 
-const PaymentLegendItem = ({ label, colorClass, overlay }: { label: string, colorClass: string, overlay: React.ReactNode }) => (
+const PaymentLegendItem = ({ label, colorClass, circleColor }: { label: string, colorClass: string, circleColor: string }) => (
   <div className="flex items-center gap-2">
     <div className={cn("relative flex items-center justify-center h-5 w-5 rounded-full", colorClass)}>
       <PoundSterling className="h-3 w-3" />
-      {overlay}
+      <Circle className={cn("absolute inset-0 h-full w-full stroke-[2px]", circleColor)} />
     </div>
     <span className="text-xs font-medium text-muted-foreground">{label}</span>
   </div>
@@ -37,17 +37,17 @@ const CalendarLegend = () => {
       <PaymentLegendItem 
         label="Unpaid" 
         colorClass="text-red-600" 
-        overlay={<X className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-red-600 rounded-full p-0.5 text-white border border-white" />} 
+        circleColor="text-red-500"
       />
       <PaymentLegendItem 
         label="Covered by Credit" 
         colorClass="text-yellow-600" 
-        overlay={<Circle className="absolute inset-0 h-full w-full text-yellow-500 stroke-[2px]" />} 
+        circleColor="text-yellow-500"
       />
       <PaymentLegendItem 
         label="Paid" 
         colorClass="text-green-600" 
-        overlay={<Check className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-green-600 rounded-full p-0.5 text-white border border-white" />} 
+        circleColor="text-green-500"
       />
     </div>
   );

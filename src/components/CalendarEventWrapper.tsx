@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, PoundSterling, X, Check, Circle } from "lucide-react";
+import { CheckCircle, PoundSterling, Circle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
@@ -103,13 +103,13 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
           >
             <PoundSterling className="h-3.5 w-3.5" />
             
-            {/* Overlays */}
+            {/* Circular Overlays */}
             {isPaid ? (
-              <Check className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-green-600 rounded-full p-0.5 text-white border border-white" />
+              <Circle className="absolute inset-0 h-full w-full text-green-300 stroke-[3px]" />
             ) : isCovered ? (
               <Circle className="absolute inset-0 h-full w-full text-yellow-300 stroke-[3px]" />
             ) : (
-              <X className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-red-600 rounded-full p-0.5 text-white border border-white" />
+              <Circle className="absolute inset-0 h-full w-full text-red-300 stroke-[3px]" />
             )}
           </button>
         )}
