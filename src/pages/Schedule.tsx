@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, RefreshCcw, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
-import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO } from "date-fns";
+import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -63,6 +63,7 @@ const Schedule: React.FC = () => {
     setFetchError(null);
     
     try {
+      // 1. Fetch Main Bookings
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, is_paid, students(name)")
@@ -78,31 +79,46 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      const bookingIds = bookings.map(b => b.id);
-      const { data: transactions, error: transError } = await supabase
-        .from("pre_paid_hours_transactions")
-        .select("booking_id")
-        .in("booking_id", bookingIds);
-
-      if (transError) throw transError;
-      const paidViaCreditIds = new Set(transactions?.map(t => t.booking_id) || []);
-
-      const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
-      
+      // 2. Fetch Secondary Data (Non-blocking)
+      let paidViaCreditIds = new Set<string>();
       let studentBalances: Record<string, number> = {};
-      if (studentIds.length > 0) {
-        const { data: hours, error: hoursError } = await supabase
-          .from("pre_paid_hours")
-          .select("student_id, remaining_hours")
-          .in("student_id", studentIds);
+      
+      try {
+        const bookingIds = bookings.map(b => b.id);
+        const { data: transactions } = await supabase
+          .from("pre_paid_hours_transactions")
+          .select("booking_id")
+          .in("booking_id", bookingIds);
+        
+        if (transactions) {
+          paidViaCreditIds = new Set(transactions.map(t => t.booking_id));
+        }
 
-        if (hoursError) throw hoursError;
-        hours?.forEach(h => {
-          studentBalances[h.student_id] = (studentBalances[h.student_id] || 0) + h.remaining_hours;
-        });
+        const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
+        if (studentIds.length > 0) {
+          const { data: hours } = await supabase
+            .from("pre_paid_hours")
+            .select("student_id, remaining_hours")
+            .in("student_id", studentIds);
+          
+          hours?.forEach(h => {
+            studentBalances[h.student_id] = (studentBalances[h.student_id] || 0) + h.remaining_hours;
+          });
+        }
+      } catch (secondaryError) {
+        console.warn("Failed to fetch secondary schedule data (payments/balances):", secondaryError);
+        // We continue anyway so the user can at least see their lessons
       }
 
-      const sortedBookings = [...bookings].sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime());
+      // 3. Process and Validate Bookings
+      const sortedBookings = [...bookings]
+        .filter(b => {
+          const start = parseISO(b.start_time);
+          const end = parseISO(b.end_time);
+          return isValid(start) && isValid(end);
+        })
+        .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime());
+
       const coverageMap: Record<string, boolean> = {};
       
       sortedBookings.forEach(b => {
@@ -123,7 +139,7 @@ const Schedule: React.FC = () => {
         }
       });
 
-      const formattedEvents: BigCalendarEvent[] = bookings.map((booking) => ({
+      const formattedEvents: BigCalendarEvent[] = sortedBookings.map((booking) => ({
         id: booking.id,
         title: booking.students?.name || booking.title,
         start: new Date(booking.start_time),
