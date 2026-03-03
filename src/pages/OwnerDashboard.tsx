@@ -39,12 +39,17 @@ const OwnerDashboard: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Fetch counts individually to be more resilient. 
-      // We count everyone who is NOT an owner as an instructor.
-      const instructorsRes = await supabase
+      // Fetch all profiles to calculate instructor count accurately
+      // This handles cases where 'role' might be NULL or empty
+      const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .not("role", "ilike", "owner");
+        .select("role");
+
+      if (profilesError) throw profilesError;
+
+      const instructorCount = profiles?.filter(p => 
+        !p.role || p.role.toLowerCase() !== 'owner'
+      ).length || 0;
 
       const studentsRes = await supabase
         .from("students")
@@ -62,7 +67,7 @@ const OwnerDashboard: React.FC = () => {
         .limit(5);
 
       setStats({
-        totalInstructors: instructorsRes.count || 0,
+        totalInstructors: instructorCount,
         totalStudents: studentsRes.count || 0,
         openSupportRequests: supportRes.count || 0
       });
