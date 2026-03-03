@@ -353,18 +353,23 @@ const StudentProfile: React.FC = () => {
                             </p>
                             
                             {/* Status Icons Row */}
-                            <div className="flex items-center gap-4 pt-1">
-                              <div className="flex items-center gap-1.5 text-blue-600">
-                                <CalendarCheck className="h-4 w-4" />
-                                <span className="text-[10px] font-bold uppercase">Booked</span>
+                            <div className="flex flex-wrap items-center gap-2 pt-2">
+                              <div className="flex items-center gap-1.5 text-blue-600 border border-blue-200 bg-blue-50/50 px-2 py-0.5 rounded-full">
+                                <CalendarCheck className="h-3.5 w-3.5" />
+                                <span className="text-[9px] font-bold uppercase tracking-tight">Booked</span>
                               </div>
-                              <div className="flex items-center gap-1.5 text-muted-foreground">
-                                {booking.lesson_type === 'Driving Test' ? <Car className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
-                                <span className="text-[10px] font-bold uppercase">{booking.lesson_type}</span>
+                              <div className="flex items-center gap-1.5 text-muted-foreground border border-muted px-2 py-0.5 rounded-full">
+                                {booking.lesson_type === 'Driving Test' ? <Car className="h-3.5 w-3.5" /> : <BookOpen className="h-3.5 w-3.5" />}
+                                <span className="text-[9px] font-bold uppercase tracking-tight">{booking.lesson_type}</span>
                               </div>
-                              <div className={cn("flex items-center gap-1.5", booking.is_paid ? "text-green-600" : "text-destructive")}>
-                                {booking.is_paid ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                                <span className="text-[10px] font-bold uppercase">{booking.is_paid ? "Paid" : "Unpaid"}</span>
+                              <div className={cn(
+                                "flex items-center gap-1.5 border px-2 py-0.5 rounded-full",
+                                booking.is_paid 
+                                  ? "text-green-600 border-green-200 bg-green-50/50" 
+                                  : "text-destructive border-destructive/20 bg-destructive/5"
+                              )}>
+                                {booking.is_paid ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                                <span className="text-[9px] font-bold uppercase tracking-tight">{booking.is_paid ? "Paid" : "Unpaid"}</span>
                               </div>
                             </div>
                           </div>
