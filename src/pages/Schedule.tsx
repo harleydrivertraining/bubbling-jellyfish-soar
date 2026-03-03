@@ -12,6 +12,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Event as BigCalendarEvent } from 'react-big-calendar';
 import { useIsMobile } from "@/hooks/use-mobile"; // Import useIsMobile hook
+import CalendarLegend from "@/components/CalendarLegend";
 
 interface CustomEventResource {
   student_id: string;
@@ -174,6 +175,8 @@ const Schedule: React.FC = () => {
           setCurrentView={handleSetCurrentCalendarView}
         />
       </div>
+
+      <CalendarLegend />
 
       <Dialog open={isAddBookingDialogOpen} onOpenChange={handleCloseAddBookingDialog}>
         <DialogContent className="sm:max-w-[425px]">
