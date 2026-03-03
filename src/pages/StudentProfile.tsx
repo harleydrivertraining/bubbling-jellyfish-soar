@@ -244,6 +244,39 @@ const StudentProfile: React.FC = () => {
     return { delivered, cancelled, booked };
   }, [bookings]);
 
+  const SummaryCards = () => (
+    <React.Fragment>
+      <Card className="bg-green-50 border-green-100 shadow-sm">
+        <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
+          <CheckCircle2 className="h-5 w-5 text-green-600 mb-1" />
+          <p className="text-[10px] font-bold uppercase text-green-700">Delivered</p>
+          <p className="text-2xl font-black text-green-900">{lessonStats.delivered.toFixed(1)}h</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-blue-50 border-blue-100 shadow-sm">
+        <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
+          <CalendarCheck className="h-5 w-5 text-blue-600 mb-1" />
+          <p className="text-[10px] font-bold uppercase text-blue-700">Booked</p>
+          <p className="text-2xl font-black text-blue-900">{lessonStats.booked.toFixed(1)}h</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-orange-50 border-orange-100 shadow-sm">
+        <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
+          <XCircle className="h-5 w-5 text-orange-600 mb-1" />
+          <p className="text-[10px] font-bold uppercase text-orange-700">Cancelled</p>
+          <p className="text-2xl font-black text-orange-900">{lessonStats.cancelled.toFixed(1)}h</p>
+        </CardContent>
+      </Card>
+      <Card className={cn("border-l-4 shadow-sm", totalPrepaidHours > 0 ? "bg-primary/5 border-l-primary" : "bg-destructive/5 border-l-destructive")}>
+        <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
+          <Hourglass className={cn("h-5 w-5 mb-1", totalPrepaidHours > 0 ? "text-primary" : "text-destructive")} />
+          <p className="text-[10px] font-bold uppercase text-muted-foreground">Credit Left</p>
+          <p className={cn("text-2xl font-black", totalPrepaidHours > 0 ? "text-primary" : "text-destructive")}>{totalPrepaidHours.toFixed(1)}h</p>
+        </CardContent>
+      </Card>
+    </React.Fragment>
+  );
+
   if (isSessionLoading || isLoading) {
     return (
       <div className="space-y-6 max-w-5xl mx-auto">
@@ -299,36 +332,9 @@ const StudentProfile: React.FC = () => {
           </div>
         </div>
 
-        {/* Lesson Summary Cards Grid */}
-        <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="bg-green-50 border-green-100 shadow-sm">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
-              <CheckCircle2 className="h-5 w-5 text-green-600 mb-1" />
-              <p className="text-[10px] font-bold uppercase text-green-700">Delivered</p>
-              <p className="text-2xl font-black text-green-900">{lessonStats.delivered.toFixed(1)}h</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-blue-50 border-blue-100 shadow-sm">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
-              <CalendarCheck className="h-5 w-5 text-blue-600 mb-1" />
-              <p className="text-[10px] font-bold uppercase text-blue-700">Booked</p>
-              <p className="text-2xl font-black text-blue-900">{lessonStats.booked.toFixed(1)}h</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-orange-50 border-orange-100 shadow-sm">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
-              <XCircle className="h-5 w-5 text-orange-600 mb-1" />
-              <p className="text-[10px] font-bold uppercase text-orange-700">Cancelled</p>
-              <p className="text-2xl font-black text-orange-900">{lessonStats.cancelled.toFixed(1)}h</p>
-            </CardContent>
-          </Card>
-          <Card className={cn("border-l-4 shadow-sm", totalPrepaidHours > 0 ? "bg-primary/5 border-l-primary" : "bg-destructive/5 border-l-destructive")}>
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full">
-              <Hourglass className={cn("h-5 w-5 mb-1", totalPrepaidHours > 0 ? "text-primary" : "text-destructive")} />
-              <p className="text-[10px] font-bold uppercase text-muted-foreground">Credit Left</p>
-              <p className={cn("text-2xl font-black", totalPrepaidHours > 0 ? "text-primary" : "text-destructive")}>{totalPrepaidHours.toFixed(1)}h</p>
-            </CardContent>
-          </Card>
+        {/* Lesson Summary Cards Grid - Desktop Only */}
+        <div className="hidden lg:grid lg:col-span-2 grid-cols-2 md:grid-cols-4 gap-4">
+          <SummaryCards />
         </div>
       </div>
 
@@ -395,6 +401,11 @@ const StudentProfile: React.FC = () => {
 
         {/* Lessons Tab */}
         <TabsContent value="lessons" className="mt-6 space-y-8">
+          {/* Lesson Summary Cards Grid - Mobile Only */}
+          <div className="grid lg:hidden grid-cols-2 gap-4 mb-6">
+            <SummaryCards />
+          </div>
+
           {/* View Toggle Buttons */}
           <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit mx-auto">
             <Button 
