@@ -245,7 +245,7 @@ const Students: React.FC = () => {
                 <div className="space-y-1">
                   <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
                   {student.total_prepaid_hours > 0 && (
-                    <div className="flex items-center text-xs font-bold text-primary">
+                    <div className="flex items-center text-xs font-bold text-green-600">
                       <Hourglass className="mr-1 h-3 w-3" />
                       {student.total_prepaid_hours.toFixed(1)} hrs remaining
                     </div>
