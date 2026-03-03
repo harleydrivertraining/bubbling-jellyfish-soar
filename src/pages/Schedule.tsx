@@ -25,7 +25,7 @@ interface CustomEventResource {
 }
 
 const Schedule: React.FC = () => {
-  const { user, isLoading: isSessionLoading } = useSession();
+  const { user, isLoading: isSessionLoading, initialBookings } = useSession();
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
@@ -49,6 +49,28 @@ const Schedule: React.FC = () => {
     }
   }, [isMobile, handleSetCurrentCalendarView]);
 
+  // Initialize events from preloaded data if available
+  useEffect(() => {
+    if (initialBookings && events.length === 0) {
+      const formatted = initialBookings.map(booking => ({
+        id: booking.id,
+        title: booking.students?.name || booking.title,
+        start: new Date(booking.start_time),
+        end: new Date(booking.end_time),
+        resource: {
+          student_id: booking.student_id,
+          description: booking.description,
+          status: booking.status,
+          lesson_type: booking.lesson_type,
+          is_paid: false, // Default for preload, will be updated by background fetch
+          is_covered: false
+        },
+      }));
+      setEvents(formatted);
+      setIsLoadingEvents(false);
+    }
+  }, [initialBookings, events.length]);
+
   const fetchBookings = useCallback(async (startDate: Date, endDate: Date, force = false) => {
     if (!user) {
       setIsLoadingEvents(false);
@@ -59,7 +81,7 @@ const Schedule: React.FC = () => {
     if (!force && rangeKey === lastFetchedRange.current) return;
     
     lastFetchedRange.current = rangeKey;
-    setIsLoadingEvents(true);
+    // We don't set isLoadingEvents(true) here to avoid the blocking UI
     setFetchError(null);
     
     try {
@@ -107,7 +129,6 @@ const Schedule: React.FC = () => {
         }
       } catch (secondaryError) {
         console.warn("Failed to fetch secondary schedule data (payments/balances):", secondaryError);
-        // We continue anyway so the user can at least see their lessons
       }
 
       // 3. Process and Validate Bookings
@@ -262,7 +283,7 @@ const Schedule: React.FC = () => {
     );
   }
 
-  if (fetchError) {
+  if (fetchError && events.length === 0) {
     return (
       <div className="flex flex-col space-y-6 h-full items-center justify-center p-6 text-center">
         <div className="bg-destructive/10 p-4 rounded-full mb-4">
@@ -286,15 +307,6 @@ const Schedule: React.FC = () => {
         </Button>
       </div>
       
-      {isLoadingEvents && (
-        <div className="absolute inset-0 z-50 bg-background/50 flex items-center justify-center backdrop-blur-[1px]">
-          <div className="bg-card p-4 rounded-lg shadow-lg border flex items-center gap-3">
-            <RefreshCcw className="h-5 w-5 animate-spin text-primary" />
-            <span className="font-bold">Updating schedule...</span>
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 min-h-[600px]">
         <CalendarComponent
           events={events}
