@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
@@ -61,6 +63,7 @@ const formSchema = z.object({
   }),
   start_time: z.date({ required_error: "Start time is required." }),
   end_time: z.date({ required_error: "End time is required." }),
+  is_paid: z.boolean().default(false),
 }).superRefine((data, ctx) => {
   if (data.lesson_type !== "Personal" && !data.student_id) {
     ctx.addIssue({
@@ -101,6 +104,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
       status: "scheduled",
       start_time: new Date(),
       end_time: new Date(),
+      is_paid: false,
     },
   });
 
@@ -160,6 +164,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           status: bookingData.status as "scheduled" | "completed" | "cancelled",
           start_time: startTime,
           end_time: endTime,
+          is_paid: bookingData.is_paid || false,
         });
       }
       setIsLoadingBooking(false);
@@ -191,6 +196,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         status: values.status,
         start_time: values.start_time.toISOString(),
         end_time: values.end_time.toISOString(),
+        is_paid: values.is_paid,
       })
       .eq("id", bookingId);
 
@@ -413,28 +419,48 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           />
         )}
 
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Booking Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Booking Status</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="is_paid"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                <div className="space-y-0.5">
+                  <FormLabel>Paid</FormLabel>
+                </div>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
                 </FormControl>
-                <SelectContent>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <div className="flex gap-2">
           <Button type="submit" className="flex-1">Update Booking</Button>
