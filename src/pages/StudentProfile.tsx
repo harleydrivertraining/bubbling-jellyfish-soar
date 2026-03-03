@@ -263,11 +263,8 @@ const StudentProfile: React.FC = () => {
       </div>
 
       {/* Header Summary */}
-      <div className="flex flex-col md:flex-row gap-6 items-start md:items-center bg-card p-6 rounded-xl border shadow-sm">
-        <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <User className="h-10 w-10 text-primary" />
-        </div>
-        <div className="flex-1 space-y-1">
+      <div className="bg-card p-6 rounded-xl border shadow-sm">
+        <div className="space-y-1">
           <h1 className="text-3xl font-black tracking-tight">{student.name}</h1>
           <div className="flex flex-wrap gap-2">
             <Badge variant={
