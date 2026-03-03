@@ -58,14 +58,14 @@ const Schedule: React.FC = () => {
       // 1. Fetch Bookings
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
-        .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, students(name)")
+        .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, is_paid, students(name)")
         .eq("user_id", user.id)
         .gte("start_time", startDate.toISOString())
         .lte("end_time", endDate.toISOString());
 
       if (bookingsError) throw bookingsError;
 
-      // 2. Fetch all transactions for these bookings to check "Paid" status
+      // 2. Fetch all transactions for these bookings to check "Paid" status via credit
       const bookingIds = bookings.map(b => b.id);
       const { data: transactions, error: transError } = await supabase
         .from("pre_paid_hours_transactions")
@@ -73,7 +73,7 @@ const Schedule: React.FC = () => {
         .in("booking_id", bookingIds);
 
       if (transError) throw transError;
-      const paidBookingIds = new Set(transactions.map(t => t.booking_id));
+      const paidViaCreditIds = new Set(transactions.map(t => t.booking_id));
 
       // 3. Fetch student balances to calculate "Covered" status
       const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
@@ -94,7 +94,8 @@ const Schedule: React.FC = () => {
       const coverageMap: Record<string, boolean> = {};
       
       sortedBookings.forEach(b => {
-        if (!b.student_id || paidBookingIds.has(b.id) || b.status === 'cancelled') {
+        const isAlreadyPaid = b.is_paid || paidViaCreditIds.has(b.id);
+        if (!b.student_id || isAlreadyPaid || b.status === 'cancelled') {
           coverageMap[b.id] = false;
           return;
         }
@@ -121,7 +122,7 @@ const Schedule: React.FC = () => {
           status: booking.status,
           lesson_type: booking.lesson_type,
           targets_for_next_session: booking.targets_for_next_session,
-          is_paid: paidBookingIds.has(booking.id),
+          is_paid: booking.is_paid || paidViaCreditIds.has(booking.id),
           is_covered: coverageMap[booking.id] || false
         },
       }));
@@ -158,38 +159,51 @@ const Schedule: React.FC = () => {
         .order("purchase_date", { ascending: true });
 
       if (pkgError) throw pkgError;
-      if (!packages || packages.length === 0) {
-        showError("No pre-paid hours available for this student.");
-        return;
+
+      if (packages && packages.length > 0) {
+        const pkg = packages[0];
+        if (pkg.remaining_hours >= duration) {
+          // 1. Update package
+          const { error: updateError } = await supabase
+            .from("pre_paid_hours")
+            .update({ remaining_hours: pkg.remaining_hours - duration })
+            .eq("id", pkg.id);
+
+          if (updateError) throw updateError;
+
+          // 2. Create transaction
+          const { error: transError } = await supabase
+            .from("pre_paid_hours_transactions")
+            .insert({
+              user_id: user.id,
+              pre_paid_hours_id: pkg.id,
+              booking_id: bookingId,
+              hours_deducted: duration
+            });
+
+          if (transError) throw transError;
+
+          showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
+        } else {
+          // Not enough credit in the oldest package, mark as manual paid
+          const { error } = await supabase
+            .from("bookings")
+            .update({ is_paid: true })
+            .eq("id", bookingId);
+          
+          if (error) throw error;
+          showSuccess("Lesson marked as paid (Manual).");
+        }
+      } else {
+        // No credit at all, mark as manual paid
+        const { error } = await supabase
+          .from("bookings")
+          .update({ is_paid: true })
+          .eq("id", bookingId);
+        
+        if (error) throw error;
+        showSuccess("Lesson marked as paid (Manual).");
       }
-
-      const pkg = packages[0];
-      if (pkg.remaining_hours < duration) {
-        showError(`Not enough hours in the oldest package (${pkg.remaining_hours.toFixed(1)}h left).`);
-        return;
-      }
-
-      // 1. Update package
-      const { error: updateError } = await supabase
-        .from("pre_paid_hours")
-        .update({ remaining_hours: pkg.remaining_hours - duration })
-        .eq("id", pkg.id);
-
-      if (updateError) throw updateError;
-
-      // 2. Create transaction
-      const { error: transError } = await supabase
-        .from("pre_paid_hours_transactions")
-        .insert({
-          user_id: user.id,
-          pre_paid_hours_id: pkg.id,
-          booking_id: bookingId,
-          hours_deducted: duration
-        });
-
-      if (transError) throw transError;
-
-      showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
       
       // Refresh
       const start = startOfMonth(currentCalendarDate);

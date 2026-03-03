@@ -73,7 +73,7 @@ interface Booking {
   lesson_type: string;
   status: string;
   is_paid?: boolean;
-  is_covered?: boolean; // New field for virtual payment status
+  is_covered?: boolean;
 }
 
 interface ProgressEntry {
@@ -120,13 +120,12 @@ const StudentProfile: React.FC = () => {
       const totalHours = hoursRes.data?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalPrepaidHours(totalHours);
       
-      const paidBookingIds = new Set(transactionsRes.data?.map(t => t.booking_id) || []);
+      const paidViaCreditIds = new Set(transactionsRes.data?.map(t => t.booking_id) || []);
       
       // Calculate coverage for upcoming lessons
       let runningCredit = totalHours;
       const now = new Date();
       
-      // Sort all bookings chronologically for coverage calculation
       const sortedAllBookings = [...(bookingsRes.data || [])].sort((a, b) => 
         parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime()
       );
@@ -135,9 +134,8 @@ const StudentProfile: React.FC = () => {
       sortedAllBookings.forEach(b => {
         const isFuture = isAfter(parseISO(b.start_time), now);
         const isScheduled = b.status === 'scheduled';
-        const isAlreadyPaid = paidBookingIds.has(b.id);
+        const isAlreadyPaid = b.is_paid || paidViaCreditIds.has(b.id);
 
-        // Only calculate coverage for scheduled future lessons that aren't already "hard" paid
         if (isFuture && isScheduled && !isAlreadyPaid) {
           const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
           if (runningCredit >= duration) {
@@ -151,13 +149,12 @@ const StudentProfile: React.FC = () => {
 
       const formattedBookings = (bookingsRes.data || []).map(b => ({
         ...b,
-        is_paid: paidBookingIds.has(b.id),
+        is_paid: b.is_paid || paidViaCreditIds.has(b.id),
         is_covered: coverageMap[b.id] || false
       }));
       
       setBookings(formattedBookings);
 
-      // Process progress: get latest entry for each topic
       const latestProgress: Record<string, ProgressEntry> = {};
       progressRes.data?.forEach(entry => {
         if (!latestProgress[entry.topic_id]) {
@@ -206,51 +203,65 @@ const StudentProfile: React.FC = () => {
 
     const duration = differenceInMinutes(new Date(booking.end_time), new Date(booking.start_time)) / 60;
 
-    // Find oldest package with enough hours
-    const { data: packages, error: pkgError } = await supabase
-      .from("pre_paid_hours")
-      .select("*")
-      .eq("student_id", studentId)
-      .gt("remaining_hours", 0)
-      .order("purchase_date", { ascending: true });
+    try {
+      // Find oldest package with enough hours
+      const { data: packages, error: pkgError } = await supabase
+        .from("pre_paid_hours")
+        .select("*")
+        .eq("student_id", studentId)
+        .gt("remaining_hours", 0)
+        .order("purchase_date", { ascending: true });
 
-    if (pkgError || !packages || packages.length === 0) {
-      showError("No pre-paid hours available for this student.");
-      return;
-    }
+      if (pkgError) throw pkgError;
 
-    const pkg = packages[0];
-    if (pkg.remaining_hours < duration) {
-      showError(`Not enough hours in the oldest package (${pkg.remaining_hours.toFixed(1)}h left).`);
-      return;
-    }
+      if (packages && packages.length > 0) {
+        const pkg = packages[0];
+        if (pkg.remaining_hours >= duration) {
+          // 1. Update package
+          const { error: updateError } = await supabase
+            .from("pre_paid_hours")
+            .update({ remaining_hours: pkg.remaining_hours - duration })
+            .eq("id", pkg.id);
 
-    // 1. Update package
-    const { error: updateError } = await supabase
-      .from("pre_paid_hours")
-      .update({ remaining_hours: pkg.remaining_hours - duration })
-      .eq("id", pkg.id);
+          if (updateError) throw updateError;
 
-    if (updateError) {
-      showError("Failed to update pre-paid hours.");
-      return;
-    }
+          // 2. Create transaction
+          const { error: transError } = await supabase
+            .from("pre_paid_hours_transactions")
+            .insert({
+              user_id: user.id,
+              pre_paid_hours_id: pkg.id,
+              booking_id: booking.id,
+              hours_deducted: duration
+            });
 
-    // 2. Create transaction
-    const { error: transError } = await supabase
-      .from("pre_paid_hours_transactions")
-      .insert({
-        user_id: user.id,
-        pre_paid_hours_id: pkg.id,
-        booking_id: booking.id,
-        hours_deducted: duration
-      });
+          if (transError) throw transError;
 
-    if (transError) {
-      showError("Failed to record payment transaction.");
-    } else {
-      showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
+          showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
+        } else {
+          // Not enough credit, mark directly
+          const { error } = await supabase
+            .from("bookings")
+            .update({ is_paid: true })
+            .eq("id", booking.id);
+          
+          if (error) throw error;
+          showSuccess("Lesson marked as paid (Manual).");
+        }
+      } else {
+        // No credit, mark directly
+        const { error } = await supabase
+          .from("bookings")
+          .update({ is_paid: true })
+          .eq("id", booking.id);
+        
+        if (error) throw error;
+        showSuccess("Lesson marked as paid (Manual).");
+      }
       fetchData();
+    } catch (error: any) {
+      console.error("Error marking as paid:", error);
+      showError("Failed to process payment: " + error.message);
     }
   };
 
@@ -343,9 +354,7 @@ const StudentProfile: React.FC = () => {
         </Button>
       </div>
 
-      {/* Header Summary Section */}
       <div className="grid gap-6 lg:grid-cols-3 items-stretch">
-        {/* Name and Status Card */}
         <div className="lg:col-span-1 bg-card p-6 rounded-xl border shadow-sm flex flex-col justify-center">
           <div className="space-y-2">
             <h1 className="text-3xl font-black tracking-tight">{student.name}</h1>
@@ -360,7 +369,6 @@ const StudentProfile: React.FC = () => {
               {student.is_past_student && <Badge variant="outline" className="bg-muted">Past Student</Badge>}
             </div>
             
-            {/* Mobile Credit Display */}
             <div className="lg:hidden pt-1">
               <div className={cn(
                 "flex items-center font-bold text-sm",
@@ -373,7 +381,6 @@ const StudentProfile: React.FC = () => {
           </div>
         </div>
 
-        {/* Lesson Summary Cards Grid - Desktop Only */}
         <div className="hidden lg:grid lg:col-span-2 grid-cols-2 md:grid-cols-4 gap-4">
           <SummaryCards />
         </div>
@@ -386,7 +393,6 @@ const StudentProfile: React.FC = () => {
           <TabsTrigger value="progress" className="font-bold">Progress</TabsTrigger>
         </TabsList>
 
-        {/* Summary Tab */}
         <TabsContent value="summary" className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
@@ -440,14 +446,11 @@ const StudentProfile: React.FC = () => {
           </div>
         </TabsContent>
 
-        {/* Lessons Tab */}
         <TabsContent value="lessons" className="mt-6 space-y-8">
-          {/* Lesson Summary Cards Grid - Mobile Only */}
           <div className="grid lg:hidden grid-cols-2 gap-4 mb-6">
             <SummaryCards />
           </div>
 
-          {/* View Toggle Buttons */}
           <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit mx-auto">
             <Button 
               variant={activeLessonView === 'future' ? 'default' : 'ghost'} 
@@ -482,7 +485,6 @@ const StudentProfile: React.FC = () => {
                       <Card key={booking.id} className="overflow-hidden border-l-4 border-l-blue-500">
                         <CardContent className="p-4">
                           <div className="flex items-center gap-4">
-                            {/* Duration "Image" Indicator */}
                             <div className="h-16 w-16 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0 border shadow-sm">
                               <span className="text-lg font-black leading-none">{duration.toFixed(1)}</span>
                               <span className="text-[10px] font-bold uppercase text-muted-foreground">Hours</span>
@@ -494,7 +496,6 @@ const StudentProfile: React.FC = () => {
                                 <Clock className="mr-1.5 h-3.5 w-3.5" /> {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
                               </p>
                               
-                              {/* Status Icons Row */}
                               <div className="flex flex-wrap items-center gap-2 pt-2">
                                 <div className="flex items-center gap-1.5 text-blue-600 border border-blue-200 bg-blue-50/50 px-2 py-0.5 rounded-full">
                                   <CalendarCheck className="h-3.5 w-3.5" />
@@ -505,7 +506,6 @@ const StudentProfile: React.FC = () => {
                                   <span className="text-[9px] font-bold uppercase tracking-tight">{booking.lesson_type}</span>
                                 </div>
                                 
-                                {/* Payment Status Badge */}
                                 {booking.is_paid ? (
                                   <div className="flex items-center gap-1.5 border border-green-200 bg-green-50/50 px-2 py-0.5 rounded-full text-green-600">
                                     <CheckCircle className="h-3.5 w-3.5" />
@@ -535,7 +535,6 @@ const StudentProfile: React.FC = () => {
                             </Button>
                           </div>
 
-                          {/* Expandable Actions */}
                           {isExpanded && (
                             <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-200">
                               <Button 
@@ -588,7 +587,6 @@ const StudentProfile: React.FC = () => {
           )}
         </TabsContent>
 
-        {/* Progress Tab */}
         <TabsContent value="progress" className="mt-6 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold flex items-center"><TrendingUp className="mr-2 h-5 w-5 text-primary" /> Proficiency Levels</h3>
@@ -629,7 +627,6 @@ const StudentProfile: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Floating Action Button */}
       <div className={cn(
         "fixed z-50",
         isMobile ? "bottom-28 right-6" : "bottom-10 right-10"
@@ -662,7 +659,6 @@ const StudentProfile: React.FC = () => {
         </DropdownMenu>
       </div>
 
-      {/* Dialogs */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
