@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, ChevronRight, Hourglass, CalendarDays, UserX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
-import EditStudentForm from "@/components/EditStudentForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter } from "date-fns";
+import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -23,6 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface Student {
   id: string;
@@ -38,11 +38,10 @@ interface Student {
 
 const Students: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
+  const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [showPastStudents, setShowPastStudents] = useState<string>("current");
@@ -112,9 +111,8 @@ const Students: React.FC = () => {
     }
   }, [user, isSessionLoading, fetchStudents]);
 
-  const handleEditStudentClick = (studentId: string) => {
-    setSelectedStudentForEdit(studentId);
-    setIsEditDialogOpen(true);
+  const handleViewProfile = (studentId: string) => {
+    navigate(`/students/${studentId}`);
   };
 
   const filteredStudents = useMemo(() => {
@@ -207,9 +205,9 @@ const Students: React.FC = () => {
         ) : (
           filteredStudents.map((student) => (
             <Card key={student.id} className={cn(
-              "overflow-hidden transition-all hover:shadow-md",
+              "overflow-hidden transition-all hover:shadow-md cursor-pointer",
               student.is_past_student && "opacity-70 bg-muted/30"
-            )}>
+            )} onClick={() => handleViewProfile(student.id)}>
               <div className="flex items-center justify-between p-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -249,7 +247,10 @@ const Students: React.FC = () => {
                   variant="ghost" 
                   size="icon" 
                   className="ml-4 rounded-full hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => handleEditStudentClick(student.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewProfile(student.id);
+                  }}
                 >
                   <ChevronRight className="h-5 w-5" />
                 </Button>
@@ -265,22 +266,6 @@ const Students: React.FC = () => {
             <DialogTitle>Add New Student</DialogTitle>
           </DialogHeader>
           <AddStudentForm onStudentAdded={() => { fetchStudents(); setIsAddDialogOpen(false); }} onClose={() => setIsAddDialogOpen(false)} />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Student Profile</DialogTitle>
-          </DialogHeader>
-          {selectedStudentForEdit && (
-            <EditStudentForm
-              studentId={selectedStudentForEdit}
-              onStudentUpdated={() => { fetchStudents(); setIsEditDialogOpen(false); }}
-              onStudentDeleted={() => { fetchStudents(); setIsEditDialogOpen(false); }}
-              onClose={() => setIsEditDialogOpen(false)}
-            />
-          )}
         </DialogContent>
       </Dialog>
     </div>
