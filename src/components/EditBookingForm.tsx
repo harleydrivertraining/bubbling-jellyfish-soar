@@ -262,7 +262,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           )}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-start">
           <FormField
             control={form.control}
             name="student_id"
@@ -327,11 +327,11 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
             name="lesson_length"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Lesson Length</FormLabel>
+                <FormLabel>Length</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select length" />
+                      <SelectValue placeholder="Select" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
