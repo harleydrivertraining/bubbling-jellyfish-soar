@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Phone, CalendarDays, GraduationCap, Edit, UserX } from "lucide-react";
+import { PlusCircle, Phone, CalendarDays, GraduationCap, Edit, UserX, Hourglass } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
 import EditStudentForm from "@/components/EditStudentForm";
@@ -34,6 +34,7 @@ interface Student {
   full_address?: string;
   notes?: string;
   is_past_student: boolean;
+  total_prepaid_hours: number;
 }
 
 const Students: React.FC = () => {
@@ -54,9 +55,13 @@ const Students: React.FC = () => {
     }
 
     setIsLoading(true);
+    // Fetch students and their pre-paid hours in one go
     const { data, error } = await supabase
       .from("students")
-      .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, is_past_student")
+      .select(`
+        id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, is_past_student,
+        pre_paid_hours(remaining_hours)
+      `)
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
@@ -65,7 +70,15 @@ const Students: React.FC = () => {
       showError("Failed to load students: " + error.message);
       setStudents([]);
     } else {
-      setStudents(data || []);
+      // Calculate total pre-paid hours for each student
+      const formattedStudents: Student[] = (data || []).map((student: any) => ({
+        ...student,
+        total_prepaid_hours: student.pre_paid_hours?.reduce(
+          (sum: number, pkg: any) => sum + (pkg.remaining_hours || 0), 
+          0
+        ) || 0
+      }));
+      setStudents(formattedStudents);
     }
     setIsLoading(false);
   }, [user]);
@@ -220,8 +233,16 @@ const Students: React.FC = () => {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStudents.map((student) => (
             <Card key={student.id} className={cn("flex flex-col", student.is_past_student && "opacity-70 border-dashed")}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                <div className="space-y-1">
+                  <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
+                  {student.total_prepaid_hours > 0 && (
+                    <div className="flex items-center text-xs font-bold text-primary">
+                      <Hourglass className="mr-1 h-3 w-3" />
+                      {student.total_prepaid_hours.toFixed(1)} hrs remaining
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   {student.is_past_student && (
                     <Badge variant="outline" className="bg-muted text-muted-foreground">
