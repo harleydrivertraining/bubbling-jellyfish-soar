@@ -124,6 +124,7 @@ const Dashboard: React.FC = () => {
       .select("start_time, end_time")
       .eq("user_id", user.id)
       .in("status", ["scheduled", "completed"])
+      .neq("lesson_type", "Personal") // Exclude Personal appointments
       .gte("start_time", weekStartDate.toISOString())
       .lte("end_time", weekEndDate.toISOString());
 
@@ -203,7 +204,15 @@ const Dashboard: React.FC = () => {
         else if (revenueTimeframe === "weekly") { startDate = startOfWeek(now, { weekStartsOn: 1 }); endDate = endOfWeek(now, { weekStartsOn: 1 }); }
         else { startDate = startOfMonth(now); endDate = endOfMonth(now); }
 
-        const { data: revData } = await supabase.from("bookings").select("start_time, end_time").eq("user_id", user.id).eq("status", "completed").gte("start_time", startDate.toISOString()).lte("end_time", endDate.toISOString());
+        const { data: revData } = await supabase
+          .from("bookings")
+          .select("start_time, end_time")
+          .eq("user_id", user.id)
+          .eq("status", "completed")
+          .neq("lesson_type", "Personal") // Exclude Personal from revenue
+          .gte("start_time", startDate.toISOString())
+          .lte("end_time", endDate.toISOString());
+          
         let totalMins = 0;
         revData?.forEach(b => totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)));
         setCurrentRevenue((totalMins / 60) * hourlyRate);
