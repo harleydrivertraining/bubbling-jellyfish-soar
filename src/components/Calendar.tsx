@@ -124,57 +124,15 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     setMaxTime(max);
   }, [events, currentDate, currentView]);
 
-  const handleNavigate = useCallback((newDate: Date, view: string) => {
+  const handleNavigate = useCallback((newDate: Date) => {
     setCurrentDate(newDate);
-    let fetchStartDate: Date;
-    let fetchEndDate: Date;
-
-    switch (view) {
-      case 'month':
-        fetchStartDate = startOfMonth(newDate);
-        fetchEndDate = endOfMonth(newDate);
-        break;
-      case 'week':
-        fetchStartDate = startOfWeek(newDate, { weekStartsOn: 1 });
-        fetchEndDate = endOfWeek(newDate, { weekStartsOn: 1 });
-        break;
-      case 'day':
-        fetchStartDate = startOfDay(newDate);
-        fetchEndDate = endOfDay(newDate);
-        break;
-      default:
-        fetchStartDate = startOfMonth(newDate);
-        fetchEndDate = endOfMonth(addMonths(newDate, 2));
-        break;
-    }
-    onEventsRefetch(fetchStartDate, fetchEndDate);
-  }, [setCurrentDate, onEventsRefetch]);
+    // Removed redundant onEventsRefetch call here as the parent's useEffect watches currentDate
+  }, [setCurrentDate]);
 
   const handleView = useCallback((newView: string) => {
     setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda');
-    let fetchStartDate: Date;
-    let fetchEndDate: Date;
-
-    switch (newView) {
-      case 'month':
-        fetchStartDate = startOfMonth(currentDate);
-        fetchEndDate = endOfMonth(currentDate);
-        break;
-      case 'week':
-        fetchStartDate = startOfWeek(currentDate, { weekStartsOn: 1 });
-        fetchEndDate = endOfWeek(currentDate, { weekStartsOn: 1 });
-        break;
-      case 'day':
-        fetchStartDate = startOfDay(currentDate);
-        fetchEndDate = endOfDay(currentDate);
-        break;
-      default:
-        fetchStartDate = startOfMonth(currentDate);
-        fetchEndDate = endOfMonth(addMonths(currentDate, 2));
-        break;
-    }
-    onEventsRefetch(fetchStartDate, fetchEndDate);
-  }, [setCurrentView, currentDate, onEventsRefetch]);
+    // Removed redundant onEventsRefetch call here
+  }, [setCurrentView]);
 
   const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
     onSelectSlot(start, end);

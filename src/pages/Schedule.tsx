@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import CalendarComponent from "@/components/Calendar";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, RefreshCcw, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
-import { addMinutes, startOfMonth, endOfMonth, addMonths, differenceInMinutes, parseISO } from "date-fns";
+import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -34,6 +34,8 @@ const Schedule: React.FC = () => {
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [currentCalendarView, _setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
+  
+  const lastFetchedRange = useRef<string>("");
 
   const isMobile = useIsMobile();
 
@@ -47,17 +49,20 @@ const Schedule: React.FC = () => {
     }
   }, [isMobile, handleSetCurrentCalendarView]);
 
-  const fetchBookings = useCallback(async (startDate: Date, endDate: Date) => {
+  const fetchBookings = useCallback(async (startDate: Date, endDate: Date, force = false) => {
     if (!user) {
       setIsLoadingEvents(false);
       return;
     }
 
+    const rangeKey = `${startDate.toISOString()}-${endDate.toISOString()}`;
+    if (!force && rangeKey === lastFetchedRange.current) return;
+    
+    lastFetchedRange.current = rangeKey;
     setIsLoadingEvents(true);
     setFetchError(null);
     
     try {
-      // 1. Fetch Bookings
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, is_paid, students(name)")
@@ -73,7 +78,6 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      // 2. Fetch all transactions for these bookings to check "Paid" status via credit
       const bookingIds = bookings.map(b => b.id);
       const { data: transactions, error: transError } = await supabase
         .from("pre_paid_hours_transactions")
@@ -83,7 +87,6 @@ const Schedule: React.FC = () => {
       if (transError) throw transError;
       const paidViaCreditIds = new Set(transactions?.map(t => t.booking_id) || []);
 
-      // 3. Fetch student balances to calculate "Covered" status
       const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
       
       let studentBalances: Record<string, number> = {};
@@ -94,13 +97,11 @@ const Schedule: React.FC = () => {
           .in("student_id", studentIds);
 
         if (hoursError) throw hoursError;
-
         hours?.forEach(h => {
           studentBalances[h.student_id] = (studentBalances[h.student_id] || 0) + h.remaining_hours;
         });
       }
 
-      // 4. Calculate coverage chronologically per student
       const sortedBookings = [...bookings].sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime());
       const coverageMap: Record<string, boolean> = {};
       
@@ -153,15 +154,15 @@ const Schedule: React.FC = () => {
     }
   }, [user]);
 
-  const handleRetry = () => {
-    const start = startOfMonth(currentCalendarDate);
+  const handleRetry = useCallback(() => {
+    const start = startOfMonth(subMonths(currentCalendarDate, 1));
     const end = endOfMonth(addMonths(currentCalendarDate, 2));
-    fetchBookings(start, end);
-  };
+    fetchBookings(start, end, true);
+  }, [currentCalendarDate, fetchBookings]);
 
   useEffect(() => {
     if (!isSessionLoading && user) {
-      const start = startOfMonth(currentCalendarDate);
+      const start = startOfMonth(subMonths(currentCalendarDate, 1));
       const end = endOfMonth(addMonths(currentCalendarDate, 2));
       fetchBookings(start, end);
     }
@@ -169,11 +170,9 @@ const Schedule: React.FC = () => {
 
   const handleMarkAsPaid = async (bookingId: string, studentId: string, startTime: string, endTime: string) => {
     if (!user || !studentId) return;
-
     const duration = differenceInMinutes(new Date(endTime), new Date(startTime)) / 60;
 
     try {
-      // Find oldest package with enough hours
       const { data: packages, error: pkgError } = await supabase
         .from("pre_paid_hours")
         .select("*")
@@ -186,46 +185,22 @@ const Schedule: React.FC = () => {
       if (packages && packages.length > 0) {
         const pkg = packages[0];
         if (pkg.remaining_hours >= duration) {
-          // 1. Update package
-          const { error: updateError } = await supabase
-            .from("pre_paid_hours")
-            .update({ remaining_hours: pkg.remaining_hours - duration })
-            .eq("id", pkg.id);
-
-          if (updateError) throw updateError;
-
-          // 2. Create transaction
-          const { error: transError } = await supabase
-            .from("pre_paid_hours_transactions")
-            .insert({
-              user_id: user.id,
-              pre_paid_hours_id: pkg.id,
-              booking_id: bookingId,
-              hours_deducted: duration
-            });
-
-          if (transError) throw transError;
-
+          await supabase.from("pre_paid_hours").update({ remaining_hours: pkg.remaining_hours - duration }).eq("id", pkg.id);
+          await supabase.from("pre_paid_hours_transactions").insert({
+            user_id: user.id,
+            pre_paid_hours_id: pkg.id,
+            booking_id: bookingId,
+            hours_deducted: duration
+          });
           showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
         } else {
-          const { error } = await supabase
-            .from("bookings")
-            .update({ is_paid: true })
-            .eq("id", bookingId);
-          
-          if (error) throw error;
+          await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
           showSuccess("Lesson marked as paid (Manual).");
         }
       } else {
-        const { error } = await supabase
-          .from("bookings")
-          .update({ is_paid: true })
-          .eq("id", bookingId);
-        
-        if (error) throw error;
+        await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
         showSuccess("Lesson marked as paid (Manual).");
       }
-      
       handleRetry();
     } catch (error: any) {
       console.error("Error marking as paid:", error);
@@ -242,7 +217,7 @@ const Schedule: React.FC = () => {
     handleRetry();
     setIsAddBookingDialogOpen(false);
     setSelectedSlot(null);
-  }, [currentCalendarDate]);
+  }, [handleRetry]);
 
   const handleCloseAddBookingDialog = useCallback(() => {
     setIsAddBookingDialogOpen(false);
@@ -255,7 +230,6 @@ const Schedule: React.FC = () => {
     const roundedMinutes = Math.ceil(minutes / 15) * 15;
     const defaultStartTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMinutes, 0);
     const defaultEndTime = addMinutes(defaultStartTime, 60);
-
     handleOpenAddBookingDialog(defaultStartTime, defaultEndTime);
   };
 
