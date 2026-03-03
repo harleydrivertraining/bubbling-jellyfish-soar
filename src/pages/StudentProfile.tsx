@@ -329,6 +329,17 @@ const StudentProfile: React.FC = () => {
               </Badge>
               {student.is_past_student && <Badge variant="outline" className="bg-muted">Past Student</Badge>}
             </div>
+            
+            {/* Mobile Credit Display */}
+            <div className="lg:hidden pt-1">
+              <div className={cn(
+                "flex items-center font-bold text-sm",
+                totalPrepaidHours > 0 ? "text-green-600" : "text-destructive"
+              )}>
+                <Hourglass className="mr-1.5 h-3.5 w-3.5" />
+                {totalPrepaidHours.toFixed(1)} hrs credit
+              </div>
+            </div>
           </div>
         </div>
 
