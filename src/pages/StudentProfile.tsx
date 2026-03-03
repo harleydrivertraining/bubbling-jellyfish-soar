@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,15 @@ import {
   CheckCircle2,
   History,
   TrendingUp,
-  Star
+  Star,
+  XCircle,
+  CalendarCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, parseISO } from "date-fns";
+import { format, isAfter, parseISO, differenceInMinutes } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EditStudentForm from "@/components/EditStudentForm";
@@ -79,12 +81,11 @@ const StudentProfile: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const [studentRes, hoursRes, bookingsRes, progressRes, topicsRes] = await Promise.all([
+      const [studentRes, hoursRes, bookingsRes, progressRes] = await Promise.all([
         supabase.from("students").select("*").eq("id", studentId).single(),
         supabase.from("pre_paid_hours").select("remaining_hours").eq("student_id", studentId),
         supabase.from("bookings").select("*").eq("student_id", studentId).order("start_time", { ascending: false }),
-        supabase.from("student_progress_entries").select("*, progress_topics(name)").eq("student_id", studentId).order("entry_date", { ascending: false }),
-        supabase.from("progress_topics").select("*").eq("user_id", user.id)
+        supabase.from("student_progress_entries").select("*, progress_topics(name)").eq("student_id", studentId).order("entry_date", { ascending: false })
       ]);
 
       if (studentRes.error) throw studentRes.error;
@@ -124,6 +125,26 @@ const StudentProfile: React.FC = () => {
       fetchData();
     }
   }, [isSessionLoading, fetchData]);
+
+  const lessonStats = useMemo(() => {
+    const now = new Date();
+    let delivered = 0;
+    let cancelled = 0;
+    let booked = 0;
+
+    bookings.forEach(b => {
+      const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
+      if (b.status === 'completed') {
+        delivered += duration;
+      } else if (b.status === 'cancelled') {
+        cancelled += duration;
+      } else if (b.status === 'scheduled' && isAfter(parseISO(b.start_time), now)) {
+        booked += duration;
+      }
+    });
+
+    return { delivered, cancelled, booked };
+  }, [bookings]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -242,6 +263,38 @@ const StudentProfile: React.FC = () => {
 
         {/* Lessons Tab */}
         <TabsContent value="lessons" className="mt-6 space-y-8">
+          {/* Lesson Summary Section */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-green-50 border-green-100">
+              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <CheckCircle2 className="h-5 w-5 text-green-600 mb-1" />
+                <p className="text-[10px] font-bold uppercase text-green-700">Delivered</p>
+                <p className="text-2xl font-black text-green-900">{lessonStats.delivered.toFixed(1)}h</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50 border-blue-100">
+              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <CalendarCheck className="h-5 w-5 text-blue-600 mb-1" />
+                <p className="text-[10px] font-bold uppercase text-blue-700">Booked</p>
+                <p className="text-2xl font-black text-blue-900">{lessonStats.booked.toFixed(1)}h</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-orange-50 border-orange-100">
+              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <XCircle className="h-5 w-5 text-orange-600 mb-1" />
+                <p className="text-[10px] font-bold uppercase text-orange-700">Cancelled</p>
+                <p className="text-2xl font-black text-orange-900">{lessonStats.cancelled.toFixed(1)}h</p>
+              </CardContent>
+            </Card>
+            <Card className={cn("border-l-4", totalPrepaidHours > 0 ? "bg-primary/5 border-l-primary" : "bg-destructive/5 border-l-destructive")}>
+              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <Hourglass className={cn("h-5 w-5 mb-1", totalPrepaidHours > 0 ? "text-primary" : "text-destructive")} />
+                <p className="text-[10px] font-bold uppercase text-muted-foreground">Credit Left</p>
+                <p className={cn("text-2xl font-black", totalPrepaidHours > 0 ? "text-primary" : "text-destructive")}>{totalPrepaidHours.toFixed(1)}h</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="space-y-4">
             <h3 className="text-xl font-bold flex items-center"><Clock className="mr-2 h-5 w-5 text-blue-600" /> Upcoming Lessons</h3>
             {upcomingBookings.length === 0 ? (
