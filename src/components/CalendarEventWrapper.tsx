@@ -65,7 +65,8 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
         "bg-green-600/80": isCompleted,
         "bg-red-600/80": isCancelled,
         "bg-purple-600/80": isDrivingTest && !isCompleted && !isCancelled,
-        "bg-orange-600/80": (isPersonal || (isDrivingLesson && duration >= 80 && duration <= 100)) && !isCompleted && !isCancelled,
+        "bg-yellow-400/80": isPersonal && !isCompleted && !isCancelled,
+        "bg-orange-600/80": (isDrivingLesson && duration >= 80 && duration <= 100) && !isCompleted && !isCancelled,
         "bg-sky-500/80": isDrivingLesson && duration >= 110 && !isCompleted && !isCancelled,
       }
     )}>

@@ -14,8 +14,9 @@ const CalendarLegend = () => {
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-2 p-4 bg-card border rounded-lg shadow-sm mt-4">
       <LegendItem colorClass="bg-primary" label="1h Lesson" />
-      <LegendItem colorClass="bg-orange-600/80" label="1.5h Lesson / Personal" />
+      <LegendItem colorClass="bg-orange-600/80" label="1.5h Lesson" />
       <LegendItem colorClass="bg-sky-500/80" label="2h Lesson" />
+      <LegendItem colorClass="bg-yellow-400/80" label="Personal" />
       <LegendItem colorClass="bg-purple-600/80" label="Driving Test" />
       <LegendItem colorClass="bg-green-600/80" label="Completed" />
       <LegendItem colorClass="bg-red-600/80" label="Cancelled" />

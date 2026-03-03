@@ -116,3 +116,8 @@
 .bg-sky-500\/80 {
   background-color: rgba(14, 165, 233, 0.8);
 }
+
+/* Custom color for yellow with 80% opacity */
+.bg-yellow-400\/80 {
+  background-color: rgba(250, 204, 21, 0.8);
+}
