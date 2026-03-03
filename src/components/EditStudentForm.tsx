@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -29,23 +29,21 @@ import { showSuccess, showError } from "@/utils/toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, XCircle } from "lucide-react";
-import { Switch } from "@/components/ui/switch"; // Import Switch
+import { Switch } from "@/components/ui/switch";
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
   if (!dobString) return null;
 
-  // Parse DD/MM/YYYY string
   const parts = dobString.split('/');
-  if (parts.length !== 3) return null; // Invalid format
+  if (parts.length !== 3) return null;
 
   const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+  const month = parseInt(parts[1], 10) - 1;
   const year = parseInt(parts[2], 10);
 
   const dob = new Date(year, month, day);
-
-  if (isNaN(dob.getTime())) return null; // Invalid date
+  if (isNaN(dob.getTime())) return null;
 
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
@@ -64,8 +62,8 @@ const formSchema = z.object({
     .optional()
     .nullable()
     .refine((val) => {
-      if (!val) return true; // Allow null or empty string
-      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/; // DD/MM/YYYY format
+      if (!val) return true;
+      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
       if (!dateRegex.test(val)) return false;
 
       const parts = val.split('/');
@@ -73,7 +71,6 @@ const formSchema = z.object({
       const month = parseInt(parts[1], 10);
       const year = parseInt(parts[2], 10);
 
-      // Basic date validity check
       if (month < 1 || month > 12 || day < 1 || day > 31) return false;
       const date = new Date(year, month - 1, day);
       return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
@@ -87,9 +84,9 @@ const formSchema = z.object({
   status: z.enum(["Beginner", "Intermediate", "Advanced"], {
     message: "Please select a valid status.",
   }),
-  document: typeof window === 'undefined' ? z.any().optional().nullable() : z.instanceof(FileList).optional().nullable(),
-  existing_document_url: z.string().url().optional().nullable(), // To display existing document
-  is_past_student: z.boolean().optional(), // New field
+  document: z.any().optional().nullable(),
+  existing_document_url: z.string().url().optional().nullable(),
+  is_past_student: z.boolean().optional(),
 });
 
 interface EditStudentFormProps {
@@ -113,10 +110,10 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       phone_number: "",
       full_address: "",
       notes: "",
-      status: "Beginner", // Default to a valid enum value
+      status: "Beginner",
       document: null,
       existing_document_url: null,
-      is_past_student: false, // Default for new field
+      is_past_student: false,
     },
   });
 
@@ -126,7 +123,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       setIsLoadingStudent(true);
       const { data, error } = await supabase
         .from("students")
-        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, document_url, is_past_student") // Fetch new field
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, document_url, is_past_student")
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -136,13 +133,11 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         showError("Failed to load student details: " + error.message);
         onClose();
       } else if (data) {
-        // Ensure status is one of the valid enum values, fallback if not
         const validStatuses = ["Beginner", "Intermediate", "Advanced"];
-        const studentStatus = validStatuses.includes(data.status as "Beginner" | "Intermediate" | "Advanced")
+        const studentStatus = validStatuses.includes(data.status as string)
           ? data.status as "Beginner" | "Intermediate" | "Advanced"
-          : "Beginner"; // Fallback to 'Beginner' if status is invalid
+          : "Beginner";
 
-        // Convert YYYY-MM-DD from database to DD/MM/YYYY for display
         const formattedDobForDisplay = data.date_of_birth
           ? `${data.date_of_birth.split('-')[2]}/${data.date_of_birth.split('-')[1]}/${data.date_of_birth.split('-')[0]}`
           : "";
@@ -154,10 +149,10 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           phone_number: data.phone_number || "",
           full_address: data.full_address || "",
           notes: data.notes || "",
-          status: studentStatus, // Use the validated status
-          document: null, // File input should always be reset
+          status: studentStatus,
+          document: null,
           existing_document_url: data.document_url,
-          is_past_student: data.is_past_student, // Set new field
+          is_past_student: data.is_past_student,
         });
         setCurrentDocumentUrl(data.document_url);
       }
@@ -174,7 +169,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
     }
     if (!currentDocumentUrl) return;
 
-    // Attempt to delete from storage if it's a Supabase storage URL
     if (currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
       const urlParts = currentDocumentUrl.split('/public/1/');
       if (urlParts.length < 2) {
@@ -194,7 +188,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       }
     }
 
-    // Update student record in DB to null
     const { error: updateError } = await supabase
       .from('students')
       .update({ document_url: null })
@@ -206,7 +199,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       showError("Failed to remove document URL from database: " + updateError.message);
     } else {
       showSuccess("Document removed successfully!");
-      setCurrentDocumentUrl(null); // Clear local state
+      setCurrentDocumentUrl(null);
       form.setValue("existing_document_url", null);
       onStudentUpdated();
     }
@@ -218,7 +211,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       return;
     }
 
-    let documentUrl: string | null = currentDocumentUrl; // Start with existing URL
+    let documentUrl: string | null = currentDocumentUrl;
 
     if (values.document && values.document.length > 0) {
       const file = values.document[0];
@@ -226,7 +219,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `students/${user.id}/${fileName}`;
 
-      // If there was an old document, delete it first
       if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
         const oldFilePath = currentDocumentUrl.split('/public/1/')[1];
         await supabase.storage.from('1').remove([oldFilePath]);
@@ -249,7 +241,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       documentUrl = publicUrlData.publicUrl;
     }
 
-    // Convert DD/MM/YYYY to YYYY-MM-DD for database storage
     const formattedDobForSupabase = values.date_of_birth
       ? `${values.date_of_birth.split('/')[2]}-${values.date_of_birth.split('/')[1]}-${values.date_of_birth.split('/')[0]}`
       : null;
@@ -265,7 +256,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         notes: values.notes,
         status: values.status,
         document_url: documentUrl,
-        is_past_student: values.is_past_student, // Update new field
+        is_past_student: values.is_past_student,
       })
       .eq("id", studentId)
       .eq("user_id", user.id);
@@ -285,7 +276,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       return;
     }
 
-    // Optionally delete document from storage before deleting student record
     if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
       const filePath = currentDocumentUrl.split('/public/1/')[1];
       const { error: deleteFileError } = await supabase.storage
@@ -322,7 +312,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" /> {/* Added for new field */}
+        <Skeleton className="h-10 w-full" />
       </div>
     );
   }

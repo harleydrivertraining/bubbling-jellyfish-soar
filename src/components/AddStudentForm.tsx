@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -30,17 +30,15 @@ import { showSuccess, showError } from "@/utils/toast";
 const calculateAge = (dobString: string | null | undefined): number | null => {
   if (!dobString) return null;
 
-  // Parse DD/MM/YYYY string
   const parts = dobString.split('/');
-  if (parts.length !== 3) return null; // Invalid format
+  if (parts.length !== 3) return null;
 
   const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+  const month = parseInt(parts[1], 10) - 1;
   const year = parseInt(parts[2], 10);
 
   const dob = new Date(year, month, day);
-
-  if (isNaN(dob.getTime())) return null; // Invalid date
+  if (isNaN(dob.getTime())) return null;
 
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
@@ -59,8 +57,8 @@ const formSchema = z.object({
     .optional()
     .nullable()
     .refine((val) => {
-      if (!val) return true; // Allow null or empty string
-      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/; // DD/MM/YYYY format
+      if (!val) return true;
+      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
       if (!dateRegex.test(val)) return false;
 
       const parts = val.split('/');
@@ -68,7 +66,6 @@ const formSchema = z.object({
       const month = parseInt(parts[1], 10);
       const year = parseInt(parts[2], 10);
 
-      // Basic date validity check
       if (month < 1 || month > 12 || day < 1 || day > 31) return false;
       const date = new Date(year, month - 1, day);
       return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
@@ -82,7 +79,7 @@ const formSchema = z.object({
   status: z.enum(["Beginner", "Intermediate", "Advanced"], {
     message: "Please select a valid status.",
   }),
-  document: typeof window === 'undefined' ? z.any().optional().nullable() : z.instanceof(FileList).optional().nullable(),
+  document: z.any().optional().nullable(),
 });
 
 interface AddStudentFormProps {
@@ -118,7 +115,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       const file = values.document[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `students/${user.id}/${fileName}`; // Store in user-specific folder within bucket '1'
+      const filePath = `students/${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('1')
@@ -137,12 +134,11 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       documentUrl = publicUrlData.publicUrl;
     }
 
-    // Convert DD/MM/YYYY to YYYY-MM-DD for database storage
     const formattedDobForSupabase = values.date_of_birth
       ? `${values.date_of_birth.split('/')[2]}-${values.date_of_birth.split('/')[1]}-${values.date_of_birth.split('/')[0]}`
       : null;
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("students")
       .insert({
         user_id: user.id,
@@ -266,7 +262,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
           name="status"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Status</Label>
+              <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
