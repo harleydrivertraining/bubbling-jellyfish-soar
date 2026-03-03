@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
+import OwnerDashboard from "./OwnerDashboard";
 
 interface Booking {
   id: string;
@@ -56,6 +57,7 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [instructorName, setInstructorName] = useState<string | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
@@ -160,7 +162,7 @@ const Dashboard: React.FC = () => {
         carsRes,
         prePaidHoursRes
       ] = await Promise.all([
-        supabase.from("profiles").select("first_name, last_name, hourly_rate").eq("id", user.id).single(),
+        supabase.from("profiles").select("first_name, last_name, hourly_rate, role").eq("id", user.id).single(),
         supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("bookings").select("id, title, description, start_time, end_time, status, lesson_type, students(name)").eq("user_id", user.id).eq("status", "scheduled").gte("start_time", now.toISOString()).order("start_time", { ascending: true }),
         supabase.from("driving_tests").select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)").eq("user_id", user.id).order("test_date", { ascending: false }),
@@ -171,6 +173,13 @@ const Dashboard: React.FC = () => {
       if (profileRes.data) {
         setInstructorName(`${profileRes.data.first_name || ""} ${profileRes.data.last_name || ""}`.trim());
         setCurrentHourlyRate(profileRes.data.hourly_rate);
+        setUserRole(profileRes.data.role);
+      }
+
+      // If owner, we stop here and let OwnerDashboard handle its own data
+      if (profileRes.data?.role === 'owner') {
+        setIsLoadingDashboard(false);
+        return;
       }
 
       setTotalStudents(studentsCountRes.count);
@@ -268,8 +277,8 @@ const Dashboard: React.FC = () => {
   }, [isSessionLoading, fetchDashboardData]);
 
   useEffect(() => {
-    if (!isSessionLoading && user) fetchBookedHoursForWeek(selectedWeekStartISO);
-  }, [isSessionLoading, user, selectedWeekStartISO, fetchBookedHoursForWeek]);
+    if (!isSessionLoading && user && userRole !== 'owner') fetchBookedHoursForWeek(selectedWeekStartISO);
+  }, [isSessionLoading, user, userRole, selectedWeekStartISO, fetchBookedHoursForWeek]);
 
   const generateWeekOptions = useMemo(() => {
     const options = [];
@@ -602,6 +611,11 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  // Render Owner Dashboard if user is an owner
+  if (userRole === 'owner') {
+    return <OwnerDashboard />;
   }
 
   return (
