@@ -55,29 +55,37 @@ const Students: React.FC = () => {
     }
 
     setIsLoading(true);
-    // Fetch students and their pre-paid hours in one go
-    const { data, error } = await supabase
-      .from("students")
-      .select(`
-        id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, is_past_student,
-        pre_paid_hours(remaining_hours)
-      `)
-      .eq("user_id", user.id)
-      .order("name", { ascending: true });
+    
+    // Fetch students and pre-paid hours separately to ensure reliable merging
+    const [studentsRes, hoursRes] = await Promise.all([
+      supabase
+        .from("students")
+        .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, is_past_student")
+        .eq("user_id", user.id)
+        .order("name", { ascending: true }),
+      supabase
+        .from("pre_paid_hours")
+        .select("student_id, remaining_hours")
+        .eq("user_id", user.id)
+    ]);
 
-    if (error) {
-      console.error("Error fetching students:", error);
-      showError("Failed to load students: " + error.message);
+    if (studentsRes.error) {
+      console.error("Error fetching students:", studentsRes.error);
+      showError("Failed to load students: " + studentsRes.error.message);
       setStudents([]);
     } else {
-      // Calculate total pre-paid hours for each student
-      const formattedStudents: Student[] = (data || []).map((student: any) => ({
+      // Create a map of student_id to total remaining hours
+      const hoursMap: Record<string, number> = {};
+      hoursRes.data?.forEach(pkg => {
+        hoursMap[pkg.student_id] = (hoursMap[pkg.student_id] || 0) + (pkg.remaining_hours || 0);
+      });
+
+      // Merge hours into student data
+      const formattedStudents: Student[] = (studentsRes.data || []).map((student: any) => ({
         ...student,
-        total_prepaid_hours: student.pre_paid_hours?.reduce(
-          (sum: number, pkg: any) => sum + (pkg.remaining_hours || 0), 
-          0
-        ) || 0
+        total_prepaid_hours: hoursMap[student.id] || 0
       }));
+      
       setStudents(formattedStudents);
     }
     setIsLoading(false);
