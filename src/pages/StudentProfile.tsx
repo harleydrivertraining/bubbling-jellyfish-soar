@@ -260,6 +260,14 @@ const StudentProfile: React.FC = () => {
 
           if (transError) throw transError;
 
+          // 3. Mark booking as paid in the bookings table to prevent double deduction
+          const { error: bookingUpdateError } = await supabase
+            .from("bookings")
+            .update({ is_paid: true })
+            .eq("id", booking.id);
+
+          if (bookingUpdateError) throw bookingUpdateError;
+
           showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
         } else {
           // Not enough credit, mark directly
