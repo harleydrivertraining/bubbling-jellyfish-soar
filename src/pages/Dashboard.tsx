@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, ShieldCheck, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -43,9 +43,16 @@ interface DrivingTestStats {
   examinerActionPercentage: number;
 }
 
+interface AdminStats {
+  totalInstructors: number;
+  openSupportTickets: number;
+  totalGlobalStudents: number;
+}
+
 type RevenueTimeframe = "daily" | "weekly" | "monthly";
 
 const DEFAULT_WIDGETS: DashboardWidget[] = [
+  { id: "admin_overview", label: "Admin Overview (Owners Only)", visible: true },
   { id: "quick_stats", label: "Quick Stats Row", visible: true },
   { id: "upcoming_lessons", label: "Upcoming Lessons List", visible: true },
   { id: "test_stats", label: "Test Performance (12m)", visible: true },
@@ -57,10 +64,12 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [instructorName, setInstructorName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
   const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null);
   const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
   const [nextDrivingTestBookings, setNextDrivingTestBookings] = useState<Booking[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
@@ -124,7 +133,7 @@ const Dashboard: React.FC = () => {
       .select("start_time, end_time")
       .eq("user_id", user.id)
       .in("status", ["scheduled", "completed"])
-      .neq("lesson_type", "Personal") // Exclude Personal appointments
+      .neq("lesson_type", "Personal")
       .gte("start_time", weekStartDate.toISOString())
       .lte("end_time", weekEndDate.toISOString());
 
@@ -160,7 +169,7 @@ const Dashboard: React.FC = () => {
         carsRes,
         prePaidHoursRes
       ] = await Promise.all([
-        supabase.from("profiles").select("first_name, last_name, hourly_rate").eq("id", user.id).single(),
+        supabase.from("profiles").select("first_name, last_name, hourly_rate, role").eq("id", user.id).single(),
         supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("bookings").select("id, title, description, start_time, end_time, status, lesson_type, students(name)").eq("user_id", user.id).eq("status", "scheduled").gte("start_time", now.toISOString()).order("start_time", { ascending: true }),
         supabase.from("driving_tests").select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)").eq("user_id", user.id).order("test_date", { ascending: false }),
@@ -171,6 +180,20 @@ const Dashboard: React.FC = () => {
       if (profileRes.data) {
         setInstructorName(`${profileRes.data.first_name || ""} ${profileRes.data.last_name || ""}`.trim());
         setCurrentHourlyRate(profileRes.data.hourly_rate);
+        setUserRole(profileRes.data.role);
+
+        if (profileRes.data.role === 'owner') {
+          const [instructorsRes, ticketsRes, globalStudentsRes] = await Promise.all([
+            supabase.from("profiles").select("id", { count: "exact", head: true }),
+            supabase.from("support_messages").select("id", { count: "exact", head: true }).eq("status", "open"),
+            supabase.from("students").select("id", { count: "exact", head: true })
+          ]);
+          setAdminStats({
+            totalInstructors: instructorsRes.count || 0,
+            openSupportTickets: ticketsRes.count || 0,
+            totalGlobalStudents: globalStudentsRes.count || 0
+          });
+        }
       }
 
       setTotalStudents(studentsCountRes.count);
@@ -209,7 +232,7 @@ const Dashboard: React.FC = () => {
           .select("start_time, end_time")
           .eq("user_id", user.id)
           .eq("status", "completed")
-          .neq("lesson_type", "Personal") // Exclude Personal from revenue
+          .neq("lesson_type", "Personal")
           .gte("start_time", startDate.toISOString())
           .lte("end_time", endDate.toISOString());
           
@@ -293,10 +316,47 @@ const Dashboard: React.FC = () => {
 
   const renderWidget = (id: string) => {
     switch (id) {
+      case "admin_overview":
+        if (userRole !== 'owner') return null;
+        return (
+          <Card key={id} className="border-l-4 border-l-red-600 bg-red-50/30 shadow-md">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-black flex items-center gap-2 text-red-900">
+                  <ShieldCheck className="h-5 w-5" /> System Administration
+                </CardTitle>
+                <Button asChild variant="outline" size="sm" className="bg-white border-red-200 text-red-700 hover:bg-red-50">
+                  <Link to="/admin/support">Manage Support</Link>
+                </Button>
+              </div>
+              <CardDescription className="text-red-800/70">Global overview of the HDT platform.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-red-800/60">Instructors</p>
+                  <p className="text-2xl font-black text-red-900">{adminStats?.totalInstructors ?? 0}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-red-800/60">Open Tickets</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-2xl font-black text-red-900">{adminStats?.openSupportTickets ?? 0}</p>
+                    {(adminStats?.openSupportTickets ?? 0) > 0 && (
+                      <div className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-red-800/60">Total Students</p>
+                  <p className="text-2xl font-black text-red-900">{adminStats?.totalGlobalStudents ?? 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
       case "quick_stats":
         return (
           <div key={id} className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-            {/* Row 1: Total Students & Upcoming Tests */}
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
                 <CardTitle className="text-sm sm:text-lg font-bold text-muted-foreground">Total Students</CardTitle>
@@ -317,8 +377,6 @@ const Dashboard: React.FC = () => {
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
               </CardContent>
             </Card>
-
-            {/* Row 2: Booked Hours & Income */}
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">
@@ -619,8 +677,9 @@ const Dashboard: React.FC = () => {
               key={widget.id} 
               className={cn(
                 widget.id === "quick_stats" && "lg:col-span-3",
+                widget.id === "admin_overview" && "lg:col-span-3",
                 widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
-                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons") && "lg:col-span-1"
+                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "admin_overview") && "lg:col-span-1"
               )}
             >
               {renderWidget(widget.id)}
