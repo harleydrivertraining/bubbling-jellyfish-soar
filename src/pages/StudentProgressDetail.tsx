@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User, Save, MessageSquare, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, User, Save, MessageSquare, ChevronDown, ChevronUp, CheckCircle2, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -14,6 +14,7 @@ import StarRatingInput from "@/components/StarRatingInput";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 interface Topic {
   id: string;
@@ -106,6 +107,25 @@ const StudentProgressDetail: React.FC = () => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
 
+  const completionStats = useMemo(() => {
+    if (topics.length === 0) return { percentage: 0, total: 0, completed: 0 };
+    
+    const totalPossibleStars = topics.length * 5;
+    const totalEarnedStars = topics.reduce((sum, topic) => {
+      const entry = entries[topic.id];
+      return sum + (entry ? entry.rating : 0);
+    }, 0);
+    
+    const percentage = Math.round((totalEarnedStars / totalPossibleStars) * 100);
+    const fullyCompletedCount = topics.filter(t => entries[t.id]?.rating === 5).length;
+
+    return {
+      percentage,
+      total: topics.length,
+      completed: fullyCompletedCount
+    };
+  }, [topics, entries]);
+
   const saveEntry = async (topicId: string, ratingOverride?: number, commentOverride?: string) => {
     if (!user || !studentId) return;
     
@@ -178,14 +198,31 @@ const StudentProgressDetail: React.FC = () => {
         </Button>
       </div>
 
-      <div className="flex items-center gap-4 bg-card p-6 rounded-xl border shadow-sm">
-        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-          <User className="h-8 w-8 text-primary" />
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="md:col-span-2 flex items-center gap-4 bg-card p-6 rounded-xl border shadow-sm">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <User className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black tracking-tight">{student?.name}</h1>
+            <p className="text-muted-foreground font-medium">Individual Progress Tracking</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-black tracking-tight">{student?.name}</h1>
-          <p className="text-muted-foreground font-medium">Individual Progress Tracking</p>
-        </div>
+
+        <Card className="border-l-4 border-l-green-500 shadow-sm">
+          <CardContent className="p-6 flex flex-col justify-center h-full">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold uppercase text-muted-foreground flex items-center">
+                <TrendingUp className="mr-1 h-3 w-3" /> Overall Completion
+              </p>
+              <span className="text-2xl font-black text-green-600">{completionStats.percentage}%</span>
+            </div>
+            <Progress value={completionStats.percentage} className="h-2 mb-2" />
+            <p className="text-[10px] font-medium text-muted-foreground">
+              {completionStats.completed} of {completionStats.total} topics fully mastered (5★)
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {topics.length === 0 ? (
