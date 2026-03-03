@@ -30,17 +30,27 @@ import {
   ChevronDown,
   ChevronUp,
   Ban,
-  CreditCard
+  CreditCard,
+  Plus
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, parseISO, differenceInMinutes } from "date-fns";
+import { format, isAfter, parseISO, differenceInMinutes, addMinutes } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EditStudentForm from "@/components/EditStudentForm";
+import AddBookingForm from "@/components/AddBookingForm";
+import AddPrePaidHoursForm from "@/components/AddPrePaidHoursForm";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Student {
   id: string;
@@ -76,6 +86,7 @@ const StudentProfile: React.FC = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const { user, isLoading: isSessionLoading } = useSession();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   
   const [student, setStudent] = useState<Student | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -83,6 +94,8 @@ const StudentProfile: React.FC = () => {
   const [totalPrepaidHours, setTotalPrepaidHours] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
+  const [isAddHoursDialogOpen, setIsAddHoursDialogOpen] = useState(false);
   const [activeLessonView, setActiveLessonView] = useState<'future' | 'past'>('future');
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
 
@@ -249,8 +262,13 @@ const StudentProfile: React.FC = () => {
   const upcomingBookings = bookings.filter(b => isAfter(parseISO(b.start_time), new Date()) && b.status === 'scheduled').reverse();
   const pastBookings = bookings.filter(b => !isAfter(parseISO(b.start_time), new Date()) || b.status !== 'scheduled');
 
+  const now = new Date();
+  const roundedMinutes = Math.ceil(now.getMinutes() / 15) * 15;
+  const defaultStartTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMinutes, 0);
+  const defaultEndTime = addMinutes(defaultStartTime, 60);
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto relative min-h-[calc(100vh-200px)]">
       <div className="flex items-center justify-between">
         <Button variant="ghost" asChild className="-ml-2">
           <Link to="/students">
@@ -550,6 +568,40 @@ const StudentProfile: React.FC = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Floating Action Button */}
+      <div className={cn(
+        "fixed z-50",
+        isMobile ? "bottom-28 right-6" : "bottom-10 right-10"
+      )}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              size="icon" 
+              className="h-14 w-14 rounded-full bg-green-600 hover:bg-green-700 shadow-xl border-4 border-white"
+            >
+              <Plus className="h-8 w-8 text-white" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 p-2 mb-2">
+            <DropdownMenuItem 
+              className="py-3 cursor-pointer font-bold"
+              onClick={() => setIsAddBookingDialogOpen(true)}
+            >
+              <CalendarCheck className="mr-2 h-5 w-5 text-blue-600" />
+              Add Booking
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              className="py-3 cursor-pointer font-bold"
+              onClick={() => setIsAddHoursDialogOpen(true)}
+            >
+              <Hourglass className="mr-2 h-5 w-5 text-green-600" />
+              Add Pre-paid Hours
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Dialogs */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -560,6 +612,34 @@ const StudentProfile: React.FC = () => {
             onStudentUpdated={() => { fetchData(); setIsEditDialogOpen(false); }}
             onStudentDeleted={() => navigate("/students")}
             onClose={() => setIsEditDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Booking for {student.name}</DialogTitle>
+          </DialogHeader>
+          <AddBookingForm
+            initialStartTime={defaultStartTime}
+            initialEndTime={defaultEndTime}
+            onBookingAdded={() => { fetchData(); setIsAddBookingDialogOpen(false); }}
+            onClose={() => setIsAddBookingDialogOpen(false)}
+            defaultValues={{ student_id: student.id }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddHoursDialogOpen} onOpenChange={setIsAddHoursDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Pre-paid Hours for {student.name}</DialogTitle>
+          </DialogHeader>
+          <AddPrePaidHoursForm
+            onHoursAdded={() => { fetchData(); setIsAddHoursDialogOpen(false); }}
+            onClose={() => setIsAddHoursDialogOpen(false)}
+            initialStudentId={student.id}
           />
         </DialogContent>
       </Dialog>

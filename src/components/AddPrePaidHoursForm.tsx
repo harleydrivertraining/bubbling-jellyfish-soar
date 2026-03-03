@@ -50,9 +50,10 @@ const formSchema = z.object({
 interface AddPrePaidHoursFormProps {
   onHoursAdded: () => void;
   onClose: () => void;
+  initialStudentId?: string; // New prop
 }
 
-const AddPrePaidHoursForm: React.FC<AddPrePaidHoursFormProps> = ({ onHoursAdded, onClose }) => {
+const AddPrePaidHoursForm: React.FC<AddPrePaidHoursFormProps> = ({ onHoursAdded, onClose, initialStudentId }) => {
   const { user } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
@@ -61,7 +62,7 @@ const AddPrePaidHoursForm: React.FC<AddPrePaidHoursFormProps> = ({ onHoursAdded,
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      student_id: "",
+      student_id: initialStudentId || "",
       package_hours: 1,
       amount_paid: null,
       notes: "",
