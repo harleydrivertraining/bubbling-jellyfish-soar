@@ -2,7 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
-import { PoundSterling, Circle, Check } from "lucide-center";
+import { PoundSterling, Circle, Check } from "lucide-react";
 
 const LegendItem = ({ colorClass, label }: { colorClass: string; label: string }) => (
   <div className="flex items-center gap-2">
