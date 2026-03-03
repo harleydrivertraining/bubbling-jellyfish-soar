@@ -199,17 +199,23 @@ const StudentProgressDetail: React.FC = () => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="md:col-span-2 flex items-center gap-4 bg-card p-6 rounded-xl border shadow-sm">
-          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+        <div className="md:col-span-2 flex items-center gap-4 bg-card p-4 sm:p-6 rounded-xl border shadow-sm">
+          <div className="hidden sm:flex h-16 w-16 rounded-full bg-primary/10 items-center justify-center shrink-0">
             <User className="h-8 w-8 text-primary" />
           </div>
-          <div>
-            <h1 className="text-3xl font-black tracking-tight">{student?.name}</h1>
-            <p className="text-muted-foreground font-medium">Individual Progress Tracking</p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between sm:block">
+              <h1 className="text-xl sm:text-3xl font-black tracking-tight truncate">{student?.name}</h1>
+              <div className="sm:hidden flex flex-col items-end">
+                <span className="text-xl font-black text-green-600">{completionStats.percentage}%</span>
+                <span className="text-[8px] font-bold uppercase text-muted-foreground">Complete</span>
+              </div>
+            </div>
+            <p className="text-muted-foreground font-medium text-xs sm:text-base">Individual Progress Tracking</p>
           </div>
         </div>
 
-        <Card className="border-l-4 border-l-green-500 shadow-sm">
+        <Card className="hidden sm:block border-l-4 border-l-green-500 shadow-sm">
           <CardContent className="p-6 flex flex-col justify-center h-full">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold uppercase text-muted-foreground flex items-center">
@@ -223,6 +229,10 @@ const StudentProgressDetail: React.FC = () => {
             </p>
           </CardContent>
         </Card>
+        
+        <div className="sm:hidden px-1">
+           <Progress value={completionStats.percentage} className="h-1.5" />
+        </div>
       </div>
 
       {topics.length === 0 ? (
