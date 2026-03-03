@@ -205,7 +205,7 @@ const StudentProgressDetail: React.FC = () => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between sm:block">
-              <h1 className="text-xl sm:text-3xl font-black tracking-tight truncate">{student?.name}</h1>
+              <h1 className="text-2xl sm:text-4xl font-black tracking-tight truncate text-foreground">{student?.name}</h1>
               <div className="sm:hidden flex flex-col items-end">
                 <span className="text-xl font-black text-green-600">{completionStats.percentage}%</span>
                 <span className="text-[8px] font-bold uppercase text-muted-foreground">Complete</span>
