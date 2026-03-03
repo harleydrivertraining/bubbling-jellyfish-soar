@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, PoundSterling, Circle } from "lucide-react";
+import { Check, PoundSterling, Circle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
@@ -89,7 +88,7 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
     )}>
       <span className="flex-1 truncate text-white text-[10px] sm:text-xs font-bold">{title}</span>
       
-      <div className="flex items-center gap-0.5 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         {/* Payment Status Button */}
         {!isPersonal && !isCancelled && (
           <button
@@ -116,15 +115,14 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
 
         {/* Completion Button */}
         {!isCompleted && !isCancelled && (
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             onClick={handleMarkAsCompleted}
-            className="h-6 w-6 text-white hover:text-green-300 hover:bg-transparent p-0"
+            className="relative flex items-center justify-center h-6 w-6 rounded-full text-white hover:text-green-300 transition-all hover:scale-110 active:scale-95"
             title="Mark as Completed"
           >
-            <CheckCircle className="h-4 w-4" />
-          </Button>
+            <Check className="h-3.5 w-3.5" />
+            <Circle className="absolute inset-0 h-full w-full stroke-[3px]" />
+          </button>
         )}
       </div>
     </div>
