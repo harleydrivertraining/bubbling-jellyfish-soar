@@ -207,8 +207,8 @@ const StudentProgressDetail: React.FC = () => {
             <div className="flex items-center justify-between sm:block">
               <h1 className="text-2xl sm:text-4xl font-black tracking-tight truncate text-foreground">{student?.name}</h1>
               <div className="sm:hidden flex flex-col items-end">
-                <span className="text-xl font-black text-green-600">{completionStats.percentage}%</span>
-                <span className="text-[8px] font-bold uppercase text-muted-foreground">Complete</span>
+                <span className="text-3xl font-black text-green-600 leading-none">{completionStats.percentage}%</span>
+                <span className="text-[10px] font-bold uppercase text-muted-foreground mt-1">Complete</span>
               </div>
             </div>
             <p className="text-muted-foreground font-medium text-xs sm:text-base">Individual Progress Tracking</p>
@@ -221,7 +221,7 @@ const StudentProgressDetail: React.FC = () => {
               <p className="text-xs font-bold uppercase text-muted-foreground flex items-center">
                 <TrendingUp className="mr-1 h-3 w-3" /> Overall Completion
               </p>
-              <span className="text-2xl font-black text-green-600">{completionStats.percentage}%</span>
+              <span className="text-4xl font-black text-green-600">{completionStats.percentage}%</span>
             </div>
             <Progress value={completionStats.percentage} className="h-2 mb-2" />
             <p className="text-[10px] font-medium text-muted-foreground">
