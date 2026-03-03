@@ -211,16 +211,12 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       const file = values.document[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/students/${fileName}`;
-
-      if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
-        const oldFilePath = currentDocumentUrl.split('/public/1/')[1];
-        await supabase.storage.from('1').remove([oldFilePath]);
-      }
+      // Standardizing path to students/user_id/filename
+      const filePath = `students/${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('1')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file);
 
       if (uploadError) {
         console.error("Error uploading document:", uploadError);
@@ -233,6 +229,12 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         .getPublicUrl(filePath);
       
       documentUrl = publicUrlData.publicUrl;
+
+      // Clean up old file if it exists
+      if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
+        const oldFilePath = currentDocumentUrl.split('/public/1/')[1];
+        await supabase.storage.from('1').remove([oldFilePath]);
+      }
     }
 
     const formattedDobForSupabase = values.date_of_birth
