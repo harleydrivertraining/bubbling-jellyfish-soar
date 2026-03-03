@@ -26,11 +26,15 @@ import {
   CalendarCheck,
   PoundSterling,
   Car,
-  CheckCircle
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Ban,
+  CreditCard
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, parseISO, differenceInMinutes } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +84,7 @@ const StudentProfile: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [activeLessonView, setActiveLessonView] = useState<'future' | 'past'>('future');
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user || !studentId) return;
@@ -138,6 +143,73 @@ const StudentProfile: React.FC = () => {
       fetchData();
     }
   }, [isSessionLoading, fetchData]);
+
+  const handleCancelLesson = async (bookingId: string) => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: 'cancelled' })
+      .eq("id", bookingId);
+
+    if (error) {
+      showError("Failed to cancel lesson: " + error.message);
+    } else {
+      showSuccess("Lesson cancelled.");
+      fetchData();
+    }
+  };
+
+  const handleMarkAsPaid = async (booking: Booking) => {
+    if (!user || !studentId) return;
+
+    const duration = differenceInMinutes(new Date(booking.end_time), new Date(booking.start_time)) / 60;
+
+    // Find oldest package with enough hours
+    const { data: packages, error: pkgError } = await supabase
+      .from("pre_paid_hours")
+      .select("*")
+      .eq("student_id", studentId)
+      .gt("remaining_hours", 0)
+      .order("purchase_date", { ascending: true });
+
+    if (pkgError || !packages || packages.length === 0) {
+      showError("No pre-paid hours available for this student.");
+      return;
+    }
+
+    const pkg = packages[0];
+    if (pkg.remaining_hours < duration) {
+      showError(`Not enough hours in the oldest package (${pkg.remaining_hours.toFixed(1)}h left).`);
+      return;
+    }
+
+    // 1. Update package
+    const { error: updateError } = await supabase
+      .from("pre_paid_hours")
+      .update({ remaining_hours: pkg.remaining_hours - duration })
+      .eq("id", pkg.id);
+
+    if (updateError) {
+      showError("Failed to update pre-paid hours.");
+      return;
+    }
+
+    // 2. Create transaction
+    const { error: transError } = await supabase
+      .from("pre_paid_hours_transactions")
+      .insert({
+        user_id: user.id,
+        pre_paid_hours_id: pkg.id,
+        booking_id: booking.id,
+        hours_deducted: duration
+      });
+
+    if (transError) {
+      showError("Failed to record payment transaction.");
+    } else {
+      showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
+      fetchData();
+    }
+  };
 
   const lessonStats = useMemo(() => {
     const now = new Date();
@@ -337,42 +409,76 @@ const StudentProfile: React.FC = () => {
                 <div className="grid gap-4">
                   {upcomingBookings.map(booking => {
                     const duration = differenceInMinutes(new Date(booking.end_time), new Date(booking.start_time)) / 60;
+                    const isExpanded = expandedLessonId === booking.id;
+                    
                     return (
                       <Card key={booking.id} className="overflow-hidden border-l-4 border-l-blue-500">
-                        <CardContent className="p-4 flex items-center gap-4">
-                          {/* Duration "Image" Indicator */}
-                          <div className="h-16 w-16 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0 border shadow-sm">
-                            <span className="text-lg font-black leading-none">{duration.toFixed(1)}</span>
-                            <span className="text-[10px] font-bold uppercase text-muted-foreground">Hours</span>
-                          </div>
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-4">
+                            {/* Duration "Image" Indicator */}
+                            <div className="h-16 w-16 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0 border shadow-sm">
+                              <span className="text-lg font-black leading-none">{duration.toFixed(1)}</span>
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Hours</span>
+                            </div>
 
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <p className="font-bold text-lg truncate">{format(new Date(booking.start_time), "EEEE, MMMM do")}</p>
-                            <p className="text-sm text-muted-foreground flex items-center">
-                              <Clock className="mr-1.5 h-3.5 w-3.5" /> {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                            </p>
-                            
-                            {/* Status Icons Row */}
-                            <div className="flex flex-wrap items-center gap-2 pt-2">
-                              <div className="flex items-center gap-1.5 text-blue-600 border border-blue-200 bg-blue-50/50 px-2 py-0.5 rounded-full">
-                                <CalendarCheck className="h-3.5 w-3.5" />
-                                <span className="text-[9px] font-bold uppercase tracking-tight">Booked</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-muted-foreground border border-muted px-2 py-0.5 rounded-full">
-                                {booking.lesson_type === 'Driving Test' ? <Car className="h-3.5 w-3.5" /> : <BookOpen className="h-3.5 w-3.5" />}
-                                <span className="text-[9px] font-bold uppercase tracking-tight">{booking.lesson_type}</span>
-                              </div>
-                              <div className={cn(
-                                "flex items-center gap-1.5 border px-2 py-0.5 rounded-full",
-                                booking.is_paid 
-                                  ? "text-green-600 border-green-200 bg-green-50/50" 
-                                  : "text-destructive border-destructive/20 bg-destructive/5"
-                              )}>
-                                {booking.is_paid ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-                                <span className="text-[9px] font-bold uppercase tracking-tight">{booking.is_paid ? "Paid" : "Unpaid"}</span>
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <p className="font-bold text-lg truncate">{format(new Date(booking.start_time), "EEEE, MMMM do")}</p>
+                              <p className="text-sm text-muted-foreground flex items-center">
+                                <Clock className="mr-1.5 h-3.5 w-3.5" /> {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                              </p>
+                              
+                              {/* Status Icons Row */}
+                              <div className="flex flex-wrap items-center gap-2 pt-2">
+                                <div className="flex items-center gap-1.5 text-blue-600 border border-blue-200 bg-blue-50/50 px-2 py-0.5 rounded-full">
+                                  <CalendarCheck className="h-3.5 w-3.5" />
+                                  <span className="text-[9px] font-bold uppercase tracking-tight">Booked</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-muted-foreground border border-muted px-2 py-0.5 rounded-full">
+                                  {booking.lesson_type === 'Driving Test' ? <Car className="h-3.5 w-3.5" /> : <BookOpen className="h-3.5 w-3.5" />}
+                                  <span className="text-[9px] font-bold uppercase tracking-tight">{booking.lesson_type}</span>
+                                </div>
+                                <div className={cn(
+                                  "flex items-center gap-1.5 border px-2 py-0.5 rounded-full",
+                                  booking.is_paid 
+                                    ? "text-green-600 border-green-200 bg-green-50/50" 
+                                    : "text-destructive border-destructive/20 bg-destructive/5"
+                                )}>
+                                  {booking.is_paid ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                                  <span className="text-[9px] font-bold uppercase tracking-tight">{booking.is_paid ? "Paid" : "Unpaid"}</span>
+                                </div>
                               </div>
                             </div>
+
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => setExpandedLessonId(isExpanded ? null : booking.id)}
+                              className="rounded-full"
+                            >
+                              {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                            </Button>
                           </div>
+
+                          {/* Expandable Actions */}
+                          {isExpanded && (
+                            <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-200">
+                              <Button 
+                                variant="outline" 
+                                className="text-destructive hover:text-destructive hover:bg-destructive/5 font-bold"
+                                onClick={() => handleCancelLesson(booking.id)}
+                              >
+                                <Ban className="mr-2 h-4 w-4" /> Cancel Lesson
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50 font-bold"
+                                disabled={booking.is_paid}
+                                onClick={() => handleMarkAsPaid(booking)}
+                              >
+                                <CreditCard className="mr-2 h-4 w-4" /> {booking.is_paid ? "Already Paid" : "Mark as Paid"}
+                              </Button>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     );
