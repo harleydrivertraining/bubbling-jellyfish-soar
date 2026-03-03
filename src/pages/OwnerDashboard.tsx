@@ -39,11 +39,27 @@ const OwnerDashboard: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Fetch counts individually to be more resilient
-      const instructorsRes = await supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "instructor");
-      const studentsRes = await supabase.from("students").select("id", { count: "exact", head: true });
-      const supportRes = await supabase.from("support_messages").select("id", { count: "exact", head: true }).eq("status", "open");
-      const recentSupportRes = await supabase.from("support_messages").select("*, profiles(first_name, last_name)").order("created_at", { ascending: false }).limit(5);
+      // Fetch counts individually to be more resilient. 
+      // Using ilike for case-insensitive role matching.
+      const instructorsRes = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .ilike("role", "instructor");
+
+      const studentsRes = await supabase
+        .from("students")
+        .select("id", { count: "exact", head: true });
+
+      const supportRes = await supabase
+        .from("support_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "open");
+
+      const recentSupportRes = await supabase
+        .from("support_messages")
+        .select("*, profiles(first_name, last_name)")
+        .order("created_at", { ascending: false })
+        .limit(5);
 
       setStats({
         totalInstructors: instructorsRes.count || 0,
