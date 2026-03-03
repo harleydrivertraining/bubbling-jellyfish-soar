@@ -126,7 +126,7 @@ const Dashboard: React.FC = () => {
       .select("start_time, end_time")
       .eq("user_id", user.id)
       .in("status", ["scheduled", "completed"])
-      .neq("lesson_type", "Personal") // Exclude Personal appointments
+      .neq("lesson_type", "Personal")
       .gte("start_time", weekStartDate.toISOString())
       .lte("end_time", weekEndDate.toISOString());
 
@@ -154,33 +154,41 @@ const Dashboard: React.FC = () => {
     const now = new Date();
 
     try {
+      // First, get the profile to determine the role
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, hourly_rate, role")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      if (profileData) {
+        setInstructorName(`${profileData.first_name || ""} ${profileData.last_name || ""}`.trim());
+        setCurrentHourlyRate(profileData.hourly_rate);
+        setUserRole(profileData.role);
+
+        // If owner, we stop here and let OwnerDashboard handle its own data
+        if (profileData.role?.toLowerCase() === 'owner') {
+          setIsLoadingDashboard(false);
+          return;
+        }
+      }
+
+      // Continue fetching instructor-specific data
       const [
-        profileRes,
         studentsCountRes,
         allScheduledBookingsRes,
         historicalTestsRes,
         carsRes,
         prePaidHoursRes
       ] = await Promise.all([
-        supabase.from("profiles").select("first_name, last_name, hourly_rate, role").eq("id", user.id).single(),
         supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("bookings").select("id, title, description, start_time, end_time, status, lesson_type, students(name)").eq("user_id", user.id).eq("status", "scheduled").gte("start_time", now.toISOString()).order("start_time", { ascending: true }),
         supabase.from("driving_tests").select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)").eq("user_id", user.id).order("test_date", { ascending: false }),
         supabase.from("cars").select("id, make, model, year, initial_mileage, service_interval_miles").eq("user_id", user.id),
         supabase.from("pre_paid_hours").select("package_hours, remaining_hours, students(name)").eq("user_id", user.id)
       ]);
-
-      if (profileRes.data) {
-        setInstructorName(`${profileRes.data.first_name || ""} ${profileRes.data.last_name || ""}`.trim());
-        setCurrentHourlyRate(profileRes.data.hourly_rate);
-        setUserRole(profileRes.data.role);
-      }
-
-      // If owner, we stop here and let OwnerDashboard handle its own data
-      if (profileRes.data?.role === 'owner') {
-        setIsLoadingDashboard(false);
-        return;
-      }
 
       setTotalStudents(studentsCountRes.count);
 
@@ -206,7 +214,7 @@ const Dashboard: React.FC = () => {
         setDrivingTestStats({ totalTests: 0, passRate: 0, avgDrivingFaults: 0, avgSeriousFaults: 0, examinerActionPercentage: 0 });
       }
 
-      const hourlyRate = profileRes.data?.hourly_rate || 0;
+      const hourlyRate = profileData?.hourly_rate || 0;
       if (hourlyRate > 0) {
         let startDate: Date, endDate: Date;
         if (revenueTimeframe === "daily") { startDate = startOfDay(now); endDate = endOfDay(now); }
@@ -218,7 +226,7 @@ const Dashboard: React.FC = () => {
           .select("start_time, end_time")
           .eq("user_id", user.id)
           .eq("status", "completed")
-          .neq("lesson_type", "Personal") // Exclude Personal from revenue
+          .neq("lesson_type", "Personal")
           .gte("start_time", startDate.toISOString())
           .lte("end_time", endDate.toISOString());
           
@@ -231,7 +239,7 @@ const Dashboard: React.FC = () => {
 
       if (carsRes.data && carsRes.data.length > 0) {
         const mileageResults = await Promise.all(carsRes.data.map(async (car) => {
-          const { data } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).single();
+          const { data } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).maybeSingle();
           return { carId: car.id, currentMileage: data?.current_mileage || car.initial_mileage };
         }));
 
@@ -264,9 +272,9 @@ const Dashboard: React.FC = () => {
         setStudentsWithLowPrePaidHours(Object.keys(studentMap).filter(name => studentMap[name] <= 2 && studentMap[name] > 0));
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Dashboard fetch error:", err);
-      showError("Failed to load dashboard data.");
+      showError("Failed to load dashboard data: " + err.message);
     } finally {
       setIsLoadingDashboard(false);
     }
@@ -277,7 +285,7 @@ const Dashboard: React.FC = () => {
   }, [isSessionLoading, fetchDashboardData]);
 
   useEffect(() => {
-    if (!isSessionLoading && user && userRole !== 'owner') fetchBookedHoursForWeek(selectedWeekStartISO);
+    if (!isSessionLoading && user && userRole?.toLowerCase() !== 'owner') fetchBookedHoursForWeek(selectedWeekStartISO);
   }, [isSessionLoading, user, userRole, selectedWeekStartISO, fetchBookedHoursForWeek]);
 
   const generateWeekOptions = useMemo(() => {
@@ -305,7 +313,6 @@ const Dashboard: React.FC = () => {
       case "quick_stats":
         return (
           <div key={id} className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-            {/* Row 1: Total Students & Upcoming Tests */}
             <Card className="border-l-4 border-l-blue-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
                 <CardTitle className="text-sm sm:text-lg font-bold text-muted-foreground">Total Students</CardTitle>
@@ -327,7 +334,6 @@ const Dashboard: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Row 2: Booked Hours & Income */}
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">
@@ -614,7 +620,7 @@ const Dashboard: React.FC = () => {
   }
 
   // Render Owner Dashboard if user is an owner
-  if (userRole === 'owner') {
+  if (userRole?.toLowerCase() === 'owner') {
     return <OwnerDashboard />;
   }
 

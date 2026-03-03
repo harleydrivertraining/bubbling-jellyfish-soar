@@ -10,6 +10,7 @@ import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity,
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface PlatformStats {
   totalInstructors: number;
@@ -38,12 +39,11 @@ const OwnerDashboard: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const [instructorsRes, studentsRes, supportRes, recentSupportRes] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "instructor"),
-        supabase.from("students").select("id", { count: "exact", head: true }),
-        supabase.from("support_messages").select("id", { count: "exact", head: true }).eq("status", "open"),
-        supabase.from("support_messages").select("*, profiles(first_name, last_name)").order("created_at", { ascending: false }).limit(5)
-      ]);
+      // Fetch counts individually to be more resilient
+      const instructorsRes = await supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "instructor");
+      const studentsRes = await supabase.from("students").select("id", { count: "exact", head: true });
+      const supportRes = await supabase.from("support_messages").select("id", { count: "exact", head: true }).eq("status", "open");
+      const recentSupportRes = await supabase.from("support_messages").select("*, profiles(first_name, last_name)").order("created_at", { ascending: false }).limit(5);
 
       setStats({
         totalInstructors: instructorsRes.count || 0,
@@ -52,9 +52,9 @@ const OwnerDashboard: React.FC = () => {
       });
 
       setRecentSupport(recentSupportRes.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
-      showError("Failed to load platform statistics.");
+      showError("Failed to load platform statistics: " + error.message);
     } finally {
       setIsLoading(false);
     }
