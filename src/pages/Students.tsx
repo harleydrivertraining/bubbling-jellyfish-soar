@@ -147,8 +147,8 @@ const Students: React.FC = () => {
           <Skeleton className="h-10 w-48" />
           <Skeleton className="h-10 w-32" />
         </div>
-        <div className="space-y-4">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-24 w-full" />)}
         </div>
       </div>
     );
@@ -203,9 +203,9 @@ const Students: React.FC = () => {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredStudents.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">No students found.</p>
+          <p className="text-muted-foreground text-center py-8 col-span-full">No students found.</p>
         ) : (
           filteredStudents.map((student) => (
             <Card key={student.id} className={cn(
@@ -228,11 +228,11 @@ const Students: React.FC = () => {
                     </Badge>
                   </div>
                   
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <div className="flex flex-col gap-y-1 text-sm">
                     {student.next_booking ? (
                       <div className="flex items-center text-blue-600 font-medium">
                         <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
-                        Next: {format(new Date(student.next_booking.start_time), "MMM d, p")}
+                        <span className="truncate">Next: {format(new Date(student.next_booking.start_time), "MMM d, p")}</span>
                       </div>
                     ) : (
                       <div className="text-muted-foreground italic">No upcoming lessons</div>
@@ -250,7 +250,7 @@ const Students: React.FC = () => {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="ml-4 rounded-full hover:bg-primary hover:text-primary-foreground"
+                  className="ml-4 rounded-full hover:bg-primary hover:text-primary-foreground shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleViewProfile(student.id);
