@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/components/auth/SessionContextProvider";
 import {
   Car,
   Users,
@@ -24,6 +26,7 @@ import {
   Gauge,
   BarChart3,
   LifeBuoy,
+  ShieldCheck,
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -68,6 +71,18 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
+  const { user } = useSession();
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    const checkRole = async () => {
+      if (!user) return;
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      setIsOwner(data?.role === 'owner');
+    };
+    checkRole();
+  }, [user]);
+
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/students", icon: Users, label: "Students" },
@@ -121,6 +136,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
               onLinkClick={onLinkClick}
             />
           ))}
+          
+          {isOwner && (
+            <>
+              <Separator className="my-2 bg-sidebar-border" />
+              <div className={cn("px-4 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest", isCollapsed && "hidden")}>
+                Admin
+              </div>
+              <NavLink to="/admin/topics" icon={ShieldCheck} label="Default Topics" isCollapsed={isCollapsed} onLinkClick={onLinkClick} />
+              <NavLink to="/admin/support" icon={LifeBuoy} label="Support Center" isCollapsed={isCollapsed} onLinkClick={onLinkClick} />
+            </>
+          )}
         </nav>
       </ScrollArea>
       <Separator className="bg-sidebar-border" />

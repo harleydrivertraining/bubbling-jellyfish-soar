@@ -12,10 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import StarRatingInput from "@/components/StarRatingInput";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
 
 interface Topic {
   id: string;
   name: string;
+  is_default: boolean;
 }
 
 interface ProgressEntry {
@@ -43,7 +45,6 @@ const StudentProgressDetail: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. Fetch Student
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("id, name")
@@ -53,18 +54,17 @@ const StudentProgressDetail: React.FC = () => {
       if (studentError) throw studentError;
       setStudent(studentData);
 
-      // 2. Fetch All Topics
+      // Fetch both custom and default topics
       const { data: topicsData, error: topicsError } = await supabase
         .from("progress_topics")
-        .select("id, name")
-        .eq("user_id", user.id)
+        .select("id, name, is_default")
+        .or(`user_id.eq.${user.id},is_default.eq.true`)
+        .order("is_default", { ascending: false })
         .order("name", { ascending: true });
 
       if (topicsError) throw topicsError;
       setTopics(topicsData || []);
 
-      // 3. Fetch Latest Entries for each topic
-      // We'll fetch all entries for this student and then pick the latest for each topic
       const { data: entriesData, error: entriesError } = await supabase
         .from("student_progress_entries")
         .select("topic_id, rating, comment, entry_date")
@@ -136,23 +136,14 @@ const StudentProgressDetail: React.FC = () => {
   };
 
   if (isSessionLoading || isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="space-y-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 w-full" />)}
-        </div>
-      </div>
-    );
+    return <div className="space-y-6"><Skeleton className="h-10 w-64" /><div className="space-y-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-32 w-full" />)}</div></div>;
   }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <Button variant="ghost" asChild className="-ml-2">
-          <Link to="/progress">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Students
-          </Link>
+          <Link to="/progress"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Students</Link>
         </Button>
       </div>
 
@@ -168,10 +159,8 @@ const StudentProgressDetail: React.FC = () => {
 
       {topics.length === 0 ? (
         <Card className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">You haven't added any progress topics yet.</p>
-          <Button asChild variant="outline">
-            <Link to="/manage-topics">Manage Topics</Link>
-          </Button>
+          <p className="text-muted-foreground mb-4">No progress topics available.</p>
+          <Button asChild variant="outline"><Link to="/manage-topics">Manage Topics</Link></Button>
         </Card>
       ) : (
         <div className="grid gap-6">
@@ -182,36 +171,24 @@ const StudentProgressDetail: React.FC = () => {
             return (
               <Card key={topic.id} className="overflow-hidden border-l-4 border-l-primary">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-xl font-bold">{topic.name}</CardTitle>
+                  <CardTitle className="text-xl font-bold flex items-center gap-2">
+                    {topic.name}
+                    {topic.is_default && <Badge variant="secondary" className="text-[10px] h-4 px-1">DEFAULT</Badge>}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <Label className="text-xs font-bold uppercase text-muted-foreground">Proficiency Level</Label>
-                      <StarRatingInput 
-                        value={entry.rating} 
-                        onChange={(val) => handleUpdateEntry(topic.id, 'rating', val)} 
-                      />
+                      <StarRatingInput value={entry.rating} onChange={(val) => handleUpdateEntry(topic.id, 'rating', val)} />
                     </div>
-                    <Button 
-                      onClick={() => saveEntry(topic.id)} 
-                      disabled={isSaving}
-                      className="sm:w-32 font-bold"
-                    >
+                    <Button onClick={() => saveEntry(topic.id)} disabled={isSaving} className="sm:w-32 font-bold">
                       {isSaving ? "Saving..." : <><Save className="mr-2 h-4 w-4" /> Save</>}
                     </Button>
                   </div>
-                  
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center">
-                      <MessageSquare className="mr-1 h-3 w-3" /> Comments / Next Steps
-                    </Label>
-                    <Textarea 
-                      placeholder="Add notes about their performance or what to focus on next..."
-                      value={entry.comment || ""}
-                      onChange={(e) => handleUpdateEntry(topic.id, 'comment', e.target.value)}
-                      className="min-h-[80px] bg-muted/30"
-                    />
+                    <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center"><MessageSquare className="mr-1 h-3 w-3" /> Comments</Label>
+                    <Textarea placeholder="Add notes..." value={entry.comment || ""} onChange={(e) => handleUpdateEntry(topic.id, 'comment', e.target.value)} className="min-h-[80px] bg-muted/30" />
                   </div>
                 </CardContent>
               </Card>

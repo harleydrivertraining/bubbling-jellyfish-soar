@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
-import StudentProfile from "./pages/StudentProfile"; // New import
+import StudentProfile from "./pages/StudentProfile";
 import Settings from "./pages/Settings";
 import Schedule from "./pages/Schedule";
 import Lessons from "./pages/Lessons";
@@ -19,6 +19,7 @@ import DrivingTestBookings from "./pages/DrivingTestBookings";
 import PrePaidHours from "./pages/PrePaidHours";
 import PrePaidHoursDetails from "./pages/PrePaidHoursDetails";
 import ManageTopics from "./pages/ManageTopics";
+import AdminProgressTopics from "./pages/AdminProgressTopics"; // New import
 import MileageTracker from "./pages/MileageTracker";
 import TestStatistics from "./pages/TestStatistics";
 import Support from "./pages/Support";
@@ -41,7 +42,7 @@ const App = () => (
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="students" element={<Students />} />
-              <Route path="students/:studentId" element={<StudentProfile />} /> {/* New route */}
+              <Route path="students/:studentId" element={<StudentProfile />} />
               <Route path="schedule" element={<Schedule />} />
               <Route path="lessons" element={<Lessons />} />
               <Route path="lesson-notes" element={<LessonNotes />} />
@@ -54,6 +55,7 @@ const App = () => (
               <Route path="pre-paid-hours" element={<PrePaidHours />} />
               <Route path="pre-paid-hours/:packageId" element={<PrePaidHoursDetails />} />
               <Route path="manage-topics" element={<ManageTopics />} />
+              <Route path="admin/topics" element={<AdminProgressTopics />} /> {/* New route */}
               <Route path="mileage-tracker" element={<MileageTracker />} />
               <Route path="support" element={<Support />} />
               <Route path="admin/support" element={<AdminSupport />} />

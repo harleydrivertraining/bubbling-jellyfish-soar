@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Edit, Trash2 } from "lucide-react";
+import { PlusCircle, Edit, Trash2, ShieldCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,10 +20,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 interface ProgressTopic {
   id: string;
   name: string;
+  is_default: boolean;
 }
 
 const ManageTopics: React.FC = () => {
@@ -37,10 +39,13 @@ const ManageTopics: React.FC = () => {
   const fetchTopics = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
+    
+    // Fetch both user's custom topics AND global default topics
     const { data, error } = await supabase
       .from("progress_topics")
-      .select("id, name")
-      .eq("user_id", user.id)
+      .select("id, name, is_default")
+      .or(`user_id.eq.${user.id},is_default.eq.true`)
+      .order("is_default", { ascending: false })
       .order("name", { ascending: true });
 
     if (error) {
@@ -60,188 +65,137 @@ const ManageTopics: React.FC = () => {
   }, [isSessionLoading, fetchTopics]);
 
   const handleSaveTopic = async () => {
-    if (!user) {
-      showError("You must be logged in to manage topics.");
-      return;
-    }
+    if (!user) return;
     if (!topicName.trim()) {
       showError("Topic name cannot be empty.");
       return;
     }
 
     if (editingTopic) {
-      // Update existing topic
       const { error } = await supabase
         .from("progress_topics")
         .update({ name: topicName })
         .eq("id", editingTopic.id)
         .eq("user_id", user.id);
 
-      if (error) {
-        console.error("Error updating topic:", error);
-        showError("Failed to update topic: " + error.message);
-      } else {
-        showSuccess("Topic updated successfully!");
+      if (error) showError("Failed to update topic: " + error.message);
+      else {
+        showSuccess("Topic updated!");
         fetchTopics();
         setIsDialogOpen(false);
-        setEditingTopic(null);
-        setTopicName("");
       }
     } else {
-      // Add new topic
       const { error } = await supabase
         .from("progress_topics")
-        .insert({ user_id: user.id, name: topicName })
+        .insert({ user_id: user.id, name: topicName, is_default: false })
         .select();
 
-      if (error) {
-        console.error("Error adding topic:", error);
-        showError("Failed to add topic: " + error.message);
-      } else {
-        showSuccess("Topic added successfully!");
+      if (error) showError("Failed to add topic: " + error.message);
+      else {
+        showSuccess("Topic added!");
         fetchTopics();
         setIsDialogOpen(false);
-        setTopicName("");
       }
     }
   };
 
   const handleDeleteTopic = async (id: string) => {
-    if (!user) {
-      showError("You must be logged in to delete topics.");
-      return;
-    }
-
     const { error } = await supabase
       .from("progress_topics")
       .delete()
       .eq("id", id)
       .eq("user_id", user.id);
 
-    if (error) {
-      console.error("Error deleting topic:", error);
-      showError("Failed to delete topic: " + error.message);
-    } else {
-      showSuccess("Topic deleted successfully!");
+    if (error) showError("Failed to delete topic: " + error.message);
+    else {
+      showSuccess("Topic deleted!");
       fetchTopics();
     }
   };
 
-  const openEditDialog = (topic: ProgressTopic) => {
-    setEditingTopic(topic);
-    setTopicName(topic.name);
-    setIsDialogOpen(true);
-  };
-
-  const openAddDialog = () => {
-    setEditingTopic(null);
-    setTopicName("");
-    setIsDialogOpen(true);
-  };
-
   if (isSessionLoading || isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-10 w-32 ml-auto" />
-        <Card>
-          <CardHeader><Skeleton className="h-6 w-1/4" /></CardHeader>
-          <CardContent className="space-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <div className="space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-64 w-full" /></div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Manage Progress Topics</h1>
-        <Button onClick={openAddDialog}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add New Topic
+        <Button onClick={() => { setEditingTopic(null); setTopicName(""); setIsDialogOpen(true); }}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Add Custom Topic
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Your Custom Topics</CardTitle>
+          <CardTitle>Your Topics</CardTitle>
+          <CardDescription>Default topics are provided by the platform. You can add your own custom topics below.</CardDescription>
         </CardHeader>
         <CardContent>
-          {topics.length === 0 ? (
-            <p className="text-muted-foreground">No topics added yet. Click "Add New Topic" to get started!</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Topic Name</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Topic Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topics.map((topic) => (
+                <TableRow key={topic.id}>
+                  <TableCell className="font-medium">{topic.name}</TableCell>
+                  <TableCell>
+                    {topic.is_default ? (
+                      <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                        <ShieldCheck className="mr-1 h-3 w-3" /> Default
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Custom</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!topic.is_default && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingTopic(topic); setTopicName(topic.name); setIsDialogOpen(true); }} className="mr-2">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4" /></Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Topic?</AlertDialogTitle>
+                              <AlertDialogDescription>This will permanently remove this custom topic.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteTopic(topic.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </>
+                    )}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {topics.map((topic) => (
-                  <TableRow key={topic.id}>
-                    <TableCell className="font-medium">{topic.name}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(topic)} className="mr-2">
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete the topic "{topic.name}".
-                              Any progress entries associated with this topic will also be affected.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteTopic(topic.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingTopic ? "Edit Topic" : "Add New Topic"}</DialogTitle>
+            <DialogTitle>{editingTopic ? "Edit Topic" : "Add Custom Topic"}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="topicName" className="text-right">
-                Topic Name
-              </Label>
-              <Input
-                id="topicName"
-                value={topicName}
-                onChange={(e) => setTopicName(e.target.value)}
-                className="col-span-3"
-              />
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="topicName">Topic Name</Label>
+              <Input id="topicName" value={topicName} onChange={(e) => setTopicName(e.target.value)} placeholder="e.g., Roundabouts" />
             </div>
+            <Button className="w-full" onClick={handleSaveTopic}>Save Topic</Button>
           </div>
-          <Button type="submit" onClick={handleSaveTopic}>
-            {editingTopic ? "Save Changes" : "Add Topic"}
-          </Button>
         </DialogContent>
       </Dialog>
     </div>
