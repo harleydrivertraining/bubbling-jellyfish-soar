@@ -33,7 +33,8 @@ import {
   CreditCard,
   Plus,
   ShieldCheck,
-  MessageSquare
+  MessageSquare,
+  Save
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -54,6 +55,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Progress } from "@/components/ui/progress";
+import StarRatingInput from "@/components/StarRatingInput";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Student {
   id: string;
@@ -109,6 +112,9 @@ const StudentProfile: React.FC = () => {
   const [isAddHoursDialogOpen, setIsAddHoursDialogOpen] = useState(false);
   const [activeLessonView, setActiveLessonView] = useState<'future' | 'past'>('future');
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
+  
+  const [savingTopicId, setSavingTopicId] = useState<string | null>(null);
+  const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user || !studentId) return;
@@ -280,6 +286,68 @@ const StudentProfile: React.FC = () => {
       console.error("Error marking as paid:", error);
       showError("Failed to process payment: " + error.message);
     }
+  };
+
+  const saveProgressEntry = async (topicId: string, ratingOverride?: number, commentOverride?: string) => {
+    if (!user || !studentId) return;
+    
+    const currentEntry = progressEntries[topicId] || { topic_id: topicId, rating: 0, comment: "" };
+    const rating = ratingOverride !== undefined ? ratingOverride : currentEntry.rating;
+    const comment = commentOverride !== undefined ? commentOverride : currentEntry.comment;
+
+    if (rating === 0) {
+      showError("Please select a star rating.");
+      return;
+    }
+
+    setSavingTopicId(topicId);
+    const { error } = await supabase
+      .from("student_progress_entries")
+      .insert({
+        user_id: user.id,
+        student_id: studentId,
+        topic_id: topicId,
+        rating: rating,
+        comment: comment,
+        entry_date: new Date().toISOString()
+      });
+
+    if (error) {
+      showError("Failed to save progress: " + error.message);
+    } else {
+      setProgressEntries(prev => ({
+        ...prev,
+        [topicId]: { 
+          topic_id: topicId, 
+          topic_name: topics.find(t => t.id === topicId)?.name || "Unknown",
+          rating, 
+          comment,
+          entry_date: new Date().toISOString()
+        }
+      }));
+      
+      if (ratingOverride !== undefined) {
+        showSuccess("Rating saved!");
+      } else {
+        showSuccess("Notes saved!");
+        setExpandedTopicId(null);
+      }
+    }
+    setSavingTopicId(null);
+  };
+
+  const handleRatingChange = (topicId: string, newRating: number) => {
+    saveProgressEntry(topicId, newRating);
+  };
+
+  const handleCommentChange = (topicId: string, value: string) => {
+    setProgressEntries(prev => ({
+      ...prev,
+      [topicId]: {
+        ...(prev[topicId] || { topic_id: topicId, topic_name: "", rating: 0, comment: "", entry_date: "" }),
+        comment: value
+      }
+    }));
   };
 
   const lessonStats = useMemo(() => {
@@ -624,7 +692,7 @@ const StudentProfile: React.FC = () => {
               <Progress value={completionPercentage} className="h-2" />
             </div>
             <Button asChild variant="outline" size="sm" className="font-bold shrink-0">
-              <Link to={`/progress/${student.id}`}>Update Progress</Link>
+              <Link to={`/progress/${student.id}`}>Full Tracker</Link>
             </Button>
           </div>
 
@@ -636,43 +704,81 @@ const StudentProfile: React.FC = () => {
               </Button>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {topics.map(topic => {
-                const entry = progressEntries[topic.id];
+                const entry = progressEntries[topic.id] || { rating: 0, comment: "" };
+                const isSaving = savingTopicId === topic.id;
+                const isExpanded = expandedTopicId === topic.id;
+
                 return (
                   <Card key={topic.id} className={cn(
-                    "transition-all",
-                    !entry && "opacity-60 bg-muted/10"
+                    "overflow-hidden transition-all duration-200 border-l-4 flex flex-col",
+                    entry.rating > 0 ? "border-l-green-500" : "border-l-muted",
+                    isExpanded && "col-span-2"
                   )}>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-bold">{topic.name}</CardTitle>
-                        {topic.is_default && <Badge variant="secondary" className="text-[8px] h-3 px-1">DEFAULT</Badge>}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map(star => (
-                          <Star 
-                            key={star} 
-                            className={cn(
-                              "h-4 w-4", 
-                              entry && star <= entry.rating ? "fill-yellow-400 text-yellow-400" : "text-muted"
-                            )} 
+                    <div className={cn(
+                      "p-3 sm:p-4 flex flex-col h-full",
+                      isExpanded && "sm:flex-row sm:items-center sm:justify-between"
+                    )}>
+                      <div className="flex-1 min-w-0 mb-2 sm:mb-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-sm sm:text-lg font-bold truncate">{topic.name}</h3>
+                          {topic.is_default && <Badge variant="secondary" className="text-[8px] sm:text-[10px] h-3 sm:h-4 px-1">DEFAULT</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-4">
+                          <StarRatingInput 
+                            value={entry.rating} 
+                            onChange={(val) => handleRatingChange(topic.id, val)} 
+                            disabled={isSaving}
                           />
-                        ))}
-                      </div>
-                      {entry ? (
-                        <>
-                          {entry.comment && (
-                            <p className="text-sm text-muted-foreground italic line-clamp-2">"{entry.comment}"</p>
+                          {isSaving && savingTopicId === topic.id && (
+                            <span className="text-[8px] sm:text-[10px] font-bold text-muted-foreground animate-pulse uppercase">Saving...</span>
                           )}
-                          <p className="text-[10px] text-muted-foreground uppercase font-bold">Last updated: {format(new Date(entry.entry_date), "MMM d, yyyy")}</p>
-                        </>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">No rating recorded yet.</p>
-                      )}
-                    </CardContent>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-2 mt-auto sm:mt-0">
+                        {entry.comment && !isExpanded && (
+                          <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground text-[10px] px-1.5 py-0">
+                            <MessageSquare className="h-3 w-3" />
+                          </Badge>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => setExpandedTopicId(isExpanded ? null : topic.id)}
+                          className="h-8 w-8 rounded-full"
+                        >
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <CardContent className="pt-0 pb-4 px-4 animate-in slide-in-from-top-2 duration-200">
+                        <div className="space-y-3 pt-2 border-t">
+                          <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center">
+                            <MessageSquare className="mr-1 h-3 w-3" /> Instructor Notes
+                          </Label>
+                          <Textarea 
+                            placeholder="Add specific feedback or targets for this topic..." 
+                            value={entry.comment || ""} 
+                            onChange={(e) => handleCommentChange(topic.id, e.target.value)} 
+                            className="min-h-[100px] bg-muted/30" 
+                          />
+                          <div className="flex justify-end">
+                            <Button 
+                              onClick={() => saveProgressEntry(topic.id)} 
+                              disabled={isSaving} 
+                              size="sm"
+                              className="font-bold"
+                            >
+                              {isSaving ? "Saving..." : <><Save className="mr-2 h-4 w-4" /> Save Notes</>}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    )}
                   </Card>
                 );
               })}
