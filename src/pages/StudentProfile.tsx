@@ -31,7 +31,8 @@ import {
   ChevronUp,
   Ban,
   CreditCard,
-  Plus
+  Plus,
+  ShieldCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -72,6 +73,7 @@ interface Booking {
   lesson_type: string;
   status: string;
   is_paid?: boolean;
+  is_covered?: boolean; // New field for virtual payment status
 }
 
 interface ProgressEntry {
@@ -120,9 +122,37 @@ const StudentProfile: React.FC = () => {
       
       const paidBookingIds = new Set(transactionsRes.data?.map(t => t.booking_id) || []);
       
+      // Calculate coverage for upcoming lessons
+      let runningCredit = totalHours;
+      const now = new Date();
+      
+      // Sort all bookings chronologically for coverage calculation
+      const sortedAllBookings = [...(bookingsRes.data || [])].sort((a, b) => 
+        parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime()
+      );
+
+      const coverageMap: Record<string, boolean> = {};
+      sortedAllBookings.forEach(b => {
+        const isFuture = isAfter(parseISO(b.start_time), now);
+        const isScheduled = b.status === 'scheduled';
+        const isAlreadyPaid = paidBookingIds.has(b.id);
+
+        // Only calculate coverage for scheduled future lessons that aren't already "hard" paid
+        if (isFuture && isScheduled && !isAlreadyPaid) {
+          const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
+          if (runningCredit >= duration) {
+            coverageMap[b.id] = true;
+            runningCredit -= duration;
+          } else {
+            coverageMap[b.id] = false;
+          }
+        }
+      });
+
       const formattedBookings = (bookingsRes.data || []).map(b => ({
         ...b,
-        is_paid: paidBookingIds.has(b.id)
+        is_paid: paidBookingIds.has(b.id),
+        is_covered: coverageMap[b.id] || false
       }));
       
       setBookings(formattedBookings);
@@ -474,15 +504,24 @@ const StudentProfile: React.FC = () => {
                                   {booking.lesson_type === 'Driving Test' ? <Car className="h-3.5 w-3.5" /> : <BookOpen className="h-3.5 w-3.5" />}
                                   <span className="text-[9px] font-bold uppercase tracking-tight">{booking.lesson_type}</span>
                                 </div>
-                                <div className={cn(
-                                  "flex items-center gap-1.5 border px-2 py-0.5 rounded-full",
-                                  booking.is_paid 
-                                    ? "text-green-600 border-green-200 bg-green-50/50" 
-                                    : "text-destructive border-destructive/20 bg-destructive/5"
-                                )}>
-                                  {booking.is_paid ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-                                  <span className="text-[9px] font-bold uppercase tracking-tight">{booking.is_paid ? "Paid" : "Unpaid"}</span>
-                                </div>
+                                
+                                {/* Payment Status Badge */}
+                                {booking.is_paid ? (
+                                  <div className="flex items-center gap-1.5 border border-green-200 bg-green-50/50 px-2 py-0.5 rounded-full text-green-600">
+                                    <CheckCircle className="h-3.5 w-3.5" />
+                                    <span className="text-[9px] font-bold uppercase tracking-tight">Paid</span>
+                                  </div>
+                                ) : booking.is_covered ? (
+                                  <div className="flex items-center gap-1.5 border border-primary/20 bg-primary/5 px-2 py-0.5 rounded-full text-primary">
+                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                    <span className="text-[9px] font-bold uppercase tracking-tight">Covered</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 border border-destructive/20 bg-destructive/5 px-2 py-0.5 rounded-full text-destructive">
+                                    <XCircle className="h-3.5 w-3.5" />
+                                    <span className="text-[9px] font-bold uppercase tracking-tight">Unpaid</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
