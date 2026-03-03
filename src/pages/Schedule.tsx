@@ -81,7 +81,6 @@ const Schedule: React.FC = () => {
     if (!force && rangeKey === lastFetchedRange.current) return;
     
     lastFetchedRange.current = rangeKey;
-    // We don't set isLoadingEvents(true) here to avoid the blocking UI
     setFetchError(null);
     
     try {
@@ -191,10 +190,10 @@ const Schedule: React.FC = () => {
     }
   }, [user]);
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = useCallback(async () => {
     const start = startOfMonth(subMonths(currentCalendarDate, 1));
     const end = endOfMonth(addMonths(currentCalendarDate, 2));
-    fetchBookings(start, end, true);
+    await fetchBookings(start, end, true);
   }, [currentCalendarDate, fetchBookings]);
 
   useEffect(() => {
@@ -222,13 +221,20 @@ const Schedule: React.FC = () => {
       if (packages && packages.length > 0) {
         const pkg = packages[0];
         if (pkg.remaining_hours >= duration) {
+          // Update pre-paid hours
           await supabase.from("pre_paid_hours").update({ remaining_hours: pkg.remaining_hours - duration }).eq("id", pkg.id);
+          
+          // Create transaction record
           await supabase.from("pre_paid_hours_transactions").insert({
             user_id: user.id,
             pre_paid_hours_id: pkg.id,
             booking_id: bookingId,
             hours_deducted: duration
           });
+
+          // Also mark the booking itself as paid in the database to ensure UI consistency
+          await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
+          
           showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
         } else {
           await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
@@ -238,7 +244,9 @@ const Schedule: React.FC = () => {
         await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
         showSuccess("Lesson marked as paid (Manual).");
       }
-      handleRetry();
+      
+      // Await the retry to ensure the UI updates with the latest data
+      await handleRetry();
     } catch (error: any) {
       console.error("Error marking as paid:", error);
       showError("Failed to process payment: " + error.message);
@@ -250,8 +258,8 @@ const Schedule: React.FC = () => {
     setIsAddBookingDialogOpen(true);
   }, []);
 
-  const handleBookingAdded = useCallback(() => {
-    handleRetry();
+  const handleBookingAdded = useCallback(async () => {
+    await handleRetry();
     setIsAddBookingDialogOpen(false);
     setSelectedSlot(null);
   }, [handleRetry]);
