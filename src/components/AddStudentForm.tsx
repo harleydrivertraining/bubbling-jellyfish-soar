@@ -73,7 +73,6 @@ const formSchema = z.object({
   status: z.enum(["Beginner", "Intermediate", "Advanced"], {
     message: "Please select a valid status.",
   }),
-  document: z.any().optional().nullable(),
 });
 
 interface AddStudentFormProps {
@@ -93,7 +92,6 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       full_address: "",
       notes: "",
       status: "Beginner",
-      document: null,
     },
   });
 
@@ -101,32 +99,6 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
     if (!user) {
       showError("You must be logged in to add a student.");
       return;
-    }
-
-    let documentUrl: string | null = null;
-
-    if (values.document && values.document.length > 0) {
-      const file = values.document[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      // Path MUST start with user.id for most RLS policies
-      const filePath = `${user.id}/students/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('1')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) {
-        console.error("Error uploading document:", uploadError);
-        showError("Failed to upload document: " + uploadError.message);
-        return;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('1')
-        .getPublicUrl(filePath);
-      
-      documentUrl = publicUrlData.publicUrl;
     }
 
     const formattedDobForSupabase = values.date_of_birth
@@ -144,7 +116,6 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
         full_address: values.full_address,
         notes: values.notes,
         status: values.status,
-        document_url: documentUrl,
       });
 
     if (error) {
@@ -269,24 +240,6 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
                   <SelectItem value="Advanced">Advanced</SelectItem>
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="document"
-          render={({ field: { value, onChange, ...fieldProps } }) => (
-            <FormItem>
-              <FormLabel>Upload Document (Optional)</FormLabel>
-              <FormControl>
-                <Input
-                  {...fieldProps}
-                  type="file"
-                  accept=".pdf,.doc,.docx,.jpg,.png"
-                  onChange={(event) => onChange(event.target.files)}
-                />
-              </FormControl>
               <FormMessage />
             </FormItem>
           )}

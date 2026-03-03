@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText, Phone, CalendarDays, GraduationCap, Edit, Trash2, UserX } from "lucide-react"; // Added UserX icon
+import { PlusCircle, Phone, CalendarDays, GraduationCap, Edit, UserX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
 import EditStudentForm from "@/components/EditStudentForm";
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils"; // Import cn utility
+import { cn } from "@/lib/utils";
 
 interface Student {
   id: string;
@@ -33,8 +33,7 @@ interface Student {
   phone_number?: string;
   full_address?: string;
   notes?: string;
-  document_url?: string;
-  is_past_student: boolean; // New field
+  is_past_student: boolean;
 }
 
 const Students: React.FC = () => {
@@ -57,7 +56,7 @@ const Students: React.FC = () => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from("students")
-      .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, document_url, is_past_student") // Fetch new field
+      .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, is_past_student")
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
@@ -109,12 +108,13 @@ const Students: React.FC = () => {
 
     // Filter by search term
     if (searchTerm) {
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
       currentStudents = currentStudents.filter((student) =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.driving_license_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.full_address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.notes?.toLowerCase().includes(searchTerm.toLowerCase())
+        student.name.toLowerCase().includes(lowerCaseSearchTerm) ||
+        student.driving_license_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+        student.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+        student.full_address?.toLowerCase().includes(lowerCaseSearchTerm) ||
+        student.notes?.toLowerCase().includes(lowerCaseSearchTerm)
       );
     }
 
@@ -265,16 +265,6 @@ const Students: React.FC = () => {
                   <CardDescription className="text-muted-foreground italic">
                     Notes: {student.notes}
                   </CardDescription>
-                )}
-                {student.document_url && (
-                  <a
-                    href={student.document_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-blue-500 hover:underline mt-2"
-                  >
-                    <FileText className="h-4 w-4 mr-1" /> View Document
-                  </a>
                 )}
                 <div className="flex gap-2 mt-4">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEditStudentClick(student.id)}>

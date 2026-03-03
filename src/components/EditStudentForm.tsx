@@ -28,7 +28,6 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, XCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 // Helper function to calculate age
@@ -78,8 +77,6 @@ const formSchema = z.object({
   status: z.enum(["Beginner", "Intermediate", "Advanced"], {
     message: "Please select a valid status.",
   }),
-  document: z.any().optional().nullable(),
-  existing_document_url: z.string().url().optional().nullable(),
   is_past_student: z.boolean().optional(),
 });
 
@@ -93,7 +90,6 @@ interface EditStudentFormProps {
 const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentUpdated, onStudentDeleted, onClose }) => {
   const { user } = useSession();
   const [isLoadingStudent, setIsLoadingStudent] = useState(true);
-  const [currentDocumentUrl, setCurrentDocumentUrl] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -105,8 +101,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       full_address: "",
       notes: "",
       status: "Beginner",
-      document: null,
-      existing_document_url: null,
       is_past_student: false,
     },
   });
@@ -117,7 +111,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       setIsLoadingStudent(true);
       const { data, error } = await supabase
         .from("students")
-        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, document_url, is_past_student")
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student")
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -144,11 +138,8 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           full_address: data.full_address || "",
           notes: data.notes || "",
           status: studentStatus,
-          document: null,
-          existing_document_url: data.document_url,
           is_past_student: data.is_past_student,
         });
-        setCurrentDocumentUrl(data.document_url);
       }
       setIsLoadingStudent(false);
     };
@@ -156,85 +147,10 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
     fetchStudentDetails();
   }, [studentId, user, form, onClose]);
 
-  const handleRemoveDocument = async () => {
-    if (!user) {
-      showError("You must be logged in to remove a document.");
-      return;
-    }
-    if (!currentDocumentUrl) return;
-
-    if (currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
-      const urlParts = currentDocumentUrl.split('/public/1/');
-      if (urlParts.length < 2) {
-        showError("Could not determine file path from URL.");
-        return;
-      }
-      const filePath = urlParts[1];
-
-      const { error: deleteError } = await supabase.storage
-        .from('1')
-        .remove([filePath]);
-
-      if (deleteError) {
-        console.error("Error deleting document from storage:", deleteError);
-        showError("Failed to delete document from storage: " + deleteError.message);
-        return;
-      }
-    }
-
-    const { error: updateError } = await supabase
-      .from('students')
-      .update({ document_url: null })
-      .eq('id', studentId)
-      .eq('user_id', user.id);
-
-    if (updateError) {
-      console.error("Error removing document URL from DB:", updateError);
-      showError("Failed to remove document URL from database: " + updateError.message);
-    } else {
-      showSuccess("Document removed successfully!");
-      setCurrentDocumentUrl(null);
-      form.setValue("existing_document_url", null);
-      onStudentUpdated();
-    }
-  };
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) {
       showError("You must be logged in to update a student.");
       return;
-    }
-
-    let documentUrl: string | null = currentDocumentUrl;
-
-    if (values.document && values.document.length > 0) {
-      const file = values.document[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      // Standardizing path to students/user_id/filename
-      const filePath = `students/${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('1')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error("Error uploading document:", uploadError);
-        showError("Failed to upload document: " + uploadError.message);
-        return;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('1')
-        .getPublicUrl(filePath);
-      
-      documentUrl = publicUrlData.publicUrl;
-
-      // Clean up old file if it exists
-      if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
-        const oldFilePath = currentDocumentUrl.split('/public/1/')[1];
-        await supabase.storage.from('1').remove([oldFilePath]);
-      }
     }
 
     const formattedDobForSupabase = values.date_of_birth
@@ -251,7 +167,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         full_address: values.full_address,
         notes: values.notes,
         status: values.status,
-        document_url: documentUrl,
         is_past_student: values.is_past_student,
       })
       .eq("id", studentId)
@@ -270,16 +185,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
     if (!user) {
       showError("You must be logged in to delete a student.");
       return;
-    }
-
-    if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
-      const filePath = currentDocumentUrl.split('/public/1/')[1];
-      const { error: deleteFileError } = await supabase.storage
-        .from('1')
-        .remove([filePath]);
-      if (deleteFileError) {
-        console.warn("Could not delete associated document from storage:", deleteFileError);
-      }
     }
 
     const { error } = await supabase
@@ -306,7 +211,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
       </div>
@@ -428,35 +332,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             </FormItem>
           )}
         />
-        <FormItem>
-          <FormLabel>Document (Optional)</FormLabel>
-          {currentDocumentUrl && (
-            <div className="flex items-center justify-between p-2 border rounded-md mb-2">
-              <a href={currentDocumentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center text-blue-500 hover:underline">
-                <FileText className="h-4 w-4 mr-2" /> View Current Document
-              </a>
-              <Button variant="ghost" size="icon" onClick={handleRemoveDocument} title="Remove Document">
-                <XCircle className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          )}
-          <FormField
-            control={form.control}
-            name="document"
-            render={({ field: { value, onChange, ...fieldProps } }) => (
-              <FormControl>
-                <Input
-                  {...fieldProps}
-                  type="file"
-                  accept=".pdf,.doc,.docx,.jpg,.png"
-                  onChange={(event) => onChange(event.target.files)}
-                />
-              </FormControl>
-            )}
-          />
-          <FormMessage />
-          <p className="text-sm text-muted-foreground">Upload a new file to replace the existing one, or remove the current document.</p>
-        </FormItem>
 
         <FormField
           control={form.control}
