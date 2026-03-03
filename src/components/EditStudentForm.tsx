@@ -217,7 +217,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       const file = values.document[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `students/${user.id}/${fileName}`;
+      const filePath = `${user.id}/students/${fileName}`; // Put user ID first for RLS policies
 
       if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
         const oldFilePath = currentDocumentUrl.split('/public/1/')[1];

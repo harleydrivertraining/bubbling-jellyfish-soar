@@ -70,7 +70,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${carId}-${Date.now()}.${fileExt}`;
-    const filePath = `cars/${user.id}/${fileName}`;
+    const filePath = `${user.id}/cars/${fileName}`; // Put user ID first for RLS policies
 
     const { data, error: uploadError } = await supabase.storage
       .from('1')

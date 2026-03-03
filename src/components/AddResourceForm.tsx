@@ -107,7 +107,7 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       const { data, error } = await supabase
         .from("resource_folders")
         .select("id, name")
-        .eq("user_id", user.id) // Corrected from "user.id" to "user_id"
+        .eq("user_id", user.id)
         .order("name", { ascending: true });
 
       if (error) {
@@ -138,7 +138,7 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       const file = values.file[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${file.name}`;
-      const filePath = `resources/${user.id}/${fileName}`; // Store in resources subfolder within bucket '1'
+      const filePath = `${user.id}/resources/${fileName}`; // Put user ID first for RLS policies
 
       const { data, error: uploadError } = await supabase.storage
         .from('1')

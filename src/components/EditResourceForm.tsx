@@ -222,7 +222,7 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       const file = values.file[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${file.name}`;
-      const filePath = `resources/${user.id}/${fileName}`;
+      const filePath = `${user.id}/resources/${fileName}`; // Put user ID first for RLS policies
 
       // If there was an old file, delete it first from storage
       if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/1/')) {

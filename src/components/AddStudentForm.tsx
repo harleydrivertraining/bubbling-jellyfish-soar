@@ -115,7 +115,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       const file = values.document[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `students/${user.id}/${fileName}`;
+      const filePath = `${user.id}/students/${fileName}`; // Put user ID first for RLS policies
 
       const { error: uploadError } = await supabase.storage
         .from('1')
