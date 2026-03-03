@@ -14,11 +14,18 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Link as LinkIcon } from "lucide-react"; // Changed UploadCloud to LinkIcon
+import { User as UserIcon, Link as LinkIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -28,7 +35,8 @@ const formSchema = z.object({
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
   ),
-  logo_url: z.string().url({ message: "Must be a valid URL." }).optional().nullable().or(z.literal("")), // Allow empty string
+  logo_url: z.string().url({ message: "Must be a valid URL." }).optional().nullable().or(z.literal("")),
+  default_lesson_duration: z.enum(["60", "90", "120"]).optional().nullable(),
 });
 
 interface ProfileSettingsFormProps {
@@ -46,6 +54,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
       last_name: "",
       hourly_rate: null,
       logo_url: "",
+      default_lesson_duration: "60",
     },
   });
 
@@ -54,7 +63,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
     setIsLoadingProfile(true);
     const { data, error } = await supabase
       .from("profiles")
-      .select("first_name, last_name, hourly_rate, logo_url")
+      .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration")
       .eq("id", user.id)
       .single();
 
@@ -66,7 +75,8 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
         first_name: data.first_name || "",
         last_name: data.last_name || "",
         hourly_rate: data.hourly_rate,
-        logo_url: data.logo_url || "", // Set logo_url from fetched data
+        logo_url: data.logo_url || "",
+        default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
       });
     }
     setIsLoadingProfile(false);
@@ -90,7 +100,8 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
         first_name: values.first_name,
         last_name: values.last_name,
         hourly_rate: values.hourly_rate,
-        logo_url: values.logo_url === "" ? null : values.logo_url, // Store null if empty string
+        logo_url: values.logo_url === "" ? null : values.logo_url,
+        default_lesson_duration: values.default_lesson_duration,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -100,7 +111,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
       showError("Failed to update profile: " + error.message);
     } else {
       showSuccess("Profile updated successfully!");
-      fetchProfile(); // Re-fetch to ensure latest data
+      fetchProfile();
       if (onProfileUpdated) {
         onProfileUpdated();
       }
@@ -148,53 +159,81 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="first_name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>First Name</FormLabel>
-              <FormControl>
-                <Input placeholder="John" {...field} value={field.value || ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="last_name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Last Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Doe" {...field} value={field.value || ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="hourly_rate"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Hourly Lesson Rate (£)</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g., 35.00"
-                  {...field}
-                  value={field.value === null ? "" : field.value}
-                  onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="first_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>First Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="John" {...field} value={field.value || ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="last_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Last Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="Doe" {...field} value={field.value || ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="hourly_rate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Hourly Lesson Rate (£)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g., 35.00"
+                    {...field}
+                    value={field.value === null ? "" : field.value}
+                    onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="default_lesson_duration"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Default Lesson Duration</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select default" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="90">1.5 hours</SelectItem>
+                    <SelectItem value="120">2 hours</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <Button type="submit" className="w-full">Save Changes</Button>
       </form>
     </Form>

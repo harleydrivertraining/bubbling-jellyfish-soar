@@ -101,6 +101,24 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     },
   });
 
+  // Fetch user's default lesson duration
+  useEffect(() => {
+    const fetchDefaultDuration = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("default_lesson_duration")
+        .eq("id", user.id)
+        .single();
+
+      if (!error && data?.default_lesson_duration) {
+        form.setValue("lesson_length", data.default_lesson_duration as "60" | "90" | "120");
+      }
+    };
+
+    fetchDefaultDuration();
+  }, [user, form]);
+
   useEffect(() => {
     if (defaultValues?.lesson_type) {
       form.setValue("lesson_type", defaultValues.lesson_type);
