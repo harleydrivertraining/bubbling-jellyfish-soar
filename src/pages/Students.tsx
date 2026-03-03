@@ -163,39 +163,43 @@ const Students: React.FC = () => {
         </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div className="flex flex-col gap-4">
         <Input
           placeholder="Search students..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
-        <div className="flex items-center gap-2">
-          <Label htmlFor="status-filter">Status:</Label>
-          <Select onValueChange={setSelectedStatus} defaultValue={selectedStatus}>
-            <SelectTrigger id="status-filter" className="w-[150px]">
-              <SelectValue placeholder="Filter status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Beginner">Beginner</SelectItem>
-              <SelectItem value="Intermediate">Intermediate</SelectItem>
-              <SelectItem value="Advanced">Advanced</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="past-student-filter">View:</Label>
-          <Select onValueChange={setShowPastStudents} defaultValue={showPastStudents}>
-            <SelectTrigger id="past-student-filter" className="w-[150px]">
-              <SelectValue placeholder="View students" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="current">Current</SelectItem>
-              <SelectItem value="past">Past</SelectItem>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
+        
+        <div className="flex flex-row items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-1 sm:flex-none items-center gap-2">
+            <Label htmlFor="status-filter" className="hidden sm:inline whitespace-nowrap">Status:</Label>
+            <Select onValueChange={setSelectedStatus} defaultValue={selectedStatus}>
+              <SelectTrigger id="status-filter" className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="Beginner">Beginner</SelectItem>
+                <SelectItem value="Intermediate">Intermediate</SelectItem>
+                <SelectItem value="Advanced">Advanced</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex flex-1 sm:flex-none items-center gap-2">
+            <Label htmlFor="past-student-filter" className="hidden sm:inline whitespace-nowrap">View:</Label>
+            <Select onValueChange={setShowPastStudents} defaultValue={showPastStudents}>
+              <SelectTrigger id="past-student-filter" className="w-full sm:w-[150px]">
+                <SelectValue placeholder="View" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current">Current</SelectItem>
+                <SelectItem value="past">Past</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
