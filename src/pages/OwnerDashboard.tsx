@@ -40,11 +40,11 @@ const OwnerDashboard: React.FC = () => {
 
     try {
       // Fetch counts individually to be more resilient. 
-      // Using ilike for case-insensitive role matching.
+      // We count everyone who is NOT an owner as an instructor.
       const instructorsRes = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .ilike("role", "instructor");
+        .not("role", "ilike", "owner");
 
       const studentsRes = await supabase
         .from("students")
