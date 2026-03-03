@@ -262,88 +262,92 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           )}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-start">
-          <FormField
-            control={form.control}
-            name="student_id"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Student {selectedLessonType === "Personal" && "(Optional)"}</FormLabel>
-                <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className={cn(
-                          "w-full justify-between",
-                          !field.value && "text-muted-foreground"
-                        )}
-                        disabled={isLoadingStudents}
-                      >
-                        {field.value
-                          ? students.find((student) => student.id === field.value)?.name
-                          : "Select a student"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                    <Command>
-                      <CommandInput placeholder="Search student..." />
-                      <CommandEmpty>No student found.</CommandEmpty>
-                      <CommandGroup>
-                        {students.map((student) => (
-                          <CommandItem
-                            value={student.name}
-                            key={student.id}
-                            onSelect={() => {
-                              form.setValue("student_id", student.id);
-                              setOpenStudentSelect(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                student.id === field.value
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                            {student.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <div className="flex flex-col sm:flex-row gap-3 items-start">
+          <div className="flex-1 w-full">
+            <FormField
+              control={form.control}
+              name="student_id"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Student {selectedLessonType === "Personal" && "(Opt)"}</FormLabel>
+                  <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={isLoadingStudents}
+                        >
+                          {field.value
+                            ? students.find((student) => student.id === field.value)?.name
+                            : "Select student"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search student..." />
+                        <CommandEmpty>No student found.</CommandEmpty>
+                        <CommandGroup>
+                          {students.map((student) => (
+                            <CommandItem
+                              value={student.name}
+                              key={student.id}
+                              onSelect={() => {
+                                form.setValue("student_id", student.id);
+                                setOpenStudentSelect(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  student.id === field.value
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {student.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-          <FormField
-            control={form.control}
-            name="lesson_length"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Length</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="60">1 hour</SelectItem>
-                    <SelectItem value="90">1.5 hours</SelectItem>
-                    <SelectItem value="120">2 hours</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="w-full sm:w-[120px]">
+            <FormField
+              control={form.control}
+              name="lesson_length"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Length</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="60">1 hr</SelectItem>
+                      <SelectItem value="90">1.5 hrs</SelectItem>
+                      <SelectItem value="120">2 hrs</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
 
         <FormField
