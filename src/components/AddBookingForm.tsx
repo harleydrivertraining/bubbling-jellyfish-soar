@@ -45,7 +45,7 @@ interface Student {
 }
 
 const formSchema = z.object({
-  student_id: z.string().min(1, { message: "Please select a student." }),
+  student_id: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal"], {
     message: "Please select a valid lesson type.",
@@ -57,15 +57,22 @@ const formSchema = z.object({
   repeat_booking: z.enum(["none", "weekly", "fortnightly"]),
   repeat_count: z.number().min(1).max(12).optional(),
   start_time: z.date({ required_error: "Start time is required." }),
-  // end_time is now calculated, not directly input
+}).superRefine((data, ctx) => {
+  if (data.lesson_type !== "Personal" && !data.student_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Please select a student for this lesson type.",
+      path: ["student_id"],
+    });
+  }
 });
 
 interface AddBookingFormProps {
   initialStartTime: Date;
-  initialEndTime: Date; // Still passed for initial calculation, but not directly used in form
+  initialEndTime: Date;
   onBookingAdded: () => void;
   onClose: () => void;
-  defaultValues?: Partial<z.infer<typeof formSchema>>; // Keep this prop
+  defaultValues?: Partial<z.infer<typeof formSchema>>;
 }
 
 const AddBookingForm: React.FC<AddBookingFormProps> = ({
@@ -73,7 +80,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   initialEndTime,
   onBookingAdded,
   onClose,
-  defaultValues, // Destructure defaultValues
+  defaultValues,
 }) => {
   const { user } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
@@ -85,7 +92,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     defaultValues: {
       student_id: "",
       description: "",
-      lesson_type: "Driving lesson", // Default fallback
+      lesson_type: "Driving lesson",
       lesson_length: "60",
       targets_for_next_session: "",
       repeat_booking: "none",
@@ -94,7 +101,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     },
   });
 
-  // Explicitly set lesson_type and lesson_length if provided in defaultValues prop
   useEffect(() => {
     if (defaultValues?.lesson_type) {
       form.setValue("lesson_type", defaultValues.lesson_type);
@@ -102,14 +108,13 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     if (defaultValues?.lesson_length) {
       form.setValue("lesson_length", defaultValues.lesson_length);
     }
-  }, [defaultValues?.lesson_type, defaultValues?.lesson_length, form]); // Depend on defaultValues.lesson_type, lesson_length and form instance
+  }, [defaultValues?.lesson_type, defaultValues?.lesson_length, form]);
 
   const selectedLessonLength = form.watch("lesson_length");
   const selectedStartTime = form.watch("start_time");
   const selectedRepeatBooking = form.watch("repeat_booking");
-  const selectedStudentId = form.watch("student_id"); // Watch student_id to generate title
+  const selectedLessonType = form.watch("lesson_type");
 
-  // State to hold the calculated end time
   const [calculatedEndTime, setCalculatedEndTime] = useState<Date>(initialEndTime);
 
   useEffect(() => {
@@ -128,11 +133,11 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
         .from("students")
         .select("id, name")
         .eq("user_id", user.id)
-        .eq("is_past_student", false) // Filter out past students
+        .eq("is_past_student", false)
         .order("name", { ascending: true });
 
       if (error) {
-        console.error("Error fetching students for booking form:", error);
+        console.error("Error fetching students:", error);
         showError("Failed to load students: " + error.message);
         setStudents([]);
       } else {
@@ -150,8 +155,11 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       return;
     }
 
-    const studentName = students.find(s => s.id === values.student_id)?.name || "Unknown Student";
-    const generatedTitle = `${studentName} - ${values.lesson_type}`;
+    let generatedTitle = "Personal Appointment";
+    if (values.lesson_type !== "Personal" || values.student_id) {
+      const studentName = students.find(s => s.id === values.student_id)?.name || "Unknown Student";
+      generatedTitle = `${studentName} - ${values.lesson_type}`;
+    }
 
     const bookingsToInsert = [];
     const numRepeats = values.repeat_booking !== "none" ? (values.repeat_count || 1) : 1;
@@ -159,18 +167,17 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
 
     for (let i = 0; i < numRepeats; i++) {
       let currentStartTime = values.start_time;
-      let currentEndTime = calculatedEndTime; // Use the calculated end time
+      let currentEndTime = calculatedEndTime;
 
       if (i > 0 && values.repeat_booking !== "none") {
         currentStartTime = addWeeks(values.start_time, i * interval);
-        // Recalculate end time for repeated bookings based on the new start time
         const lengthInMinutes = parseInt(values.lesson_length, 10);
         currentEndTime = addMinutes(currentStartTime, lengthInMinutes);
       }
 
       bookingsToInsert.push({
         user_id: user.id,
-        student_id: values.student_id,
+        student_id: values.student_id || null,
         title: generatedTitle,
         description: values.description,
         lesson_type: values.lesson_type,
@@ -181,7 +188,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       });
     }
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("bookings")
       .insert(bookingsToInsert)
       .select();
@@ -192,7 +199,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     } else {
       showSuccess("Booking(s) added successfully!");
       form.reset();
-      onBookingAdded(); // Call the prop to trigger calendar refresh
+      onBookingAdded();
       onClose();
     }
   };
@@ -202,10 +209,33 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
         <FormField
           control={form.control}
+          name="lesson_type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Lesson Type</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Driving lesson">Driving lesson</SelectItem>
+                  <SelectItem value="Driving Test">Driving Test</SelectItem>
+                  <SelectItem value="Personal">Personal</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="student_id"
           render={({ field }) => (
             <FormItem className="flex flex-col">
-              <FormLabel>Student</FormLabel>
+              <FormLabel>Student {selectedLessonType === "Personal" && "(Optional)"}</FormLabel>
               <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
                 <PopoverTrigger asChild>
                   <FormControl>
@@ -262,34 +292,11 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
-            name="lesson_type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Lesson Type</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}> {/* Use value instead of defaultValue */}
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Driving lesson">Driving lesson</SelectItem>
-                    <SelectItem value="Driving Test">Driving Test</SelectItem>
-                    <SelectItem value="Personal">Personal</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
             name="lesson_length"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Lesson Length</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}> {/* Use value instead of defaultValue */}
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select length" />
@@ -307,7 +314,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           />
         </div>
 
-        {/* Start Time Field */}
         <FormField
           control={form.control}
           name="start_time"
@@ -331,7 +337,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        {/* Display calculated End Time */}
         <FormItem className="flex flex-col">
           <FormLabel>End Time</FormLabel>
           <Input
@@ -347,28 +352,30 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Lesson Notes (Optional)</FormLabel>
+              <FormLabel>Notes (Optional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., first lesson, highway practice" {...field} />
+                <Textarea placeholder="e.g., dentist appointment, car service" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="targets_for_next_session"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Targets for Next Session (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., practice parallel parking, focus on mirror checks" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {selectedLessonType !== "Personal" && (
+          <FormField
+            control={form.control}
+            name="targets_for_next_session"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Targets for Next Session (Optional)</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="e.g., practice parallel parking" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <FormField
