@@ -65,6 +65,12 @@ const Schedule: React.FC = () => {
 
       if (bookingsError) throw bookingsError;
 
+      if (!bookings || bookings.length === 0) {
+        setEvents([]);
+        setIsLoadingEvents(false);
+        return;
+      }
+
       // 2. Fetch all transactions for these bookings to check "Paid" status via credit
       const bookingIds = bookings.map(b => b.id);
       const { data: transactions, error: transError } = await supabase
@@ -73,21 +79,24 @@ const Schedule: React.FC = () => {
         .in("booking_id", bookingIds);
 
       if (transError) throw transError;
-      const paidViaCreditIds = new Set(transactions.map(t => t.booking_id));
+      const paidViaCreditIds = new Set(transactions?.map(t => t.booking_id) || []);
 
       // 3. Fetch student balances to calculate "Covered" status
       const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
-      const { data: hours, error: hoursError } = await supabase
-        .from("pre_paid_hours")
-        .select("student_id, remaining_hours")
-        .in("student_id", studentIds);
+      
+      let studentBalances: Record<string, number> = {};
+      if (studentIds.length > 0) {
+        const { data: hours, error: hoursError } = await supabase
+          .from("pre_paid_hours")
+          .select("student_id, remaining_hours")
+          .in("student_id", studentIds);
 
-      if (hoursError) throw hoursError;
+        if (hoursError) throw hoursError;
 
-      const studentBalances: Record<string, number> = {};
-      hours.forEach(h => {
-        studentBalances[h.student_id] = (studentBalances[h.student_id] || 0) + h.remaining_hours;
-      });
+        hours?.forEach(h => {
+          studentBalances[h.student_id] = (studentBalances[h.student_id] || 0) + h.remaining_hours;
+        });
+      }
 
       // 4. Calculate coverage chronologically per student
       const sortedBookings = [...bookings].sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime());
@@ -130,7 +139,11 @@ const Schedule: React.FC = () => {
       setEvents(formattedEvents);
     } catch (error: any) {
       console.error("Error fetching schedule data:", error);
-      showError("Failed to load schedule: " + error.message);
+      // If it's a network error, provide a more helpful message
+      const msg = error.message === "Failed to fetch" 
+        ? "Connection lost. Please check your internet or Supabase project status." 
+        : error.message;
+      showError("Failed to load schedule: " + msg);
     } finally {
       setIsLoadingEvents(false);
     }
