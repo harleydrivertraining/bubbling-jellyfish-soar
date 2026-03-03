@@ -23,7 +23,10 @@ import {
   TrendingUp,
   Star,
   XCircle,
-  CalendarCheck
+  CalendarCheck,
+  PoundSterling,
+  Car,
+  CheckCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -54,6 +57,7 @@ interface Booking {
   title: string;
   lesson_type: string;
   status: string;
+  is_paid?: boolean;
 }
 
 interface ProgressEntry {
@@ -82,11 +86,12 @@ const StudentProfile: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const [studentRes, hoursRes, bookingsRes, progressRes] = await Promise.all([
+      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes] = await Promise.all([
         supabase.from("students").select("*").eq("id", studentId).single(),
         supabase.from("pre_paid_hours").select("remaining_hours").eq("student_id", studentId),
         supabase.from("bookings").select("*").eq("student_id", studentId).order("start_time", { ascending: false }),
-        supabase.from("student_progress_entries").select("*, progress_topics(name)").eq("student_id", studentId).order("entry_date", { ascending: false })
+        supabase.from("student_progress_entries").select("*, progress_topics(name)").eq("student_id", studentId).order("entry_date", { ascending: false }),
+        supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id)
       ]);
 
       if (studentRes.error) throw studentRes.error;
@@ -95,7 +100,14 @@ const StudentProfile: React.FC = () => {
       const totalHours = hoursRes.data?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalPrepaidHours(totalHours);
       
-      setBookings(bookingsRes.data || []);
+      const paidBookingIds = new Set(transactionsRes.data?.map(t => t.booking_id) || []);
+      
+      const formattedBookings = (bookingsRes.data || []).map(b => ({
+        ...b,
+        is_paid: paidBookingIds.has(b.id)
+      }));
+      
+      setBookings(formattedBookings);
 
       // Process progress: get latest entry for each topic
       const latestProgress: Record<string, ProgressEntry> = {};
@@ -322,20 +334,44 @@ const StudentProfile: React.FC = () => {
               {upcomingBookings.length === 0 ? (
                 <p className="text-muted-foreground italic bg-muted/20 p-4 rounded-lg">No upcoming lessons scheduled.</p>
               ) : (
-                <div className="grid gap-3">
-                  {upcomingBookings.map(booking => (
-                    <Card key={booking.id} className="border-l-4 border-l-blue-500">
-                      <CardContent className="p-4 flex items-center justify-between">
-                        <div className="space-y-1">
-                          <p className="font-bold">{format(new Date(booking.start_time), "EEEE, MMMM do")}</p>
-                          <p className="text-sm text-muted-foreground flex items-center">
-                            <Clock className="mr-1.5 h-3.5 w-3.5" /> {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="capitalize">{booking.lesson_type}</Badge>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="grid gap-4">
+                  {upcomingBookings.map(booking => {
+                    const duration = differenceInMinutes(new Date(booking.end_time), new Date(booking.start_time)) / 60;
+                    return (
+                      <Card key={booking.id} className="overflow-hidden border-l-4 border-l-blue-500">
+                        <CardContent className="p-4 flex items-center gap-4">
+                          {/* Duration "Image" Indicator */}
+                          <div className="h-16 w-16 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0 border shadow-sm">
+                            <span className="text-lg font-black leading-none">{duration.toFixed(1)}</span>
+                            <span className="text-[10px] font-bold uppercase text-muted-foreground">Hours</span>
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="font-bold text-lg truncate">{format(new Date(booking.start_time), "EEEE, MMMM do")}</p>
+                            <p className="text-sm text-muted-foreground flex items-center">
+                              <Clock className="mr-1.5 h-3.5 w-3.5" /> {format(new Date(booking.start_time), "p")} - {format(new Date(booking.end_time), "p")}
+                            </p>
+                            
+                            {/* Status Icons Row */}
+                            <div className="flex items-center gap-4 pt-1">
+                              <div className="flex items-center gap-1.5 text-blue-600">
+                                <CalendarCheck className="h-4 w-4" />
+                                <span className="text-[10px] font-bold uppercase">Booked</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                {booking.lesson_type === 'Driving Test' ? <Car className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+                                <span className="text-[10px] font-bold uppercase">{booking.lesson_type}</span>
+                              </div>
+                              <div className={cn("flex items-center gap-1.5", booking.is_paid ? "text-green-600" : "text-destructive")}>
+                                {booking.is_paid ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                                <span className="text-[10px] font-bold uppercase">{booking.is_paid ? "Paid" : "Unpaid"}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </div>
