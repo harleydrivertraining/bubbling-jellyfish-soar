@@ -70,10 +70,10 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${carId}-${Date.now()}.${fileExt}`;
-    const filePath = `${user.id}/${fileName}`;
+    const filePath = `cars/${user.id}/${fileName}`;
 
     const { data, error: uploadError } = await supabase.storage
-      .from('car-images')
+      .from('1')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false,
@@ -93,7 +93,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from('car-images')
+      .from('1')
       .getPublicUrl(filePath);
     
     const newImageUrl = publicUrlData.publicUrl;
@@ -164,8 +164,8 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     if (!currentImageUrl) return;
 
     // If the current image is from a file upload, attempt to delete from storage
-    if (currentImageUrl.includes('/storage/v1/object/public/car-images/')) {
-      const urlParts = currentImageUrl.split('/public/car-images/');
+    if (currentImageUrl.includes('/storage/v1/object/public/1/')) {
+      const urlParts = currentImageUrl.split('/public/1/');
       if (urlParts.length < 2) {
         showError("Could not determine file path from URL.");
         return;
@@ -173,7 +173,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
       const filePath = urlParts[1];
 
       const { error: deleteError } = await supabase.storage
-        .from('car-images')
+        .from('1')
         .remove([filePath]);
 
       if (deleteError) {
@@ -192,7 +192,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
 
     if (updateError) {
       console.error("Error removing car image URL from DB:", updateError);
-      showError("Failed to remove image URL from database: " + updateError.message);
+      showError("Failed to remove car image URL from database: " + updateError.message);
     } else {
       showSuccess("Car image removed successfully!");
       onImageUploaded(null); // Notify parent component

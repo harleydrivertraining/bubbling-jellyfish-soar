@@ -138,10 +138,10 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       const file = values.file[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${file.name}`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `resources/${user.id}/${fileName}`; // Store in resources subfolder within bucket '1'
 
       const { data, error: uploadError } = await supabase.storage
-        .from('resources')
+        .from('1')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
@@ -161,7 +161,7 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       }
 
       const { data: publicUrlData } = supabase.storage
-        .from('resources')
+        .from('1')
         .getPublicUrl(filePath);
       
       finalFilePath = publicUrlData.publicUrl;

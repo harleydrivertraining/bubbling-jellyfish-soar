@@ -170,8 +170,8 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
     if (!existingFilePath) return;
 
     // Attempt to delete from storage if it's a Supabase storage URL
-    if (existingFilePath.includes('/storage/v1/object/public/resources/')) {
-      const urlParts = existingFilePath.split('/public/resources/');
+    if (existingFilePath.includes('/storage/v1/object/public/1/')) {
+      const urlParts = existingFilePath.split('/public/1/');
       if (urlParts.length < 2) {
         showError("Could not determine file path from URL. Cannot delete file.");
         return;
@@ -179,7 +179,7 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       const filePathInStorage = urlParts[1];
 
       const { error: deleteError } = await supabase.storage
-        .from('resources')
+        .from('1')
         .remove([filePathInStorage]);
 
       if (deleteError) {
@@ -222,16 +222,16 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       const file = values.file[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${file.name}`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `resources/${user.id}/${fileName}`;
 
       // If there was an old file, delete it first from storage
-      if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/resources/')) {
-        const oldFilePathInStorage = existingFilePath.split('/public/resources/')[1];
-        await supabase.storage.from('resources').remove([oldFilePathInStorage]);
+      if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/1/')) {
+        const oldFilePathInStorage = existingFilePath.split('/public/1/')[1];
+        await supabase.storage.from('1').remove([oldFilePathInStorage]);
       }
 
       const { data, error: uploadError } = await supabase.storage
-        .from('resources')
+        .from('1')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
@@ -251,7 +251,7 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       }
 
       const { data: publicUrlData } = supabase.storage
-        .from('resources')
+        .from('1')
         .getPublicUrl(filePath);
       
       finalFilePath = publicUrlData.publicUrl;
@@ -262,9 +262,9 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       // If an external URL is provided and no new file is uploaded, clear file_path
       finalFilePath = null;
       // If there was an old file, delete it from storage
-      if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/resources/')) {
-        const oldFilePathInStorage = existingFilePath.split('/public/resources/')[1];
-        await supabase.storage.from('resources').remove([oldFilePathInStorage]);
+      if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/1/')) {
+        const oldFilePathInStorage = existingFilePath.split('/public/1/')[1];
+        await supabase.storage.from('1').remove([oldFilePathInStorage]);
       }
     } else if (!finalResourceUrl && !finalFilePath) {
       // This case should be caught by superRefine, but as a fallback
@@ -301,10 +301,10 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
     }
 
     // Optionally delete file from storage before deleting resource record
-    if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/resources/')) {
-      const filePathInStorage = existingFilePath.split('/public/resources/')[1];
+    if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/1/')) {
+      const filePathInStorage = existingFilePath.split('/public/1/')[1];
       const { error: deleteFileError } = await supabase.storage
-        .from('resources')
+        .from('1')
         .remove([filePathInStorage]);
       if (deleteFileError) {
         console.warn("Could not delete associated file from storage:", deleteFileError);

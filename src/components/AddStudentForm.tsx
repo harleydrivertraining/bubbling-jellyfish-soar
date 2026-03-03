@@ -118,10 +118,10 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       const file = values.document[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`; // Store in user-specific folder
+      const filePath = `students/${user.id}/${fileName}`; // Store in user-specific folder within bucket '1'
 
       const { error: uploadError } = await supabase.storage
-        .from('student-documents')
+        .from('1')
         .upload(filePath, file);
 
       if (uploadError) {
@@ -131,7 +131,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       }
 
       const { data: publicUrlData } = supabase.storage
-        .from('student-documents')
+        .from('1')
         .getPublicUrl(filePath);
       
       documentUrl = publicUrlData.publicUrl;
@@ -266,7 +266,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
           name="status"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Status</FormLabel>
+              <FormLabel>Status</Label>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>

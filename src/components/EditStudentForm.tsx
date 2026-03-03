@@ -175,8 +175,8 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
     if (!currentDocumentUrl) return;
 
     // Attempt to delete from storage if it's a Supabase storage URL
-    if (currentDocumentUrl.includes('/storage/v1/object/public/student-documents/')) {
-      const urlParts = currentDocumentUrl.split('/public/student-documents/');
+    if (currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
+      const urlParts = currentDocumentUrl.split('/public/1/');
       if (urlParts.length < 2) {
         showError("Could not determine file path from URL.");
         return;
@@ -184,7 +184,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       const filePath = urlParts[1];
 
       const { error: deleteError } = await supabase.storage
-        .from('student-documents')
+        .from('1')
         .remove([filePath]);
 
       if (deleteError) {
@@ -224,16 +224,16 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       const file = values.document[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `students/${user.id}/${fileName}`;
 
       // If there was an old document, delete it first
-      if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/student-documents/')) {
-        const oldFilePath = currentDocumentUrl.split('/public/student-documents/')[1];
-        await supabase.storage.from('student-documents').remove([oldFilePath]);
+      if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
+        const oldFilePath = currentDocumentUrl.split('/public/1/')[1];
+        await supabase.storage.from('1').remove([oldFilePath]);
       }
 
       const { error: uploadError } = await supabase.storage
-        .from('student-documents')
+        .from('1')
         .upload(filePath, file);
 
       if (uploadError) {
@@ -243,7 +243,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       }
 
       const { data: publicUrlData } = supabase.storage
-        .from('student-documents')
+        .from('1')
         .getPublicUrl(filePath);
       
       documentUrl = publicUrlData.publicUrl;
@@ -286,10 +286,10 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
     }
 
     // Optionally delete document from storage before deleting student record
-    if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/student-documents/')) {
-      const filePath = currentDocumentUrl.split('/public/student-documents/')[1];
+    if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
+      const filePath = currentDocumentUrl.split('/public/1/')[1];
       const { error: deleteFileError } = await supabase.storage
-        .from('student-documents')
+        .from('1')
         .remove([filePath]);
       if (deleteFileError) {
         console.warn("Could not delete associated document from storage:", deleteFileError);
