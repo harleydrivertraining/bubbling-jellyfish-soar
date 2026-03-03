@@ -431,7 +431,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
             {isLoadingPrevTargets ? (
               <Skeleton className="h-10 w-full" />
             ) : (
-              <p className="text-sm text-muted-foreground italic">
+              <p className="text-sm font-bold text-foreground italic">
                 {previousTargets || "No targets set from previous lesson."}
               </p>
             )}
