@@ -9,7 +9,7 @@ import { Car, UploadCloud, Image as ImageIcon, XCircle, Link as LinkIcon } from 
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Progress } from "@/components/ui/progress"; // Import Progress component
+import { Progress } from "@/components/ui/progress";
 
 interface CarImageUploadCardProps {
   carId: string;
@@ -33,26 +33,26 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
 
   useEffect(() => {
     setPreviewUrl(currentImageUrl);
-    setUrlInput(currentImageUrl || ""); // Keep URL input in sync with current image
+    setUrlInput(currentImageUrl || "");
   }, [currentImageUrl]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
       const selectedFile = event.target.files[0];
       setFile(selectedFile);
-      setPreviewUrl(URL.createObjectURL(selectedFile)); // Create a local preview
-      setUrlInput(""); // Clear URL input when a file is selected
+      setPreviewUrl(URL.createObjectURL(selectedFile));
+      setUrlInput("");
     } else {
       setFile(null);
-      setPreviewUrl(currentImageUrl); // Revert to current image if no file selected
+      setPreviewUrl(currentImageUrl);
     }
   };
 
   const handleUrlInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newUrl = event.target.value;
     setUrlInput(newUrl);
-    setFile(null); // Clear any selected file when typing a URL
-    setPreviewUrl(newUrl || currentImageUrl); // Update preview with new URL or revert
+    setFile(null);
+    setPreviewUrl(newUrl || currentImageUrl);
   };
 
   const handleUpload = async () => {
@@ -70,25 +70,17 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${carId}-${Date.now()}.${fileExt}`;
-    const filePath = `${user.id}/cars/${fileName}`; // Put user ID first for RLS policies
+    // Path MUST start with user.id for most RLS policies
+    const filePath = `${user.id}/cars/${fileName}`;
 
-    const { data, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('1')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-        onUploadProgress: (event) => {
-          if (event.totalBytes > 0) {
-            setUploadProgress(Math.round((event.bytesUploaded / event.totalBytes) * 100));
-          }
-        },
-      });
+      .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
       console.error("Error uploading car image:", uploadError);
       showError("Failed to upload image: " + uploadError.message);
       setUploading(false);
-      setUploadProgress(0);
       return;
     }
 
@@ -98,7 +90,6 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     
     const newImageUrl = publicUrlData.publicUrl;
 
-    // Update the car's record in the database with the new image URL
     const { error: updateError } = await supabase
       .from('cars')
       .update({ car_image_url: newImageUrl })
@@ -108,15 +99,13 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     if (updateError) {
       console.error("Error updating car image URL in DB:", updateError);
       showError("Failed to save image URL: " + updateError.message);
-      // Optionally, delete the uploaded file from storage if DB update fails
     } else {
       showSuccess("Car image uploaded and updated successfully!");
-      onImageUploaded(newImageUrl); // Notify parent component
-      setFile(null); // Clear selected file
-      setUrlInput(newImageUrl); // Keep URL input in sync
+      onImageUploaded(newImageUrl);
+      setFile(null);
+      setUrlInput(newImageUrl);
     }
     setUploading(false);
-    setUploadProgress(0);
   };
 
   const handleSetImageUrl = async () => {
@@ -128,7 +117,6 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
       showError("Please enter a valid URL.");
       return;
     }
-    // Basic URL validation
     try {
       new URL(urlInput);
     } catch (_) {
@@ -136,9 +124,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
       return;
     }
 
-    setUploading(true); // Use uploading state for both operations
-    setUploadProgress(0); // Reset progress for URL set
-
+    setUploading(true);
     const { error: updateError } = await supabase
       .from('cars')
       .update({ car_image_url: urlInput.trim() })
@@ -151,7 +137,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     } else {
       showSuccess("Car image URL updated successfully!");
       onImageUploaded(urlInput.trim());
-      setFile(null); // Clear any selected file
+      setFile(null);
     }
     setUploading(false);
   };
@@ -163,7 +149,6 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     }
     if (!currentImageUrl) return;
 
-    // If the current image is from a file upload, attempt to delete from storage
     if (currentImageUrl.includes('/storage/v1/object/public/1/')) {
       const urlParts = currentImageUrl.split('/public/1/');
       if (urlParts.length < 2) {
@@ -183,7 +168,6 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
       }
     }
 
-    // Update car record in DB to null regardless of source (file or URL)
     const { error: updateError } = await supabase
       .from('cars')
       .update({ car_image_url: null })
@@ -195,10 +179,10 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
       showError("Failed to remove car image URL from database: " + updateError.message);
     } else {
       showSuccess("Car image removed successfully!");
-      onImageUploaded(null); // Notify parent component
+      onImageUploaded(null);
       setPreviewUrl(null);
       setFile(null);
-      setUrlInput(""); // Clear URL input
+      setUrlInput("");
     }
   };
 
@@ -224,7 +208,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
             <Input
               id="car-image-url"
               type="url"
-              placeholder="Paste image URL here (e.g., https://example.com/car.jpg)"
+              placeholder="Paste image URL here"
               value={urlInput}
               onChange={handleUrlInputChange}
               disabled={uploading}
@@ -251,7 +235,6 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
             accept="image/*"
             onChange={handleFileChange}
             disabled={uploading}
-            className="file:text-primary file:bg-primary-foreground file:border-primary"
           />
           {uploading && file && <Progress value={uploadProgress} className="w-full" />}
           <div className="flex gap-2">
@@ -261,7 +244,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
               className="flex-1"
             >
               <UploadCloud className="mr-2 h-4 w-4" />
-              {uploading && file ? `Uploading (${uploadProgress}%)` : "Upload File"}
+              Upload File
             </Button>
             {currentImageUrl && (
               <Button

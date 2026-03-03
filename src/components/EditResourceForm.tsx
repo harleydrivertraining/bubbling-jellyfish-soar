@@ -96,9 +96,9 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
   useEffect(() => {
     if (selectedFile && selectedFile.length > 0) {
       setFilePreview(URL.createObjectURL(selectedFile[0]));
-      form.setValue("resource_url", ""); // Clear URL if new file is selected
+      form.setValue("resource_url", "");
     } else if (existingFilePath) {
-      setFilePreview(existingFilePath); // Show existing file preview
+      setFilePreview(existingFilePath);
     } else {
       setFilePreview(null);
     }
@@ -152,7 +152,7 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
           details: data.details || "",
           resource_url: data.resource_url || "",
           folder_id: data.folder_id || null,
-          file: null, // Always reset file input
+          file: null,
         });
         setExistingFilePath(data.file_path);
       }
@@ -169,11 +169,10 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
     }
     if (!existingFilePath) return;
 
-    // Attempt to delete from storage if it's a Supabase storage URL
     if (existingFilePath.includes('/storage/v1/object/public/1/')) {
       const urlParts = existingFilePath.split('/public/1/');
       if (urlParts.length < 2) {
-        showError("Could not determine file path from URL. Cannot delete file.");
+        showError("Could not determine file path from URL.");
         return;
       }
       const filePathInStorage = urlParts[1];
@@ -189,7 +188,6 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       }
     }
 
-    // Update resource record in DB to null for file_path
     const { error: updateError } = await supabase
       .from('resources')
       .update({ file_path: null })
@@ -214,39 +212,29 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
     }
 
     let finalResourceUrl: string | null = values.resource_url === "" ? null : values.resource_url;
-    let finalFilePath: string | null = existingFilePath; // Start with existing file path
+    let finalFilePath: string | null = existingFilePath;
 
     if (values.file && values.file.length > 0) {
       setUploading(true);
       setUploadProgress(0);
       const file = values.file[0];
-      const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${file.name}`;
-      const filePath = `${user.id}/resources/${fileName}`; // Put user ID first for RLS policies
+      // Path MUST start with user.id for most RLS policies
+      const filePath = `${user.id}/resources/${fileName}`;
 
-      // If there was an old file, delete it first from storage
       if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/1/')) {
         const oldFilePathInStorage = existingFilePath.split('/public/1/')[1];
         await supabase.storage.from('1').remove([oldFilePathInStorage]);
       }
 
-      const { data, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('1')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          onUploadProgress: (event) => {
-            if (event.totalBytes > 0) {
-              setUploadProgress(Math.round((event.bytesUploaded / event.totalBytes) * 100));
-            }
-          },
-        });
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
         console.error("Error uploading resource file:", uploadError);
         showError("Failed to upload file: " + uploadError.message);
         setUploading(false);
-        setUploadProgress(0);
         return;
       }
 
@@ -255,21 +243,14 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
         .getPublicUrl(filePath);
       
       finalFilePath = publicUrlData.publicUrl;
-      finalResourceUrl = null; // Clear external URL if a file is uploaded
+      finalResourceUrl = null;
       setUploading(false);
-      setUploadProgress(0);
     } else if (finalResourceUrl) {
-      // If an external URL is provided and no new file is uploaded, clear file_path
       finalFilePath = null;
-      // If there was an old file, delete it from storage
       if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/1/')) {
         const oldFilePathInStorage = existingFilePath.split('/public/1/')[1];
         await supabase.storage.from('1').remove([oldFilePathInStorage]);
       }
-    } else if (!finalResourceUrl && !finalFilePath) {
-      // This case should be caught by superRefine, but as a fallback
-      showError("Either a Resource URL or a File must be provided.");
-      return;
     }
 
     const { error } = await supabase
@@ -279,7 +260,7 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
         image_url: values.image_url === "" ? null : values.image_url,
         details: values.details,
         resource_url: finalResourceUrl,
-        file_path: finalFilePath, // Update with new file path or null
+        file_path: finalFilePath,
         folder_id: values.folder_id === "" ? null : values.folder_id,
       })
       .eq("id", resourceId)
@@ -300,7 +281,6 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       return;
     }
 
-    // Optionally delete file from storage before deleting resource record
     if (existingFilePath && existingFilePath.includes('/storage/v1/object/public/1/')) {
       const filePathInStorage = existingFilePath.split('/public/1/')[1];
       const { error: deleteFileError } = await supabase.storage
@@ -419,12 +399,12 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
                     placeholder="https://www.gov.uk/highway-code"
                     {...field}
                     value={field.value || ""}
-                    disabled={uploading || (selectedFile && selectedFile.length > 0) || !!existingFilePath} // Disable if file is selected/exists or uploading
+                    disabled={uploading || (selectedFile && selectedFile.length > 0) || !!existingFilePath}
                     onChange={(e) => {
                       field.onChange(e);
                       if (e.target.value) {
-                        form.setValue("file", null); // Clear file input if URL is entered
-                        setExistingFilePath(null); // Clear existing file path if URL is entered
+                        form.setValue("file", null);
+                        setExistingFilePath(null);
                       }
                     }}
                   />
@@ -454,10 +434,10 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
                     onChange={(event) => {
                       onChange(event.target.files);
                       if (event.target.files && event.target.files.length > 0) {
-                        form.setValue("resource_url", ""); // Clear URL if file is selected
+                        form.setValue("resource_url", "");
                       }
                     }}
-                    disabled={uploading || (resourceUrl && resourceUrl.length > 0) || !!existingFilePath} // Disable if URL is entered/exists or uploading
+                    disabled={uploading || (resourceUrl && resourceUrl.length > 0) || !!existingFilePath}
                   />
                 </FormControl>
                 <FormMessage />
@@ -470,7 +450,6 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
                       size="icon"
                       onClick={() => form.setValue("file", null)}
                       className="h-6 w-6 text-destructive hover:text-destructive/90"
-                      title="Remove selected file"
                     >
                       <XCircle className="h-4 w-4" />
                     </Button>

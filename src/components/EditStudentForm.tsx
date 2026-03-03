@@ -34,17 +34,13 @@ import { Switch } from "@/components/ui/switch";
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
   if (!dobString) return null;
-
   const parts = dobString.split('/');
   if (parts.length !== 3) return null;
-
   const day = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10) - 1;
   const year = parseInt(parts[2], 10);
-
   const dob = new Date(year, month, day);
   if (isNaN(dob.getTime())) return null;
-
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
   const m = today.getMonth() - dob.getMonth();
@@ -65,12 +61,10 @@ const formSchema = z.object({
       if (!val) return true;
       const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
       if (!dateRegex.test(val)) return false;
-
       const parts = val.split('/');
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10);
       const year = parseInt(parts[2], 10);
-
       if (month < 1 || month > 12 || day < 1 || day > 31) return false;
       const date = new Date(year, month - 1, day);
       return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
@@ -217,7 +211,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       const file = values.document[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/students/${fileName}`; // Put user ID first for RLS policies
+      const filePath = `${user.id}/students/${fileName}`;
 
       if (currentDocumentUrl && currentDocumentUrl.includes('/storage/v1/object/public/1/')) {
         const oldFilePath = currentDocumentUrl.split('/public/1/')[1];
@@ -226,7 +220,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
 
       const { error: uploadError } = await supabase.storage
         .from('1')
-        .upload(filePath, file);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
         console.error("Error uploading document:", uploadError);

@@ -91,7 +91,7 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
   useEffect(() => {
     if (selectedFile && selectedFile.length > 0) {
       setFilePreview(URL.createObjectURL(selectedFile[0]));
-      form.setValue("resource_url", ""); // Clear URL if file is selected
+      form.setValue("resource_url", "");
     } else {
       setFilePreview(null);
     }
@@ -136,27 +136,18 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
       setUploading(true);
       setUploadProgress(0);
       const file = values.file[0];
-      const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${file.name}`;
-      const filePath = `${user.id}/resources/${fileName}`; // Put user ID first for RLS policies
+      // Path MUST start with user.id for most RLS policies
+      const filePath = `${user.id}/resources/${fileName}`;
 
-      const { data, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('1')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          onUploadProgress: (event) => {
-            if (event.totalBytes > 0) {
-              setUploadProgress(Math.round((event.bytesUploaded / event.totalBytes) * 100));
-            }
-          },
-        });
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
         console.error("Error uploading resource file:", uploadError);
         showError("Failed to upload file: " + uploadError.message);
         setUploading(false);
-        setUploadProgress(0);
         return;
       }
 
@@ -165,11 +156,8 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
         .getPublicUrl(filePath);
       
       finalFilePath = publicUrlData.publicUrl;
-      finalResourceUrl = null; // Clear external URL if a file is uploaded
+      finalResourceUrl = null;
       setUploading(false);
-      setUploadProgress(0);
-    } else if (finalResourceUrl) {
-      finalFilePath = null; // Clear file path if an external URL is provided
     }
 
     const { error } = await supabase
@@ -180,10 +168,9 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
         image_url: values.image_url === "" ? null : values.image_url,
         details: values.details,
         resource_url: finalResourceUrl,
-        file_path: finalFilePath, // Store the uploaded file's public URL
+        file_path: finalFilePath,
         folder_id: values.folder_id === "" ? null : values.folder_id,
-      })
-      .select();
+      });
 
     if (error) {
       console.error("Error adding resource:", error);
@@ -263,11 +250,11 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
                     placeholder="https://www.gov.uk/highway-code"
                     {...field}
                     value={field.value || ""}
-                    disabled={uploading || (selectedFile && selectedFile.length > 0)} // Disable if file is selected or uploading
+                    disabled={uploading || (selectedFile && selectedFile.length > 0)}
                     onChange={(e) => {
                       field.onChange(e);
                       if (e.target.value) {
-                        form.setValue("file", null); // Clear file input if URL is entered
+                        form.setValue("file", null);
                       }
                     }}
                   />
@@ -293,14 +280,14 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
                   <Input
                     {...fieldProps}
                     type="file"
-                    accept=".pdf,.doc,.docx,.jpg,.png,.mp4,.mov" // Example accepted file types
+                    accept=".pdf,.doc,.docx,.jpg,.png,.mp4,.mov"
                     onChange={(event) => {
                       onChange(event.target.files);
                       if (event.target.files && event.target.files.length > 0) {
-                        form.setValue("resource_url", ""); // Clear URL if file is selected
+                        form.setValue("resource_url", "");
                       }
                     }}
-                    disabled={uploading || (resourceUrl && resourceUrl.length > 0)} // Disable if URL is entered or uploading
+                    disabled={uploading || (resourceUrl && resourceUrl.length > 0)}
                   />
                 </FormControl>
                 <FormMessage />
@@ -313,7 +300,6 @@ const AddResourceForm: React.FC<AddResourceFormProps> = ({ onResourceAdded, onCl
                       size="icon"
                       onClick={() => form.setValue("file", null)}
                       className="h-6 w-6 text-destructive hover:text-destructive/90"
-                      title="Remove selected file"
                     >
                       <XCircle className="h-4 w-4" />
                     </Button>
