@@ -26,7 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addMinutes, addWeeks } from "date-fns";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -413,14 +413,29 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                 <FormItem>
                   <FormLabel>Number of Repeats</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="e.g., 4"
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
-                      min={1}
-                      max={12}
-                    />
+                    <div className="flex items-center gap-3 h-10">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => field.onChange(Math.max(1, (field.value || 1) - 1))}
+                        disabled={(field.value || 1) <= 1}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="w-8 text-center font-bold text-lg">{field.value || 1}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => field.onChange(Math.min(12, (field.value || 1) + 1))}
+                        disabled={(field.value || 1) >= 12}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
