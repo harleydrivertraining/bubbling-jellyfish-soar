@@ -1,17 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Phone, CalendarDays, GraduationCap, Edit, UserX, Hourglass } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { PlusCircle, ChevronRight, Hourglass, CalendarDays, UserX } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
 import EditStudentForm from "@/components/EditStudentForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
+import { format, isAfter } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -28,13 +28,12 @@ interface Student {
   id: string;
   name: string;
   status: "Beginner" | "Intermediate" | "Advanced";
-  date_of_birth?: string; // ISO string
-  driving_license_number?: string;
-  phone_number?: string;
-  full_address?: string;
-  notes?: string;
   is_past_student: boolean;
   total_prepaid_hours: number;
+  next_booking?: {
+    start_time: string;
+    title: string;
+  } | null;
 }
 
 const Students: React.FC = () => {
@@ -46,7 +45,7 @@ const Students: React.FC = () => {
   const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [showPastStudents, setShowPastStudents] = useState<string>("current"); // "current", "past", "all"
+  const [showPastStudents, setShowPastStudents] = useState<string>("current");
 
   const fetchStudents = useCallback(async () => {
     if (!user) {
@@ -55,18 +54,25 @@ const Students: React.FC = () => {
     }
 
     setIsLoading(true);
+    const now = new Date().toISOString();
     
-    // Fetch students and pre-paid hours separately to ensure reliable merging
-    const [studentsRes, hoursRes] = await Promise.all([
+    const [studentsRes, hoursRes, bookingsRes] = await Promise.all([
       supabase
         .from("students")
-        .select("id, name, status, date_of_birth, driving_license_number, phone_number, full_address, notes, is_past_student")
+        .select("id, name, status, is_past_student")
         .eq("user_id", user.id)
         .order("name", { ascending: true }),
       supabase
         .from("pre_paid_hours")
         .select("student_id, remaining_hours")
+        .eq("user_id", user.id),
+      supabase
+        .from("bookings")
+        .select("student_id, start_time, title")
         .eq("user_id", user.id)
+        .eq("status", "scheduled")
+        .gt("start_time", now)
+        .order("start_time", { ascending: true })
     ]);
 
     if (studentsRes.error) {
@@ -74,16 +80,25 @@ const Students: React.FC = () => {
       showError("Failed to load students: " + studentsRes.error.message);
       setStudents([]);
     } else {
-      // Create a map of student_id to total remaining hours
       const hoursMap: Record<string, number> = {};
       hoursRes.data?.forEach(pkg => {
         hoursMap[pkg.student_id] = (hoursMap[pkg.student_id] || 0) + (pkg.remaining_hours || 0);
       });
 
-      // Merge hours into student data
+      const nextBookingMap: Record<string, { start_time: string; title: string }> = {};
+      bookingsRes.data?.forEach(booking => {
+        if (booking.student_id && !nextBookingMap[booking.student_id]) {
+          nextBookingMap[booking.student_id] = {
+            start_time: booking.start_time,
+            title: booking.title
+          };
+        }
+      });
+
       const formattedStudents: Student[] = (studentsRes.data || []).map((student: any) => ({
         ...student,
-        total_prepaid_hours: hoursMap[student.id] || 0
+        total_prepaid_hours: hoursMap[student.id] || 0,
+        next_booking: nextBookingMap[student.id] || null
       }));
       
       setStudents(formattedStudents);
@@ -97,56 +112,27 @@ const Students: React.FC = () => {
     }
   }, [user, isSessionLoading, fetchStudents]);
 
-  const handleStudentAdded = () => {
-    fetchStudents();
-    setIsAddDialogOpen(false);
-  };
-
   const handleEditStudentClick = (studentId: string) => {
     setSelectedStudentForEdit(studentId);
     setIsEditDialogOpen(true);
   };
 
-  const handleStudentUpdated = () => {
-    fetchStudents();
-    setIsEditDialogOpen(false);
-    setSelectedStudentForEdit(null);
-  };
-
-  const handleStudentDeleted = () => {
-    fetchStudents();
-    setIsEditDialogOpen(false);
-    setSelectedStudentForEdit(null);
-  };
-
-  const handleCloseEditDialog = () => {
-    setIsEditDialogOpen(false);
-    setSelectedStudentForEdit(null);
-  };
-
   const filteredStudents = useMemo(() => {
     let currentStudents = [...students];
 
-    // Filter by search term
     if (searchTerm) {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       currentStudents = currentStudents.filter((student) =>
-        student.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-        student.driving_license_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        student.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        student.full_address?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        student.notes?.toLowerCase().includes(lowerCaseSearchTerm)
+        student.name.toLowerCase().includes(lowerCaseSearchTerm)
       );
     }
 
-    // Filter by status
     if (selectedStatus !== "all") {
       currentStudents = currentStudents.filter((student) =>
         student.status === selectedStatus
       );
     }
 
-    // Filter by past student status
     if (showPastStudents === "current") {
       currentStudents = currentStudents.filter((student) => !student.is_past_student);
     } else if (showPastStudents === "past") {
@@ -163,16 +149,9 @@ const Students: React.FC = () => {
           <Skeleton className="h-10 w-48" />
           <Skeleton className="h-10 w-32" />
         </div>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-1/4" />
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}
+        </div>
       </div>
     );
   }
@@ -181,24 +160,14 @@ const Students: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Students</h1>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Student
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Student</DialogTitle>
-            </DialogHeader>
-            <AddStudentForm onStudentAdded={handleStudentAdded} onClose={() => setIsAddDialogOpen(false)} />
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsAddDialogOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Add Student
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Input
-          placeholder="Search students by name, license, phone, address, or notes..."
+          placeholder="Search students..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
@@ -206,8 +175,8 @@ const Students: React.FC = () => {
         <div className="flex items-center gap-2">
           <Label htmlFor="status-filter">Status:</Label>
           <Select onValueChange={setSelectedStatus} defaultValue={selectedStatus}>
-            <SelectTrigger id="status-filter" className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
+            <SelectTrigger id="status-filter" className="w-[150px]">
+              <SelectValue placeholder="Filter status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
@@ -220,103 +189,96 @@ const Students: React.FC = () => {
         <div className="flex items-center gap-2">
           <Label htmlFor="past-student-filter">View:</Label>
           <Select onValueChange={setShowPastStudents} defaultValue={showPastStudents}>
-            <SelectTrigger id="past-student-filter" className="w-[180px]">
+            <SelectTrigger id="past-student-filter" className="w-[150px]">
               <SelectValue placeholder="View students" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="current">Current Students</SelectItem>
-              <SelectItem value="past">Past Students</SelectItem>
-              <SelectItem value="all">All Students</SelectItem>
+              <SelectItem value="current">Current</SelectItem>
+              <SelectItem value="past">Past</SelectItem>
+              <SelectItem value="all">All</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {filteredStudents.length === 0 && students.length > 0 && (
-        <p className="text-muted-foreground col-span-full">No students match your search or filter criteria.</p>
-      )}
-      {students.length === 0 ? (
-        <p className="text-muted-foreground col-span-full">No students added yet. Click "Add Student" to get started!</p>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredStudents.map((student) => (
-            <Card key={student.id} className={cn("flex flex-col", student.is_past_student && "opacity-70 border-dashed")}>
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <div className="space-y-1">
-                  <CardTitle className="text-lg font-semibold">{student.name}</CardTitle>
-                  {student.total_prepaid_hours > 0 && (
-                    <div className="flex items-center text-xs font-bold text-green-600">
-                      <Hourglass className="mr-1 h-3 w-3" />
-                      {student.total_prepaid_hours.toFixed(1)} hrs credit
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {student.is_past_student && (
-                    <Badge variant="outline" className="bg-muted text-muted-foreground">
-                      <UserX className="mr-1 h-3 w-3" /> Past Student
+      <div className="space-y-3">
+        {filteredStudents.length === 0 ? (
+          <p className="text-muted-foreground text-center py-8">No students found.</p>
+        ) : (
+          filteredStudents.map((student) => (
+            <Card key={student.id} className={cn(
+              "overflow-hidden transition-all hover:shadow-md",
+              student.is_past_student && "opacity-70 bg-muted/30"
+            )}>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-bold truncate">{student.name}</h3>
+                    {student.is_past_student && (
+                      <Badge variant="outline" className="text-[10px] h-4 px-1">PAST</Badge>
+                    )}
+                    <Badge variant={
+                      student.status === "Beginner" ? "secondary" :
+                      student.status === "Intermediate" ? "default" :
+                      "outline"
+                    } className="text-[10px] h-4 px-1">
+                      {student.status}
                     </Badge>
-                  )}
-                  <Badge variant={
-                    student.status === "Beginner" ? "secondary" :
-                    student.status === "Intermediate" ? "default" :
-                    "outline"
-                  }>
-                    {student.status}
-                  </Badge>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    {student.next_booking ? (
+                      <div className="flex items-center text-blue-600 font-medium">
+                        <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+                        Next: {format(new Date(student.next_booking.start_time), "MMM d, p")}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground italic">No upcoming lessons</div>
+                    )}
+                    
+                    {student.total_prepaid_hours > 0 && (
+                      <div className="flex items-center text-green-600 font-bold">
+                        <Hourglass className="mr-1.5 h-3.5 w-3.5" />
+                        {student.total_prepaid_hours.toFixed(1)} hrs credit
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-2 text-sm">
-                {student.date_of_birth && (
-                  <div className="flex items-center text-muted-foreground">
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    <span>DOB: {format(new Date(student.date_of_birth), "PPP")}</span>
-                  </div>
-                )}
-                {student.phone_number && (
-                  <div className="flex items-center text-muted-foreground">
-                    <Phone className="mr-2 h-4 w-4" />
-                    <span>{student.phone_number}</span>
-                  </div>
-                )}
-                {student.driving_license_number && (
-                  <div className="flex items-center text-muted-foreground">
-                    <GraduationCap className="mr-2 h-4 w-4" />
-                    <span>License: {student.driving_license_number}</span>
-                  </div>
-                )}
-                {student.full_address && (
-                  <CardDescription className="text-muted-foreground">
-                    {student.full_address}
-                  </CardDescription>
-                )}
-                {student.notes && (
-                  <CardDescription className="text-muted-foreground italic">
-                    Notes: {student.notes}
-                  </CardDescription>
-                )}
-                <div className="flex gap-2 mt-4">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEditStudentClick(student.id)}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
 
-      <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="ml-4 rounded-full hover:bg-primary hover:text-primary-foreground"
+                  onClick={() => handleEditStudentClick(student.id)}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Student</DialogTitle>
+            <DialogTitle>Add New Student</DialogTitle>
+          </DialogHeader>
+          <AddStudentForm onStudentAdded={() => { fetchStudents(); setIsAddDialogOpen(false); }} onClose={() => setIsAddDialogOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Student Profile</DialogTitle>
           </DialogHeader>
           {selectedStudentForEdit && (
             <EditStudentForm
               studentId={selectedStudentForEdit}
-              onStudentUpdated={handleStudentUpdated}
-              onStudentDeleted={handleStudentDeleted}
-              onClose={handleCloseEditDialog}
+              onStudentUpdated={() => { fetchStudents(); setIsEditDialogOpen(false); }}
+              onStudentDeleted={() => { fetchStudents(); setIsEditDialogOpen(false); }}
+              onClose={() => setIsEditDialogOpen(false)}
             />
           )}
         </DialogContent>
