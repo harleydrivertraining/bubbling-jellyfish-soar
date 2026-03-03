@@ -2,7 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
-import { PoundSterling, Circle, CheckCircle } from "lucide-react";
+import { PoundSterling, Circle, Check } from "lucide-react";
 
 const LegendItem = ({ colorClass, label }: { colorClass: string; label: string }) => (
   <div className="flex items-center gap-2">
@@ -52,7 +52,10 @@ const CalendarLegend = () => {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <CheckCircle className="h-4 w-4 text-muted-foreground" />
+        <div className="relative flex items-center justify-center h-6 w-6 rounded-full text-muted-foreground">
+          <Check className="h-3.5 w-3.5" />
+          <Circle className="absolute inset-0 h-full w-full stroke-[3px] text-muted-foreground" />
+        </div>
         <span className="text-xs font-medium text-muted-foreground">Press to complete lesson</span>
       </div>
     </div>
