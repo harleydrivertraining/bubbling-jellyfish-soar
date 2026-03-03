@@ -5,11 +5,11 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { User, ArrowLeft, MessageSquare, Clock } from "lucide-react";
+import { User, ArrowLeft, MessageSquare, Clock, CheckCircle2, RefreshCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import SupportConversation from "@/components/SupportConversation";
@@ -52,20 +52,48 @@ const AdminSupport: React.FC = () => {
     const { data, error } = await supabase
       .from("support_messages")
       .select("*, profiles(first_name, last_name)")
-      .order("status", { ascending: false })
+      .order("status", { ascending: false }) // 'open' usually comes after 'closed' alphabetically, but we want open first
       .order("created_at", { ascending: false });
 
     if (error) {
       showError("Failed to load messages: " + error.message);
     } else {
-      setMessages(data || []);
+      // Sort manually to ensure 'open' is always at the top
+      const sorted = (data || []).sort((a, b) => {
+        if (a.status === 'open' && b.status !== 'open') return -1;
+        if (a.status !== 'open' && b.status === 'open') return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      setMessages(sorted);
+      
+      // Update selected message if it exists to reflect status changes
+      if (selectedMessage) {
+        const updated = sorted.find(m => m.id === selectedMessage.id);
+        if (updated) setSelectedMessage(updated);
+      }
     }
     setIsLoading(false);
-  }, [user, navigate]);
+  }, [user, navigate, selectedMessage?.id]);
 
   useEffect(() => {
     if (!isSessionLoading) fetchAllMessages();
   }, [isSessionLoading, fetchAllMessages]);
+
+  const handleToggleStatus = async (messageId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+    
+    const { error } = await supabase
+      .from("support_messages")
+      .update({ status: newStatus })
+      .eq("id", messageId);
+
+    if (error) {
+      showError("Failed to update status: " + error.message);
+    } else {
+      showSuccess(`Request marked as ${newStatus}.`);
+      fetchAllMessages();
+    }
+  };
 
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-64 w-full" /></div>;
@@ -86,17 +114,36 @@ const AdminSupport: React.FC = () => {
 
       {selectedMessage ? (
         <div className="space-y-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-2xl font-bold">{selectedMessage.subject}</h2>
-              <p className="text-muted-foreground flex items-center gap-2 mt-1">
+          <div className="flex justify-between items-start bg-card p-6 rounded-xl border shadow-sm">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <Badge variant={selectedMessage.status === 'open' ? 'default' : 'secondary'} className="uppercase font-bold">
+                  {selectedMessage.status}
+                </Badge>
+                <span className="text-xs text-muted-foreground font-medium">
+                  ID: {selectedMessage.id.split('-')[0]}
+                </span>
+              </div>
+              <h2 className="text-2xl font-black tracking-tight truncate">{selectedMessage.subject}</h2>
+              <p className="text-muted-foreground flex items-center gap-2 mt-1 font-medium">
                 <User className="h-4 w-4" />
                 From: {selectedMessage.profiles?.first_name} {selectedMessage.profiles?.last_name}
               </p>
             </div>
-            <Badge variant={selectedMessage.status === 'open' ? 'default' : 'secondary'}>
-              {selectedMessage.status.toUpperCase()}
-            </Badge>
+            <div className="flex flex-col gap-2 shrink-0">
+              <Button 
+                variant={selectedMessage.status === 'open' ? 'outline' : 'default'}
+                size="sm"
+                className="font-bold"
+                onClick={() => handleToggleStatus(selectedMessage.id, selectedMessage.status)}
+              >
+                {selectedMessage.status === 'open' ? (
+                  <><CheckCircle2 className="mr-2 h-4 w-4 text-green-600" /> Close Request</>
+                ) : (
+                  <><RefreshCcw className="mr-2 h-4 w-4" /> Reopen Request</>
+                )}
+              </Button>
+            </div>
           </div>
           
           <SupportConversation 
@@ -130,27 +177,27 @@ const AdminSupport: React.FC = () => {
                     )}
                     onClick={() => setSelectedMessage(msg)}
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0 flex-1 mr-4">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold">{msg.subject}</h3>
-                        {msg.status === 'open' && <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />}
+                        <h3 className="font-bold truncate">{msg.subject}</h3>
+                        {msg.status === 'open' && <div className="h-2 w-2 rounded-full bg-primary animate-pulse shrink-0" />}
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium">
                         <span className="flex items-center gap-1">
                           <User className="h-3 w-3" />
                           {msg.profiles?.first_name} {msg.profiles?.last_name}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {format(new Date(msg.created_at), "PPP p")}
+                          {format(new Date(msg.created_at), "MMM d, p")}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant={msg.status === 'open' ? 'default' : 'secondary'}>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <Badge variant={msg.status === 'open' ? 'default' : 'secondary'} className="uppercase text-[10px] font-bold">
                         {msg.status}
                       </Badge>
-                      <Button variant="ghost" size="sm">Open Thread</Button>
+                      <Button variant="ghost" size="sm" className="font-bold">View</Button>
                     </div>
                   </div>
                 ))}
