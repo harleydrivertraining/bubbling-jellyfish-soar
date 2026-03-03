@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addMinutes } from "date-fns";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -92,6 +92,8 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingBooking, setIsLoadingBooking] = useState(true);
   const [openStudentSelect, setOpenStudentSelect] = useState(false);
+  const [previousTargets, setPreviousTargets] = useState<string | null>(null);
+  const [isLoadingPrevTargets, setIsLoadingPrevTargets] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -111,6 +113,37 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
   const selectedLessonLength = form.watch("lesson_length");
   const selectedStartTime = form.watch("start_time");
   const selectedLessonType = form.watch("lesson_type");
+  const selectedStudentId = form.watch("student_id");
+
+  const fetchPreviousTargets = useCallback(async (studentId: string, startTime: Date) => {
+    if (!studentId) {
+      setPreviousTargets(null);
+      return;
+    }
+
+    setIsLoadingPrevTargets(true);
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("targets_for_next_session")
+      .eq("student_id", studentId)
+      .lt("start_time", startTime.toISOString())
+      .order("start_time", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching previous targets:", error);
+    } else {
+      setPreviousTargets(data?.targets_for_next_session || null);
+    }
+    setIsLoadingPrevTargets(false);
+  }, []);
+
+  useEffect(() => {
+    if (selectedStudentId && selectedStartTime) {
+      fetchPreviousTargets(selectedStudentId, selectedStartTime);
+    }
+  }, [selectedStudentId, selectedStartTime, fetchPreviousTargets]);
 
   useEffect(() => {
     if (selectedStartTime && selectedLessonLength) {
@@ -388,6 +421,21 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
             className="bg-muted"
           />
         </FormItem>
+
+        {selectedLessonType !== "Personal" && selectedStudentId && (
+          <div className="space-y-2 p-3 bg-primary/5 border border-primary/10 rounded-lg">
+            <Label className="text-xs font-bold uppercase text-primary flex items-center">
+              <Target className="mr-1.5 h-3.5 w-3.5" /> Targets for this session
+            </Label>
+            {isLoadingPrevTargets ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                {previousTargets || "No targets set from previous lesson."}
+              </p>
+            )}
+          </div>
+        )}
 
         <FormField
           control={form.control}
