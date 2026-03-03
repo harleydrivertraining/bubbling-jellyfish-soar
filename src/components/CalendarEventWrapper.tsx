@@ -29,6 +29,12 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
   const isCancelled = event.resource?.status === 'cancelled';
   const isDrivingTest = event.resource?.lesson_type === 'Driving Test'; // Check for Driving Test
   const isPersonal = event.resource?.lesson_type === 'Personal'; // Check for Personal booking type
+  const isDrivingLesson = event.resource?.lesson_type === 'Driving lesson';
+
+  // Calculate duration in minutes
+  const duration = event.start && event.end 
+    ? (new Date(event.end).getTime() - new Date(event.start).getTime()) / (1000 * 60)
+    : 0;
 
   const handleMarkAsCompleted = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent event click from opening edit dialog
@@ -59,7 +65,8 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
         "bg-green-600/80": isCompleted,
         "bg-red-600/80": isCancelled,
         "bg-purple-600/80": isDrivingTest && !isCompleted && !isCancelled,
-        "bg-orange-600/80": isPersonal && !isCompleted && !isCancelled, // Apply orange if it's a personal booking and not completed/cancelled
+        "bg-orange-600/80": (isPersonal || (isDrivingLesson && duration >= 80 && duration <= 100)) && !isCompleted && !isCancelled,
+        "bg-sky-500/80": isDrivingLesson && duration >= 110 && !isCompleted && !isCancelled,
       }
     )}>
       <span className="flex-1 truncate text-white text-xs font-medium">{title}</span>
