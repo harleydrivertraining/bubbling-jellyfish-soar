@@ -297,7 +297,7 @@ const StudentProfile: React.FC = () => {
           </div>
 
           {/* View Toggle Buttons */}
-          <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+          <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit mx-auto">
             <Button 
               variant={activeLessonView === 'future' ? 'default' : 'ghost'} 
               size="sm"
