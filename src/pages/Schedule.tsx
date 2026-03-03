@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import CalendarComponent from "@/components/Calendar";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, RefreshCcw, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
 import { addMinutes, startOfMonth, endOfMonth, addMonths, differenceInMinutes, parseISO } from "date-fns";
@@ -30,6 +30,7 @@ const Schedule: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [currentCalendarView, _setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
@@ -53,6 +54,7 @@ const Schedule: React.FC = () => {
     }
 
     setIsLoadingEvents(true);
+    setFetchError(null);
     
     try {
       // 1. Fetch Bookings
@@ -139,15 +141,23 @@ const Schedule: React.FC = () => {
       setEvents(formattedEvents);
     } catch (error: any) {
       console.error("Error fetching schedule data:", error);
-      // If it's a network error, provide a more helpful message
-      const msg = error.message === "Failed to fetch" 
+      const isNetworkError = error.message?.toLowerCase().includes("failed to fetch");
+      const msg = isNetworkError 
         ? "Connection lost. Please check your internet or Supabase project status." 
-        : error.message;
+        : error.message || "An unexpected error occurred.";
+      
+      setFetchError(msg);
       showError("Failed to load schedule: " + msg);
     } finally {
       setIsLoadingEvents(false);
     }
   }, [user]);
+
+  const handleRetry = () => {
+    const start = startOfMonth(currentCalendarDate);
+    const end = endOfMonth(addMonths(currentCalendarDate, 2));
+    fetchBookings(start, end);
+  };
 
   useEffect(() => {
     if (!isSessionLoading && user) {
@@ -198,7 +208,6 @@ const Schedule: React.FC = () => {
 
           showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
         } else {
-          // Not enough credit in the oldest package, mark as manual paid
           const { error } = await supabase
             .from("bookings")
             .update({ is_paid: true })
@@ -208,7 +217,6 @@ const Schedule: React.FC = () => {
           showSuccess("Lesson marked as paid (Manual).");
         }
       } else {
-        // No credit at all, mark as manual paid
         const { error } = await supabase
           .from("bookings")
           .update({ is_paid: true })
@@ -218,10 +226,7 @@ const Schedule: React.FC = () => {
         showSuccess("Lesson marked as paid (Manual).");
       }
       
-      // Refresh
-      const start = startOfMonth(currentCalendarDate);
-      const end = endOfMonth(addMonths(currentCalendarDate, 2));
-      fetchBookings(start, end);
+      handleRetry();
     } catch (error: any) {
       console.error("Error marking as paid:", error);
       showError("Failed to process payment: " + error.message);
@@ -234,12 +239,10 @@ const Schedule: React.FC = () => {
   }, []);
 
   const handleBookingAdded = useCallback(() => {
-    const start = startOfMonth(currentCalendarDate);
-    const end = endOfMonth(addMonths(currentCalendarDate, 2));
-    fetchBookings(start, end);
+    handleRetry();
     setIsAddBookingDialogOpen(false);
     setSelectedSlot(null);
-  }, [fetchBookings, currentCalendarDate]);
+  }, [currentCalendarDate]);
 
   const handleCloseAddBookingDialog = useCallback(() => {
     setIsAddBookingDialogOpen(false);
@@ -260,10 +263,26 @@ const Schedule: React.FC = () => {
     fetchBookings(startDate, endDate);
   }, [fetchBookings]);
 
-  if (isSessionLoading || isLoadingEvents) {
+  if (isSessionLoading) {
     return (
       <div className="flex flex-col space-y-6 h-full items-center justify-center">
-        <p>Loading schedule...</p>
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-muted-foreground font-medium">Loading schedule...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col space-y-6 h-full items-center justify-center p-6 text-center">
+        <div className="bg-destructive/10 p-4 rounded-full mb-4">
+          <AlertCircle className="h-12 w-12 text-destructive" />
+        </div>
+        <h2 className="text-2xl font-bold">Unable to load schedule</h2>
+        <p className="text-muted-foreground max-w-md">{fetchError}</p>
+        <Button onClick={handleRetry} className="mt-4 font-bold">
+          <RefreshCcw className="mr-2 h-4 w-4" /> Try Again
+        </Button>
       </div>
     );
   }
@@ -276,6 +295,16 @@ const Schedule: React.FC = () => {
           <PlusCircle className="mr-2 h-4 w-4" /> Make New Booking
         </Button>
       </div>
+      
+      {isLoadingEvents && (
+        <div className="absolute inset-0 z-50 bg-background/50 flex items-center justify-center backdrop-blur-[1px]">
+          <div className="bg-card p-4 rounded-lg shadow-lg border flex items-center gap-3">
+            <RefreshCcw className="h-5 w-5 animate-spin text-primary" />
+            <span className="font-bold">Updating schedule...</span>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 min-h-[600px]">
         <CalendarComponent
           events={events}
