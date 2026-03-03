@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
@@ -39,15 +39,15 @@ const OwnerDashboard: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Fetch instructor count specifically looking for the 'instructor' role
+      // Fetch instructor count using case-insensitive matching
       const { count: instructorCount, error: instructorError } = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .eq("role", "instructor");
+        .ilike("role", "instructor");
 
       if (instructorError) throw instructorError;
 
-      // Fetch total students across the platform
+      // Fetch total students across the entire platform
       const { count: studentCount, error: studentError } = await supabase
         .from("students")
         .select("id", { count: "exact", head: true });
@@ -72,9 +72,9 @@ const OwnerDashboard: React.FC = () => {
       if (recentSupportError) throw recentSupportError;
 
       setStats({
-        totalInstructors: instructorCount || 0,
-        totalStudents: studentCount || 0,
-        openSupportRequests: supportCount || 0
+        totalInstructors: instructorCount ?? 0,
+        totalStudents: studentCount ?? 0,
+        openSupportRequests: supportCount ?? 0
       });
 
       setRecentSupport(recentSupportData || []);
@@ -102,6 +102,8 @@ const OwnerDashboard: React.FC = () => {
     );
   }
 
+  const showRLSWarning = stats && stats.totalInstructors === 0 && stats.totalStudents === 0;
+
   return (
     <div className="space-y-8 w-full px-4 lg:px-8 py-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -112,7 +114,22 @@ const OwnerDashboard: React.FC = () => {
           </h1>
           <p className="text-muted-foreground font-medium mt-1">Platform-wide overview and management.</p>
         </div>
+        <Button onClick={fetchOwnerData} variant="outline" size="sm" className="font-bold">
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh Data
+        </Button>
       </div>
+
+      {showRLSWarning && (
+        <Card className="bg-amber-50 border-amber-200 text-amber-900">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-bold">No data found?</p>
+              <p className="opacity-90">If you expect to see instructors and students here, please ensure your Supabase <strong>Row Level Security (RLS)</strong> policies allow the 'owner' role to view all records in the <code>profiles</code> and <code>students</code> tables.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="border-l-4 border-l-primary shadow-sm">
