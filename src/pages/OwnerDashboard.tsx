@@ -39,40 +39,45 @@ const OwnerDashboard: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Fetch all profiles to calculate instructor count accurately
-      // This handles cases where 'role' might be NULL or empty
-      const { data: profiles, error: profilesError } = await supabase
+      // Fetch instructor count specifically looking for the 'instructor' role
+      const { count: instructorCount, error: instructorError } = await supabase
         .from("profiles")
-        .select("role");
+        .select("id", { count: "exact", head: true })
+        .eq("role", "instructor");
 
-      if (profilesError) throw profilesError;
+      if (instructorError) throw instructorError;
 
-      const instructorCount = profiles?.filter(p => 
-        !p.role || p.role.toLowerCase() !== 'owner'
-      ).length || 0;
-
-      const studentsRes = await supabase
+      // Fetch total students across the platform
+      const { count: studentCount, error: studentError } = await supabase
         .from("students")
         .select("id", { count: "exact", head: true });
 
-      const supportRes = await supabase
+      if (studentError) throw studentError;
+
+      // Fetch open support requests
+      const { count: supportCount, error: supportError } = await supabase
         .from("support_messages")
         .select("id", { count: "exact", head: true })
         .eq("status", "open");
 
-      const recentSupportRes = await supabase
+      if (supportError) throw supportError;
+
+      // Fetch recent support activity
+      const { data: recentSupportData, error: recentSupportError } = await supabase
         .from("support_messages")
         .select("*, profiles(first_name, last_name)")
         .order("created_at", { ascending: false })
         .limit(5);
 
+      if (recentSupportError) throw recentSupportError;
+
       setStats({
-        totalInstructors: instructorCount,
-        totalStudents: studentsRes.count || 0,
-        openSupportRequests: supportRes.count || 0
+        totalInstructors: instructorCount || 0,
+        totalStudents: studentCount || 0,
+        openSupportRequests: supportCount || 0
       });
 
-      setRecentSupport(recentSupportRes.data || []);
+      setRecentSupport(recentSupportData || []);
     } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
       showError("Failed to load platform statistics: " + error.message);
