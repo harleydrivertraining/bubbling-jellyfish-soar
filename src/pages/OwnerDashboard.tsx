@@ -6,16 +6,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface PlatformStats {
   totalInstructors: number;
   totalStudents: number;
   openSupportRequests: number;
+  activeInstructorsThisWeek: number;
 }
 
 interface RecentSupport {
@@ -39,7 +40,9 @@ const OwnerDashboard: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Fetch instructor count using case-insensitive matching
+      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+
+      // Fetch instructor count
       const { count: instructorCount, error: instructorError } = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
@@ -47,7 +50,16 @@ const OwnerDashboard: React.FC = () => {
 
       if (instructorError) throw instructorError;
 
-      // Fetch total students across the entire platform
+      // Fetch active instructors this week (based on updated_at)
+      const { count: activeInstructorCount, error: activeError } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .ilike("role", "instructor")
+        .gte("updated_at", weekStart.toISOString());
+
+      if (activeError) throw activeError;
+
+      // Fetch total students
       const { count: studentCount, error: studentError } = await supabase
         .from("students")
         .select("id", { count: "exact", head: true });
@@ -74,7 +86,8 @@ const OwnerDashboard: React.FC = () => {
       setStats({
         totalInstructors: instructorCount ?? 0,
         totalStudents: studentCount ?? 0,
-        openSupportRequests: supportCount ?? 0
+        openSupportRequests: supportCount ?? 0,
+        activeInstructorsThisWeek: activeInstructorCount ?? 0
       });
 
       setRecentSupport(recentSupportData || []);
@@ -131,6 +144,7 @@ const OwnerDashboard: React.FC = () => {
         </Card>
       )}
 
+      {/* Primary Stats Row */}
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="border-l-4 border-l-primary shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -164,6 +178,23 @@ const OwnerDashboard: React.FC = () => {
             <p className="text-xs text-muted-foreground mt-1">Requests needing attention</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Secondary Stats Row */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="border-l-4 border-l-indigo-500 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Active This Week</CardTitle>
+            <UserCheck className="h-5 w-5 text-indigo-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-black">{stats?.activeInstructorsThisWeek}</div>
+            <p className="text-xs text-muted-foreground mt-1">Instructors logged in or active</p>
+          </CardContent>
+        </Card>
+        
+        {/* Placeholder for future stats to maintain grid layout */}
+        <div className="md:col-span-2" />
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
