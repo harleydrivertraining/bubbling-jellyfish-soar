@@ -204,52 +204,24 @@ const Schedule: React.FC = () => {
     }
   }, [isSessionLoading, user, currentCalendarDate, fetchBookings]);
 
-  const handleMarkAsPaid = async (bookingId: string, studentId: string, startTime: string, endTime: string) => {
-    if (!user || !studentId) return;
-    const duration = differenceInMinutes(new Date(endTime), new Date(startTime)) / 60;
+  const handleMarkAsPaid = async (bookingId: string) => {
+    if (!user) return;
 
     try {
-      const { data: packages, error: pkgError } = await supabase
-        .from("pre_paid_hours")
-        .select("*")
-        .eq("student_id", studentId)
-        .gt("remaining_hours", 0)
-        .order("purchase_date", { ascending: true });
+      // Only update the paid status. The actual deduction of hours will happen 
+      // when the lesson is marked as completed (handled by DB logic).
+      const { error } = await supabase
+        .from("bookings")
+        .update({ is_paid: true })
+        .eq("id", bookingId);
 
-      if (pkgError) throw pkgError;
-
-      if (packages && packages.length > 0) {
-        const pkg = packages[0];
-        if (pkg.remaining_hours >= duration) {
-          // Update pre-paid hours
-          await supabase.from("pre_paid_hours").update({ remaining_hours: pkg.remaining_hours - duration }).eq("id", pkg.id);
-          
-          // Create transaction record
-          await supabase.from("pre_paid_hours_transactions").insert({
-            user_id: user.id,
-            pre_paid_hours_id: pkg.id,
-            booking_id: bookingId,
-            hours_deducted: duration
-          });
-
-          // Also mark the booking itself as paid in the database to ensure UI consistency
-          await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
-          
-          showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
-        } else {
-          await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
-          showSuccess("Lesson marked as paid (Manual).");
-        }
-      } else {
-        await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
-        showSuccess("Lesson marked as paid (Manual).");
-      }
+      if (error) throw error;
       
-      // Await the retry to ensure the UI updates with the latest data
+      showSuccess("Lesson marked as paid.");
       await handleRetry();
     } catch (error: any) {
       console.error("Error marking as paid:", error);
-      showError("Failed to process payment: " + error.message);
+      showError("Failed to mark as paid: " + error.message);
     }
   };
 

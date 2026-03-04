@@ -240,23 +240,8 @@ const StudentProfile: React.FC = () => {
   const handleMarkAsCompleted = async (booking: Booking) => {
     if (!user) return;
 
-    // If it's already paid, we just update the status to avoid double charging
-    if (booking.is_paid) {
-      const { error } = await supabase
-        .from("bookings")
-        .update({ status: "completed" })
-        .eq("id", booking.id);
-
-      if (error) {
-        showError("Failed to complete lesson: " + error.message);
-      } else {
-        showSuccess("Lesson marked as completed.");
-        fetchData();
-      }
-      return;
-    }
-
-    // If not paid, we mark as completed (which might trigger a DB deduction if one exists)
+    // Update status to completed. The system's background logic will handle 
+    // the pre-paid hour deduction if the lesson isn't already marked as paid.
     const { error } = await supabase
       .from("bookings")
       .update({ status: "completed" })
@@ -273,75 +258,21 @@ const StudentProfile: React.FC = () => {
   const handleMarkAsPaid = async (booking: Booking) => {
     if (!user || !studentId) return;
 
-    const duration = differenceInMinutes(new Date(booking.end_time), new Date(booking.start_time)) / 60;
-
     try {
-      // Find oldest package with enough hours
-      const { data: packages, error: pkgError } = await supabase
-        .from("pre_paid_hours")
-        .select("*")
-        .eq("student_id", studentId)
-        .gt("remaining_hours", 0)
-        .order("purchase_date", { ascending: true });
+      // Only update the paid status. The actual deduction of hours will happen 
+      // when the lesson is marked as completed (handled by DB logic).
+      const { error } = await supabase
+        .from("bookings")
+        .update({ is_paid: true })
+        .eq("id", booking.id);
 
-      if (pkgError) throw pkgError;
-
-      if (packages && packages.length > 0) {
-        const pkg = packages[0];
-        if (pkg.remaining_hours >= duration) {
-          // 1. Update package
-          const { error: updateError } = await supabase
-            .from("pre_paid_hours")
-            .update({ remaining_hours: pkg.remaining_hours - duration })
-            .eq("id", pkg.id);
-
-          if (updateError) throw updateError;
-
-          // 2. Create transaction
-          const { error: transError } = await supabase
-            .from("pre_paid_hours_transactions")
-            .insert({
-              user_id: user.id,
-              pre_paid_hours_id: pkg.id,
-              booking_id: booking.id,
-              hours_deducted: duration
-            });
-
-          if (transError) throw transError;
-
-          // 3. Mark booking as paid in the bookings table to prevent double deduction
-          const { error: bookingUpdateError } = await supabase
-            .from("bookings")
-            .update({ is_paid: true })
-            .eq("id", booking.id);
-
-          if (bookingUpdateError) throw bookingUpdateError;
-
-          showSuccess(`Lesson marked as paid using ${duration.toFixed(1)}h from credit.`);
-        } else {
-          // Not enough credit, mark directly
-          const { error } = await supabase
-            .from("bookings")
-            .update({ is_paid: true })
-            .eq("id", booking.id);
-          
-          if (error) throw error;
-          showSuccess("Lesson marked as paid (Manual).");
-        }
-      } else {
-        // No credit, mark directly
-        const { error } = await supabase
-          .from("bookings")
-          .update({ is_paid: true })
-          .eq("id", booking.id);
-        
-        if (error) throw error;
-        showSuccess("Lesson marked as paid (Manual).");
-      }
+      if (error) throw error;
+      
+      showSuccess("Lesson marked as paid.");
       fetchData();
     } catch (error: any) {
       console.error("Error marking as paid:", error);
-      showError("Failed to process payment: " + error.message);
+      showError("Failed to mark as paid: " + error.message);
     }
   };
 
