@@ -34,7 +34,10 @@ import {
   Plus,
   ShieldCheck,
   MessageSquare,
-  Save
+  Save,
+  ClipboardCheck,
+  AlertTriangle,
+  Hand
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -95,6 +98,16 @@ interface ProgressEntry {
   entry_date: string;
 }
 
+interface DrivingTest {
+  id: string;
+  test_date: string;
+  passed: boolean;
+  driving_faults: number;
+  serious_faults: number;
+  examiner_action: boolean;
+  notes?: string;
+}
+
 const StudentProfile: React.FC = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const { user, isLoading: isSessionLoading } = useSession();
@@ -103,6 +116,7 @@ const StudentProfile: React.FC = () => {
   
   const [student, setStudent] = useState<Student | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [drivingTests, setDrivingTests] = useState<DrivingTest[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [progressEntries, setProgressEntries] = useState<Record<string, ProgressEntry>>({});
   const [totalPrepaidHours, setTotalPrepaidHours] = useState(0);
@@ -121,18 +135,20 @@ const StudentProfile: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes, topicsRes, hiddenRes] = await Promise.all([
+      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes, topicsRes, hiddenRes, testsRes] = await Promise.all([
         supabase.from("students").select("*").eq("id", studentId).single(),
         supabase.from("pre_paid_hours").select("remaining_hours").eq("student_id", studentId),
         supabase.from("bookings").select("*").eq("student_id", studentId).order("start_time", { ascending: false }),
         supabase.from("student_progress_entries").select("*, progress_topics(name)").eq("student_id", studentId).order("entry_date", { ascending: false }),
         supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id),
         supabase.from("progress_topics").select("id, name, is_default").or(`user_id.eq.${user.id},is_default.eq.true`).order("is_default", { ascending: false }).order("name", { ascending: true }),
-        supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", user.id)
+        supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", user.id),
+        supabase.from("driving_tests").select("*").eq("student_id", studentId).order("test_date", { ascending: false })
       ]);
 
       if (studentRes.error) throw studentRes.error;
       setStudent(studentRes.data);
+      setDrivingTests(testsRes.data || []);
       
       const totalHours = hoursRes.data?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalPrepaidHours(totalHours);
@@ -217,6 +233,39 @@ const StudentProfile: React.FC = () => {
       showError("Failed to cancel lesson: " + error.message);
     } else {
       showSuccess("Lesson cancelled.");
+      fetchData();
+    }
+  };
+
+  const handleMarkAsCompleted = async (booking: Booking) => {
+    if (!user) return;
+
+    // If it's already paid, we just update the status to avoid double charging
+    if (booking.is_paid) {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "completed" })
+        .eq("id", booking.id);
+
+      if (error) {
+        showError("Failed to complete lesson: " + error.message);
+      } else {
+        showSuccess("Lesson marked as completed.");
+        fetchData();
+      }
+      return;
+    }
+
+    // If not paid, we mark as completed (which might trigger a DB deduction if one exists)
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "completed" })
+      .eq("id", booking.id);
+
+    if (error) {
+      showError("Failed to complete lesson: " + error.message);
+    } else {
+      showSuccess("Lesson marked as completed.");
       fetchData();
     }
   };
@@ -547,6 +596,64 @@ const StudentProfile: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* New Driving Test History Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center">
+                <ClipboardCheck className="mr-2 h-5 w-5 text-primary" /> 
+                Previous Driving Test Results
+              </CardTitle>
+              <CardDescription>History of all driving test attempts.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {drivingTests.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic py-4">No driving test records found for this student.</p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {drivingTests.map((test) => (
+                    <div key={test.id} className={cn(
+                      "p-4 rounded-lg border-l-4 shadow-sm",
+                      test.passed ? "bg-green-50 border-l-green-500" : "bg-red-50 border-l-red-500"
+                    )}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-bold">{format(new Date(test.test_date), "PPP")}</span>
+                        </div>
+                        <Badge variant={test.passed ? "default" : "destructive"} className={cn(test.passed && "bg-green-600")}>
+                          {test.passed ? "PASSED" : "FAILED"}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-xs font-medium text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Car className="h-3 w-3" />
+                          <span>Driving Faults: <strong>{test.driving_faults}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          <span>Serious Faults: <strong>{test.serious_faults}</strong></span>
+                        </div>
+                        {test.examiner_action && (
+                          <div className="flex items-center gap-1 text-orange-600 col-span-2">
+                            <Hand className="h-3 w-3" />
+                            <span>Examiner Action Taken</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {test.notes && (
+                        <p className="mt-2 text-xs italic text-muted-foreground border-t pt-2">
+                          "{test.notes}"
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="lessons" className="mt-6 space-y-8">
@@ -639,13 +746,13 @@ const StudentProfile: React.FC = () => {
                           </div>
 
                           {isExpanded && (
-                            <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-200">
+                            <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-3 animate-in slide-in-from-top-2 duration-200">
                               <Button 
                                 variant="outline" 
                                 className="text-destructive hover:text-destructive hover:bg-destructive/5 font-bold"
                                 onClick={() => handleCancelLesson(booking.id)}
                               >
-                                <Ban className="mr-2 h-4 w-4" /> Cancel Lesson
+                                <Ban className="mr-2 h-4 w-4" /> Cancel
                               </Button>
                               <Button 
                                 variant="outline" 
@@ -653,7 +760,14 @@ const StudentProfile: React.FC = () => {
                                 disabled={booking.is_paid}
                                 onClick={() => handleMarkAsPaid(booking)}
                               >
-                                <CreditCard className="mr-2 h-4 w-4" /> {booking.is_paid ? "Already Paid" : "Mark as Paid"}
+                                <CreditCard className="mr-2 h-4 w-4" /> {booking.is_paid ? "Paid" : "Pay"}
+                              </Button>
+                              <Button 
+                                variant="default" 
+                                className="font-bold"
+                                onClick={() => handleMarkAsCompleted(booking)}
+                              >
+                                <CheckCircle className="mr-2 h-4 w-4" /> Complete
                               </Button>
                             </div>
                           )}
