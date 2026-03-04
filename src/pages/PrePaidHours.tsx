@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Hourglass, PoundSterling, FileText, CalendarDays, Eye } from "lucide-react"; // Added Eye icon
+import { PlusCircle, Hourglass, PoundSterling, CalendarDays, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -11,8 +11,7 @@ import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import AddPrePaidHoursForm from "@/components/AddPrePaidHoursForm";
-import { format }
-from "date-fns";
+import { format } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -21,8 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Link } from "react-router-dom"; // Import Link
-import { cn } from "@/lib/utils"; // Import cn utility
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 interface StudentPrePaidHours {
   student_id: string;
@@ -46,12 +45,13 @@ interface Student {
 const PrePaidHours: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [allStudentPrePaidHours, setAllStudentPrePaidHours] = useState<StudentPrePaidHours[]>([]);
-  const [students, setStudents] = useState<Student[]>([]); // State to hold all students for the filter dropdown
+  const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStudentId, setSelectedStudentId] = useState<string>("all"); // New state for student filter
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("active"); // New state for active/expired filter
+  const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("active");
+  const [expandedStudentIds, setExpandedStudentIds] = useState<Set<string>>(new Set());
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -117,7 +117,6 @@ const PrePaidHours: React.FC = () => {
       });
     });
 
-    // Sort students by total_remaining_hours from least to most
     const sortedStudents = Array.from(studentPrePaidHoursMap.values()).sort((a, b) => a.total_remaining_hours - b.total_remaining_hours);
     setAllStudentPrePaidHours(sortedStudents);
     setIsLoading(false);
@@ -135,24 +134,31 @@ const PrePaidHours: React.FC = () => {
     setIsDialogOpen(false);
   };
 
+  const toggleExpand = (studentId: string) => {
+    const newSet = new Set(expandedStudentIds);
+    if (newSet.has(studentId)) {
+      newSet.delete(studentId);
+    } else {
+      newSet.add(studentId);
+    }
+    setExpandedStudentIds(newSet);
+  };
+
   const filteredStudentsPrePaidHours = useMemo(() => {
     let currentStudents = [...allStudentPrePaidHours];
 
-    // Filter by selected student from dropdown
     if (selectedStudentId !== "all") {
       currentStudents = currentStudents.filter((student) =>
         student.student_id === selectedStudentId
       );
     }
 
-    // Filter by search term
     if (searchTerm) {
       currentStudents = currentStudents.filter((student) =>
         student.student_name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Filter by status (active/expired)
     if (selectedStatusFilter === "active") {
       currentStudents = currentStudents.filter(student => student.total_remaining_hours > 0);
     } else if (selectedStatusFilter === "expired") {
@@ -242,63 +248,85 @@ const PrePaidHours: React.FC = () => {
         <p className="text-muted-foreground">No pre-paid hours recorded yet. Click "Add Hours" to get started!</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredStudentsPrePaidHours.map((student) => (
-            <Card
-              key={student.student_id}
-              className={cn(
-                "flex flex-col",
-                student.total_remaining_hours <= 0 ? "bg-red-100 text-red-800 border-red-300" : // Expired styling
-                student.total_remaining_hours <= 2 ? "bg-orange-100 text-orange-800" : "" // Low hours warning
-              )}
-            >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-semibold">{student.student_name}</CardTitle>
-                <div className="flex items-center text-primary font-bold text-xl">
-                  <Hourglass className="mr-2 h-5 w-5" />
-                  <span>{student.total_remaining_hours.toFixed(1)} hrs</span>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-3 text-sm">
-                <h3 className="font-semibold text-muted-foreground">Packages:</h3>
-                {student.packages.length > 0 ? (
-                  <ul className="space-y-2">
-                    {student.packages.map((pkg) => (
-                      <li key={pkg.id} className="border-t pt-2 first:border-t-0 first:pt-0">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">{pkg.package_hours} hrs purchased</span>
-                          <span className="text-sm text-muted-foreground">
-                            {pkg.remaining_hours.toFixed(1)} hrs remaining
-                          </span>
-                        </div>
-                        {pkg.amount_paid !== null && (
-                          <div className="flex items-center text-muted-foreground mt-1">
-                            <PoundSterling className="mr-1 h-3 w-3" />
-                            <span>Paid: £{pkg.amount_paid.toFixed(2)}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center text-muted-foreground mt-1">
-                          <CalendarDays className="mr-1 h-3 w-3" />
-                          <span>Purchased: {format(new Date(pkg.purchase_date), "PPP")}</span>
-                        </div>
-                        {pkg.notes && (
-                          <CardDescription className="text-muted-foreground italic mt-1">
-                            Notes: {pkg.notes}
-                          </CardDescription>
-                        )}
-                        <Button variant="outline" size="sm" className="mt-2 w-full" asChild>
-                          <Link to={`/pre-paid-hours/${pkg.id}`}>
-                            <Eye className="mr-2 h-4 w-4" /> View Details
-                          </Link>
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-muted-foreground italic">No packages for this student.</p>
+          {filteredStudentsPrePaidHours.map((student) => {
+            const isExpanded = expandedStudentIds.has(student.student_id);
+            
+            return (
+              <Card
+                key={student.student_id}
+                className={cn(
+                  "flex flex-col transition-all duration-200",
+                  student.total_remaining_hours <= 0 ? "bg-red-50 border-red-200" : 
+                  student.total_remaining_hours <= 2 ? "bg-orange-50 border-orange-200" : ""
                 )}
-              </CardContent>
-            </Card>
-          ))}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex flex-col">
+                    <CardTitle className="text-lg font-bold">{student.student_name}</CardTitle>
+                    <div className={cn(
+                      "flex items-center font-black text-xl mt-1",
+                      student.total_remaining_hours <= 0 ? "text-red-600" : "text-primary"
+                    )}>
+                      <Hourglass className="mr-2 h-5 w-5" />
+                      <span>{student.total_remaining_hours.toFixed(1)} hrs</span>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => toggleExpand(student.student_id)}
+                    className="rounded-full"
+                  >
+                    {isExpanded ? <ChevronUp className="h-6 w-6" /> : <ChevronDown className="h-6 w-6" />}
+                  </Button>
+                </CardHeader>
+                
+                {isExpanded && (
+                  <CardContent className="flex-1 space-y-4 text-sm pt-4 border-t animate-in slide-in-from-top-2 duration-200">
+                    <h3 className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Package History</h3>
+                    {student.packages.length > 0 ? (
+                      <ul className="space-y-3">
+                        {student.packages.map((pkg) => (
+                          <li key={pkg.id} className="bg-card p-3 rounded-lg border shadow-sm space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold">{pkg.package_hours} hrs purchased</span>
+                              <Badge variant={pkg.remaining_hours > 0 ? "default" : "secondary"}>
+                                {pkg.remaining_hours.toFixed(1)} left
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-1 gap-1 text-muted-foreground">
+                              {pkg.amount_paid !== null && (
+                                <div className="flex items-center">
+                                  <PoundSterling className="mr-1.5 h-3.5 w-3.5" />
+                                  <span>Paid: £{pkg.amount_paid.toFixed(2)}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center">
+                                <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+                                <span>{format(new Date(pkg.purchase_date), "PPP")}</span>
+                              </div>
+                            </div>
+                            {pkg.notes && (
+                              <p className="text-xs italic text-muted-foreground bg-muted/50 p-2 rounded">
+                                "{pkg.notes}"
+                              </p>
+                            )}
+                            <Button variant="outline" size="sm" className="w-full font-bold" asChild>
+                              <Link to={`/pre-paid-hours/${pkg.id}`}>
+                                <Eye className="mr-2 h-4 w-4" /> View Details
+                              </Link>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-muted-foreground italic">No packages for this student.</p>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
