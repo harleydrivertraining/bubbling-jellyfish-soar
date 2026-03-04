@@ -52,8 +52,8 @@ const PrePaidHours: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("active");
   
-  // Using an object for expanded states is more reliable for React re-renders
-  const [expandedStates, setExpandedStates] = useState<Record<string, boolean>>({});
+  // Simple array to track expanded student IDs
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -137,10 +137,11 @@ const PrePaidHours: React.FC = () => {
   };
 
   const toggleExpand = (studentId: string) => {
-    setExpandedStates(prev => ({
-      ...prev,
-      [studentId]: !prev[studentId]
-    }));
+    setExpandedIds(prev => 
+      prev.includes(studentId) 
+        ? prev.filter(id => id !== studentId) 
+        : [...prev, studentId]
+    );
   };
 
   const filteredStudentsPrePaidHours = useMemo(() => {
@@ -248,7 +249,7 @@ const PrePaidHours: React.FC = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStudentsPrePaidHours.map((student) => {
-            const isExpanded = !!expandedStates[student.student_id];
+            const isExpanded = expandedIds.includes(student.student_id);
             
             return (
               <Card
@@ -259,12 +260,12 @@ const PrePaidHours: React.FC = () => {
                   student.total_remaining_hours <= 2 ? "bg-orange-50 border-orange-200" : ""
                 )}
               >
-                <CardHeader 
-                  className="flex flex-row items-center justify-between space-y-0 pb-2 cursor-pointer hover:bg-black/5 transition-colors rounded-t-lg"
+                <div 
+                  className="p-6 flex flex-row items-center justify-between cursor-pointer hover:bg-black/5 transition-colors rounded-t-lg"
                   onClick={() => toggleExpand(student.student_id)}
                 >
                   <div className="flex flex-col">
-                    <CardTitle className="text-lg font-bold">{student.student_name}</CardTitle>
+                    <h3 className="text-lg font-bold">{student.student_name}</h3>
                     <div className={cn(
                       "flex items-center font-black text-xl mt-1",
                       student.total_remaining_hours <= 0 ? "text-red-600" : "text-primary"
@@ -273,17 +274,10 @@ const PrePaidHours: React.FC = () => {
                       <span>{student.total_remaining_hours.toFixed(1)} hrs</span>
                     </div>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="rounded-full"
-                    asChild
-                  >
-                    <div>
-                      {isExpanded ? <ChevronUp className="h-6 w-6" /> : <ChevronDown className="h-6 w-6" />}
-                    </div>
-                  </Button>
-                </CardHeader>
+                  <div className="text-muted-foreground">
+                    {isExpanded ? <ChevronUp className="h-6 w-6" /> : <ChevronDown className="h-6 w-6" />}
+                  </div>
+                </div>
                 
                 {isExpanded && (
                   <CardContent className="flex-1 space-y-4 text-sm pt-4 border-t animate-in slide-in-from-top-2 duration-200">
