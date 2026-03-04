@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Hourglass, PoundSterling, CalendarDays, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { PlusCircle, Hourglass, PoundSterling, CalendarDays, Eye, ChevronDown, ChevronUp, User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -22,6 +22,13 @@ import {
 import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 
 interface StudentPrePaidHours {
   student_id: string;
@@ -51,9 +58,6 @@ const PrePaidHours: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("active");
-  
-  // Simple array to track expanded student IDs
-  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
@@ -134,14 +138,6 @@ const PrePaidHours: React.FC = () => {
   const handleHoursAdded = () => {
     fetchPrePaidHours();
     setIsDialogOpen(false);
-  };
-
-  const toggleExpand = (studentId: string) => {
-    setExpandedIds(prev => 
-      prev.includes(studentId) 
-        ? prev.filter(id => id !== studentId) 
-        : [...prev, studentId]
-    );
   };
 
   const filteredStudentsPrePaidHours = useMemo(() => {
@@ -247,85 +243,78 @@ const PrePaidHours: React.FC = () => {
       {allStudentPrePaidHours.length === 0 ? (
         <p className="text-muted-foreground">No pre-paid hours recorded yet. Click "Add Hours" to get started!</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredStudentsPrePaidHours.map((student) => {
-            const isExpanded = expandedIds.includes(student.student_id);
-            
-            return (
-              <Card
-                key={student.student_id}
-                className={cn(
-                  "flex flex-col transition-all duration-200",
-                  student.total_remaining_hours <= 0 ? "bg-red-50 border-red-200" : 
-                  student.total_remaining_hours <= 2 ? "bg-orange-50 border-orange-200" : ""
-                )}
-              >
-                <div 
-                  className="p-6 flex flex-row items-center justify-between cursor-pointer hover:bg-black/5 transition-colors rounded-t-lg"
-                  onClick={() => toggleExpand(student.student_id)}
-                >
-                  <div className="flex flex-col">
-                    <h3 className="text-lg font-bold">{student.student_name}</h3>
-                    <div className={cn(
-                      "flex items-center font-black text-xl mt-1",
-                      student.total_remaining_hours <= 0 ? "text-red-600" : "text-primary"
-                    )}>
-                      <Hourglass className="mr-2 h-5 w-5" />
-                      <span>{student.total_remaining_hours.toFixed(1)} hrs</span>
-                    </div>
-                  </div>
-                  <div className="text-muted-foreground">
-                    {isExpanded ? <ChevronUp className="h-6 w-6" /> : <ChevronDown className="h-6 w-6" />}
+        <Accordion type="multiple" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredStudentsPrePaidHours.map((student) => (
+            <AccordionItem 
+              key={student.student_id} 
+              value={student.student_id}
+              className={cn(
+                "border rounded-lg px-4 transition-all duration-200",
+                student.total_remaining_hours <= 0 ? "bg-red-50 border-red-200" : 
+                student.total_remaining_hours <= 2 ? "bg-orange-50 border-orange-200" : "bg-card"
+              )}
+            >
+              <AccordionTrigger className="hover:no-underline py-6">
+                <div className="flex flex-col items-start text-left">
+                  <h3 className="text-lg font-bold flex items-center">
+                    <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {student.student_name}
+                  </h3>
+                  <div className={cn(
+                    "flex items-center font-black text-xl mt-1",
+                    student.total_remaining_hours <= 0 ? "text-red-600" : "text-primary"
+                  )}>
+                    <Hourglass className="mr-2 h-5 w-5" />
+                    <span>{student.total_remaining_hours.toFixed(1)} hrs</span>
                   </div>
                 </div>
-                
-                {isExpanded && (
-                  <CardContent className="flex-1 space-y-4 text-sm pt-4 border-t animate-in slide-in-from-top-2 duration-200">
-                    <h3 className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Package History</h3>
-                    {student.packages.length > 0 ? (
-                      <ul className="space-y-3">
-                        {student.packages.map((pkg) => (
-                          <li key={pkg.id} className="bg-card p-3 rounded-lg border shadow-sm space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold">{pkg.package_hours} hrs purchased</span>
-                              <Badge variant={pkg.remaining_hours > 0 ? "default" : "secondary"}>
-                                {pkg.remaining_hours.toFixed(1)} left
-                              </Badge>
-                            </div>
-                            <div className="grid grid-cols-1 gap-1 text-muted-foreground">
-                              {pkg.amount_paid !== null && (
-                                <div className="flex items-center">
-                                  <PoundSterling className="mr-1.5 h-3.5 w-3.5" />
-                                  <span>Paid: £{pkg.amount_paid.toFixed(2)}</span>
-                                </div>
-                              )}
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-6 border-t">
+                <div className="space-y-4">
+                  <h4 className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Package History</h4>
+                  {student.packages.length > 0 ? (
+                    <div className="space-y-3">
+                      {student.packages.map((pkg) => (
+                        <div key={pkg.id} className="bg-background p-3 rounded-lg border shadow-sm space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-sm">{pkg.package_hours} hrs purchased</span>
+                            <Badge variant={pkg.remaining_hours > 0 ? "default" : "secondary"}>
+                              {pkg.remaining_hours.toFixed(1)} left
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
+                            {pkg.amount_paid !== null && (
                               <div className="flex items-center">
-                                <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
-                                <span>{format(new Date(pkg.purchase_date), "PPP")}</span>
+                                <PoundSterling className="mr-1.5 h-3.5 w-3.5" />
+                                <span>Paid: £{pkg.amount_paid.toFixed(2)}</span>
                               </div>
-                            </div>
-                            {pkg.notes && (
-                              <p className="text-xs italic text-muted-foreground bg-muted/50 p-2 rounded">
-                                "{pkg.notes}"
-                              </p>
                             )}
-                            <Button variant="outline" size="sm" className="w-full font-bold" asChild>
-                              <Link to={`/pre-paid-hours/${pkg.id}`}>
-                                <Eye className="mr-2 h-4 w-4" /> View Details
-                              </Link>
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-muted-foreground italic">No packages for this student.</p>
-                    )}
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+                            <div className="flex items-center">
+                              <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+                              <span>{format(new Date(pkg.purchase_date), "PPP")}</span>
+                            </div>
+                          </div>
+                          {pkg.notes && (
+                            <p className="text-xs italic text-muted-foreground bg-muted/30 p-2 rounded">
+                              "{pkg.notes}"
+                            </p>
+                          )}
+                          <Button variant="outline" size="sm" className="w-full font-bold mt-2" asChild>
+                            <Link to={`/pre-paid-hours/${pkg.id}`}>
+                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            </Link>
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No packages for this student.</p>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
       )}
     </div>
   );
