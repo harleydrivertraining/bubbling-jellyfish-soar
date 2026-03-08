@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday } from "date-fns";
+import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
 import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -69,6 +69,7 @@ const Dashboard: React.FC = () => {
   const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
   const [milesUntilNextServiceDashboard, setMilesUntilNextServiceDashboard] = useState<number | null>(null);
+  const [weeksUntilNextService, setWeeksUntilNextService] = useState<number | null>(null);
   const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
   const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
   const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]);
@@ -186,7 +187,7 @@ const Dashboard: React.FC = () => {
         supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id).eq("is_past_student", false),
         supabase.from("bookings").select("id, title, description, start_time, end_time, status, lesson_type, students(name)").eq("user_id", user.id).eq("status", "scheduled").gte("start_time", now.toISOString()).order("start_time", { ascending: true }),
         supabase.from("driving_tests").select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)").eq("user_id", user.id).order("test_date", { ascending: false }),
-        supabase.from("cars").select("id, make, model, year, initial_mileage, service_interval_miles").eq("user_id", user.id),
+        supabase.from("cars").select("id, make, model, year, initial_mileage, service_interval_miles, acquisition_date").eq("user_id", user.id),
         supabase.from("pre_paid_hours").select("package_hours, remaining_hours, students(name)").eq("user_id", user.id)
       ]);
 
@@ -245,19 +246,34 @@ const Dashboard: React.FC = () => {
 
         let minMiles: number | null = null;
         let carName: string | null = null;
+        let predictedWeeks: number | null = null;
 
         carsRes.data.forEach(car => {
           if (car.service_interval_miles && car.service_interval_miles > 0) {
             const currentMileage = mileageResults.find(m => m.carId === car.id)?.currentMileage || car.initial_mileage;
             const milesUntil = ((Math.floor(currentMileage / car.service_interval_miles) + 1) * car.service_interval_miles) - currentMileage;
+            
+            // Calculate average weekly miles for prediction
+            const acquisitionDate = parseISO(car.acquisition_date);
+            const daysTracked = differenceInDays(new Date(), acquisitionDate);
+            const totalMilesDriven = currentMileage - car.initial_mileage;
+
             if (minMiles === null || milesUntil < minMiles) {
               minMiles = milesUntil;
               carName = `${car.make} ${car.model}`;
+              
+              if (daysTracked > 0 && totalMilesDriven > 0) {
+                const avgWeekly = (totalMilesDriven / daysTracked) * 7;
+                predictedWeeks = milesUntil / avgWeekly;
+              } else {
+                predictedWeeks = null;
+              }
             }
           }
         });
         setMilesUntilNextServiceDashboard(minMiles);
         setCarNeedingService(carName);
+        setWeeksUntilNextService(predictedWeeks);
       }
 
       if (prePaidHoursRes.data) {
@@ -569,6 +585,13 @@ const Dashboard: React.FC = () => {
                 <>
                   <div className="text-2xl font-black">{milesUntilNextServiceDashboard.toFixed(0)} <span className="text-xs font-bold text-muted-foreground uppercase">miles</span></div>
                   {carNeedingService && <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tight">{carNeedingService}</p>}
+                  
+                  {weeksUntilNextService !== null && (
+                    <p className="text-xs font-bold text-primary mt-2">
+                      Due in approx. <span className="text-lg">{Math.ceil(weeksUntilNextService)}</span> weeks
+                    </p>
+                  )}
+
                   {milesUntilNextServiceDashboard < 1000 && (
                     <Badge variant="outline" className="mt-2 bg-white text-orange-700 border-orange-200 text-[10px] font-bold">SERVICE SOON</Badge>
                   )}
