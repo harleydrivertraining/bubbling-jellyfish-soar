@@ -193,7 +193,7 @@ const Progress: React.FC = () => {
                   
                   <Button asChild className="w-full font-bold" variant="default">
                     <Link to={`/progress/${student.id}`}>
-                      <TrendingUp className="mr-2 h-4 w-4" /> Show Progress
+                      <TrendingUp className="mr-2 h-4 w-4" /> Show / Edit progress
                     </Link>
                   </Button>
                 </CardContent>
