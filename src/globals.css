@@ -99,6 +99,8 @@
 
   body {
     @apply bg-background text-foreground;
+    /* Ensure content respects the status bar area on mobile devices */
+    padding-top: env(safe-area-inset-top);
   }
 }
 
