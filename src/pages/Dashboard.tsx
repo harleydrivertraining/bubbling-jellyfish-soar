@@ -483,7 +483,7 @@ const Dashboard: React.FC = () => {
           <Card key={id} className="p-6 shadow-sm h-full">
             <div className="flex items-center justify-between mb-6">
               <div>
-                CardTitle className="text-lg font-bold">Test Performance</CardTitle>
+                <CardTitle className="text-lg font-bold">Test Performance</CardTitle>
                 <CardDescription className="text-sm">Last 12 months</CardDescription>
               </div>
               <Button asChild variant="ghost" size="sm" className="text-primary font-semibold">
