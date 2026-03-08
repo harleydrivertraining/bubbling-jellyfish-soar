@@ -183,7 +183,7 @@ const Dashboard: React.FC = () => {
         carsRes,
         prePaidHoursRes
       ] = await Promise.all([
-        supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id),
+        supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id).eq("is_past_student", false),
         supabase.from("bookings").select("id, title, description, start_time, end_time, status, lesson_type, students(name)").eq("user_id", user.id).eq("status", "scheduled").gte("start_time", now.toISOString()).order("start_time", { ascending: true }),
         supabase.from("driving_tests").select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)").eq("user_id", user.id).order("test_date", { ascending: false }),
         supabase.from("cars").select("id, make, model, year, initial_mileage, service_interval_miles").eq("user_id", user.id),
@@ -483,7 +483,7 @@ const Dashboard: React.FC = () => {
           <Card key={id} className="p-6 shadow-sm h-full">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <CardTitle className="text-lg font-bold">Test Performance</CardTitle>
+                CardTitle className="text-lg font-bold">Test Performance</CardTitle>
                 <CardDescription className="text-sm">Last 12 months</CardDescription>
               </div>
               <Button asChild variant="ghost" size="sm" className="text-primary font-semibold">
