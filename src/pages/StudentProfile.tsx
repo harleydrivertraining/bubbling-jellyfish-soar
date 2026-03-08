@@ -276,6 +276,34 @@ const StudentProfile: React.FC = () => {
     }
   };
 
+  const updateStudentStatus = async (newEntries: Record<string, ProgressEntry>) => {
+    if (!student || topics.length === 0) return;
+
+    const totalPossibleStars = topics.length * 5;
+    const totalEarnedStars = topics.reduce((sum, topic) => {
+      const entry = newEntries[topic.id];
+      return sum + (entry ? entry.rating : 0);
+    }, 0);
+    
+    const percentage = Math.round((totalEarnedStars / totalPossibleStars) * 100);
+    
+    let newStatus: "Beginner" | "Intermediate" | "Advanced" = "Beginner";
+    if (percentage >= 90) newStatus = "Advanced";
+    else if (percentage >= 50) newStatus = "Intermediate";
+
+    if (newStatus !== student.status) {
+      const { error } = await supabase
+        .from("students")
+        .update({ status: newStatus })
+        .eq("id", student.id);
+      
+      if (!error) {
+        setStudent(prev => prev ? { ...prev, status: newStatus } : null);
+        showSuccess(`Student status automatically updated to ${newStatus}!`);
+      }
+    }
+  };
+
   const saveProgressEntry = async (topicId: string, ratingOverride?: number, commentOverride?: string) => {
     if (!user || !studentId) return;
     
@@ -303,8 +331,8 @@ const StudentProfile: React.FC = () => {
     if (error) {
       showError("Failed to save progress: " + error.message);
     } else {
-      setProgressEntries(prev => ({
-        ...prev,
+      const updatedEntries = {
+        ...progressEntries,
         [topicId]: { 
           topic_id: topicId, 
           topic_name: topics.find(t => t.id === topicId)?.name || "Unknown",
@@ -312,7 +340,8 @@ const StudentProfile: React.FC = () => {
           comment,
           entry_date: new Date().toISOString()
         }
-      }));
+      };
+      setProgressEntries(updatedEntries);
       
       if (ratingOverride !== undefined) {
         showSuccess("Rating saved!");
@@ -320,6 +349,9 @@ const StudentProfile: React.FC = () => {
         showSuccess("Notes saved!");
         setExpandedTopicId(null);
       }
+
+      // Check for status progression
+      updateStudentStatus(updatedEntries);
     }
     setSavingTopicId(null);
   };

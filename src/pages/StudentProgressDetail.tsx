@@ -31,6 +31,7 @@ interface ProgressEntry {
 interface Student {
   id: string;
   name: string;
+  status: string;
 }
 
 const StudentProgressDetail: React.FC = () => {
@@ -50,7 +51,7 @@ const StudentProgressDetail: React.FC = () => {
     try {
       const { data: studentData, error: studentError } = await supabase
         .from("students")
-        .select("id, name")
+        .select("id, name, status")
         .eq("id", studentId)
         .single();
 
@@ -126,6 +127,34 @@ const StudentProgressDetail: React.FC = () => {
     };
   }, [topics, entries]);
 
+  const updateStudentStatus = async (newEntries: Record<string, ProgressEntry>) => {
+    if (!student || topics.length === 0) return;
+
+    const totalPossibleStars = topics.length * 5;
+    const totalEarnedStars = topics.reduce((sum, topic) => {
+      const entry = newEntries[topic.id];
+      return sum + (entry ? entry.rating : 0);
+    }, 0);
+    
+    const percentage = Math.round((totalEarnedStars / totalPossibleStars) * 100);
+    
+    let newStatus = "Beginner";
+    if (percentage >= 90) newStatus = "Advanced";
+    else if (percentage >= 50) newStatus = "Intermediate";
+
+    if (newStatus !== student.status) {
+      const { error } = await supabase
+        .from("students")
+        .update({ status: newStatus })
+        .eq("id", student.id);
+      
+      if (!error) {
+        setStudent(prev => prev ? { ...prev, status: newStatus } : null);
+        showSuccess(`Student status automatically updated to ${newStatus}!`);
+      }
+    }
+  };
+
   const saveEntry = async (topicId: string, ratingOverride?: number, commentOverride?: string) => {
     if (!user || !studentId) return;
     
@@ -153,10 +182,11 @@ const StudentProgressDetail: React.FC = () => {
     if (error) {
       showError("Failed to save progress: " + error.message);
     } else {
-      setEntries(prev => ({
-        ...prev,
+      const updatedEntries = {
+        ...entries,
         [topicId]: { topic_id: topicId, rating, comment }
-      }));
+      };
+      setEntries(updatedEntries);
       
       if (ratingOverride !== undefined) {
         showSuccess("Rating saved!");
@@ -164,6 +194,9 @@ const StudentProgressDetail: React.FC = () => {
         showSuccess("Notes saved!");
         setExpandedTopicId(null);
       }
+
+      // Check for status progression
+      updateStudentStatus(updatedEntries);
     }
     setSavingTopicId(null);
   };
@@ -211,7 +244,7 @@ const StudentProgressDetail: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase text-muted-foreground mt-1">Complete</span>
               </div>
             </div>
-            <p className="text-muted-foreground font-medium text-xs sm:text-base">Individual Progress Tracking</p>
+            <p className="text-muted-foreground font-medium text-xs sm:text-base">Individual Progress Tracking • <span className="font-bold text-primary">{student?.status}</span></p>
           </div>
         </div>
 
