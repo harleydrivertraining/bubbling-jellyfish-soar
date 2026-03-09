@@ -32,7 +32,7 @@ const Login: React.FC = () => {
           <p className="mt-2 text-sm text-muted-foreground">
             {isMobile 
               ? "Sign in to your account or create a new one to get started." 
-              : "Please sign in to access your dashboard. New registrations are handled via the mobile app."}
+              : "Please sign in to access your dashboard."}
           </p>
         </div>
 
