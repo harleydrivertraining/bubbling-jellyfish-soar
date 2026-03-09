@@ -27,7 +27,7 @@ import DatePicker from "@/components/DatePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -161,14 +161,23 @@ const AddDrivingTestForm: React.FC<AddDrivingTestFormProps> = ({ onTestAdded, on
                       )}
                       disabled={isLoadingStudents}
                     >
-                      {field.value
-                        ? students.find((student) => student.id === field.value)?.name
-                        : "Select a student"}
+                      <div className="flex items-center gap-2 truncate">
+                        {openStudentSelect ? (
+                          <Search className="h-4 w-4 shrink-0 opacity-50" />
+                        ) : null}
+                        <span className="truncate">
+                          {openStudentSelect 
+                            ? "Search students..." 
+                            : (field.value
+                                ? students.find((student) => student.id === field.value)?.name
+                                : "Select a student")}
+                        </span>
+                      </div>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" side="bottom">
                   <Command>
                     <CommandInput placeholder="Search student..." />
                     <CommandEmpty>No student found.</CommandEmpty>

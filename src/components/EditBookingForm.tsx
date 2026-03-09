@@ -338,7 +338,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" side="bottom">
                       <Command>
                         <CommandInput placeholder="Type student name..." />
                         <CommandEmpty>No student found.</CommandEmpty>

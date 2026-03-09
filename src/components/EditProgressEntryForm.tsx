@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -207,14 +207,23 @@ const EditProgressEntryForm: React.FC<EditProgressEntryFormProps> = ({
                       )}
                       disabled={isLoadingTopics}
                     >
-                      {field.value
-                        ? topics.find((topic) => topic.id === field.value)?.name
-                        : "Select a topic"}
+                      <div className="flex items-center gap-2 truncate">
+                        {openTopicSelect ? (
+                          <Search className="h-4 w-4 shrink-0 opacity-50" />
+                        ) : null}
+                        <span className="truncate">
+                          {openTopicSelect 
+                            ? "Search topic..." 
+                            : (field.value
+                                ? topics.find((topic) => topic.id === field.value)?.name
+                                : "Select a topic")}
+                        </span>
+                      </div>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" side="bottom">
                   <Command>
                     <CommandInput placeholder="Search topic..." />
                     <CommandEmpty>No topic found.</CommandEmpty>

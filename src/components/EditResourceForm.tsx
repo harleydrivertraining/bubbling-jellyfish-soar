@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Link as LinkIcon, Image as ImageIcon, Check, ChevronsUpDown, UploadCloud, XCircle, FileText } from "lucide-react";
+import { Link as LinkIcon, Image as ImageIcon, Check, ChevronsUpDown, UploadCloud, XCircle, FileText, Search } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -291,7 +291,7 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
       }
     }
 
-    const { error } = await supabase
+    const { error = null } = await supabase
       .from("resources")
       .delete()
       .eq("id", resourceId)
@@ -479,14 +479,23 @@ const EditResourceForm: React.FC<EditResourceFormProps> = ({ resourceId, onResou
                       )}
                       disabled={isLoadingFolders}
                     >
-                      {field.value
-                        ? folders.find((folder) => folder.id === field.value)?.name
-                        : "Select a folder"}
+                      <div className="flex items-center gap-2 truncate">
+                        {openStudentSelect ? (
+                          <Search className="h-4 w-4 shrink-0 opacity-50" />
+                        ) : null}
+                        <span className="truncate">
+                          {openStudentSelect 
+                            ? "Search folder..." 
+                            : (field.value
+                                ? folders.find((folder) => folder.id === field.value)?.name
+                                : "Select a folder")}
+                        </span>
+                      </div>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" side="bottom">
                   <Command>
                     <CommandInput placeholder="Search folder..." />
                     <CommandEmpty>No folder found.</CommandEmpty>

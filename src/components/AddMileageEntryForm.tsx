@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format } from "date-fns";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -147,14 +147,23 @@ const AddMileageEntryForm: React.FC<AddMileageEntryFormProps> = ({ onEntryAdded,
                       )}
                       disabled={isLoadingCars}
                     >
-                      {field.value
-                        ? cars.find((car) => car.id === field.value)?.make + " " + cars.find((car) => car.id === field.value)?.model
-                        : "Select a car"}
+                      <div className="flex items-center gap-2 truncate">
+                        {openCarSelect ? (
+                          <Search className="h-4 w-4 shrink-0 opacity-50" />
+                        ) : null}
+                        <span className="truncate">
+                          {openCarSelect 
+                            ? "Search car..." 
+                            : (field.value
+                                ? cars.find((car) => car.id === field.value)?.make + " " + cars.find((car) => car.id === field.value)?.model
+                                : "Select a car")}
+                        </span>
+                      </div>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" side="bottom">
                   <Command>
                     <CommandInput placeholder="Search car..." />
                     <CommandEmpty>No car found. Add one first!</CommandEmpty>
