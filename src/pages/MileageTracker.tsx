@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Car, CalendarDays, Gauge, MessageSquareText, ChevronDown, Pencil } from "lucide-react";
+import { PlusCircle, Car, CalendarDays, Gauge, MessageSquareText, ChevronDown, Pencil, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Import Avatar components
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Car {
   id: string;
@@ -35,8 +35,8 @@ interface Car {
   year: number;
   acquisition_date: string; // YYYY-MM-DD
   initial_mileage: number;
-  service_interval_miles?: number; // New field
-  car_image_url?: string | null; // New field for car image
+  service_interval_miles?: number;
+  car_image_url?: string | null;
 }
 
 interface MileageEntry {
@@ -45,7 +45,7 @@ interface MileageEntry {
   entry_date: string; // YYYY-MM-DD
   current_mileage: number;
   notes?: string;
-  miles_driven?: number; // This will be calculated client-side
+  miles_driven?: number;
 }
 
 interface WeeklySummary {
@@ -67,7 +67,6 @@ const MileageTracker: React.FC = () => {
   const [isEditCarDialogOpen, setIsEditCarDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Effect to fetch cars and set initial selectedCarId
   useEffect(() => {
     const fetchCarsData = async () => {
       if (isSessionLoading) return;
@@ -82,7 +81,7 @@ const MileageTracker: React.FC = () => {
 
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url")
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -103,7 +102,6 @@ const MileageTracker: React.FC = () => {
     fetchCarsData();
   }, [isSessionLoading, user, selectedCarId]);
 
-  // Effect to fetch mileage entries when selectedCarId changes
   useEffect(() => {
     const fetchMileageEntriesData = async () => {
       if (isSessionLoading || !user || !selectedCarId) {
@@ -214,7 +212,7 @@ const MileageTracker: React.FC = () => {
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url")
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -244,7 +242,7 @@ const MileageTracker: React.FC = () => {
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url")
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -270,7 +268,7 @@ const MileageTracker: React.FC = () => {
       setIsLoadingCars(true);
       const { data, error } = await supabase
         .from("cars")
-        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url") // Select new field
+        .select("id, make, model, year, acquisition_date, initial_mileage, service_interval_miles, car_image_url")
         .eq("user_id", user.id)
         .order("make", { ascending: true });
 
@@ -294,7 +292,18 @@ const MileageTracker: React.FC = () => {
 
   const currentCar = useMemo(() => cars.find(car => car.id === selectedCarId), [cars, selectedCarId]);
 
-  const { groupedAndFilteredEntries, totalMilesThisWeek, totalMilesThisMonth, totalMilesThisYear, totalMilesSinceAcquisition, currentTotalMileage, milesUntilNextService, averageWeeklyMiles, averageMonthlyMiles } = useMemo(() => {
+  const { 
+    groupedAndFilteredEntries, 
+    totalMilesThisWeek, 
+    totalMilesThisMonth, 
+    totalMilesThisYear, 
+    totalMilesSinceAcquisition, 
+    currentTotalMileage, 
+    milesUntilNextService, 
+    averageWeeklyMiles, 
+    averageMonthlyMiles,
+    weeksUntilNextService
+  } = useMemo(() => {
     const now = new Date();
     const currentWeekStart = startOfWeek(now, { weekStartsOn: 1, locale: enUS });
     const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1, locale: enUS });
@@ -311,6 +320,7 @@ const MileageTracker: React.FC = () => {
     let milesUntilNextService: number | null = null;
     let averageWeeklyMiles = 0;
     let averageMonthlyMiles = 0;
+    let weeksUntilNextService: number | null = null;
 
     const grouped: { [key: string]: WeeklySummary } = {};
 
@@ -324,16 +334,13 @@ const MileageTracker: React.FC = () => {
       );
     });
 
-    // Sort entries by date descending for display, but ascending for calculation
     const sortedEntriesForCalculation = [...allMileageEntries].sort((a, b) => parseISO(a.entry_date).getTime() - parseISO(b.entry_date).getTime());
     const sortedEntriesForDisplay = [...filtered].sort((a, b) => parseISO(b.entry_date).getTime() - parseISO(a.entry_date).getTime());
 
-    // Calculate currentTotalMileage from the latest entry
     if (sortedEntriesForCalculation.length > 0) {
       currentTotalMileage = sortedEntriesForCalculation[sortedEntriesForCalculation.length - 1].current_mileage;
     }
 
-    // Calculate miles until next service
     if (currentCar && currentCar.service_interval_miles && currentCar.service_interval_miles > 0) {
       const serviceInterval = currentCar.service_interval_miles;
       const currentMiles = currentTotalMileage;
@@ -346,7 +353,6 @@ const MileageTracker: React.FC = () => {
       const entryDate = parseISO(entry.entry_date);
       const milesDriven = entry.miles_driven || 0;
 
-      // Calculate totals
       if (isWithinInterval(entryDate, { start: currentWeekStart, end: currentWeekEnd })) {
         totalMilesThisWeek += milesDriven;
       }
@@ -356,9 +362,8 @@ const MileageTracker: React.FC = () => {
       if (isWithinInterval(entryDate, { start: currentYearStart, end: currentYearEnd })) {
         totalMilesThisYear += milesDriven;
       }
-      totalMilesSinceAcquisition += milesDriven; // Sum all calculated miles driven
+      totalMilesSinceAcquisition += milesDriven;
 
-      // Group for weekly display
       const weekStart = startOfWeek(entryDate, { weekStartsOn: 1, locale: enUS });
       const weekEnd = endOfWeek(entryDate, { weekStartsOn: 1, locale: enUS });
       const weekKey = format(weekStart, "yyyy-MM-dd");
@@ -375,7 +380,6 @@ const MileageTracker: React.FC = () => {
       grouped[weekKey].entries.push(entry);
     });
 
-    // Calculate average weekly and monthly mileage
     if (currentCar && sortedEntriesForCalculation.length > 0) {
       const firstEntryDate = parseISO(currentCar.acquisition_date);
       const lastEntryDate = parseISO(sortedEntriesForCalculation[sortedEntriesForCalculation.length - 1].entry_date);
@@ -384,11 +388,14 @@ const MileageTracker: React.FC = () => {
       if (totalDaysTracked > 0) {
         const averageDailyMiles = totalMilesSinceAcquisition / totalDaysTracked;
         averageWeeklyMiles = averageDailyMiles * 7;
-        averageMonthlyMiles = averageDailyMiles * (365.25 / 12); // Approximate average days per month
+        averageMonthlyMiles = averageDailyMiles * (365.25 / 12);
+        
+        if (milesUntilNextService !== null && averageWeeklyMiles > 0) {
+          weeksUntilNextService = milesUntilNextService / averageWeeklyMiles;
+        }
       }
     }
 
-    // Sort weeks from most recent to oldest
     const sortedWeeks = Object.values(grouped).sort((a, b) => {
       return parseISO(b.weekStart).getTime() - parseISO(a.weekStart).getTime();
     });
@@ -403,6 +410,7 @@ const MileageTracker: React.FC = () => {
       milesUntilNextService,
       averageWeeklyMiles,
       averageMonthlyMiles,
+      weeksUntilNextService
     };
   }, [allMileageEntries, searchTerm, currentCar]);
 
@@ -413,18 +421,14 @@ const MileageTracker: React.FC = () => {
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>
+          {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
         </div>
         <div className="flex items-center gap-4">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-10 w-32" />
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
+          {[1, 2].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>)}
         </div>
       </div>
     );
@@ -517,14 +521,13 @@ const MileageTracker: React.FC = () => {
           {currentCar ? (
             <>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5 mb-6">
-                {/* Car Image Display Card - spans two rows */}
                 <Card className="lg:col-span-1 lg:row-span-2 flex flex-col items-center justify-center p-4">
-                  <CardContent className="flex-1 flex flex-col items-center justify-center p-0"> {/* Removed padding here */}
-                    <Avatar className="h-full w-full rounded-lg"> {/* Removed border-2 border-dashed border-muted-foreground/20 */}
+                  <CardContent className="flex-1 flex flex-col items-center justify-center p-0">
+                    <Avatar className="h-full w-full rounded-lg">
                       <AvatarImage src={currentCar.car_image_url || undefined} alt={`${currentCar.make} ${currentCar.model} image`} className="object-cover h-full w-full" />
                       <AvatarFallback className="rounded-lg flex flex-col items-center justify-center text-muted-foreground text-center p-2 h-full w-full">
                         <Car className="h-16 w-16 mb-2" />
-                        <span className="text-base">{currentCar.make} {currentCar.model}</span> {/* Display make/model here */}
+                        <span className="text-base">{currentCar.make} {currentCar.model}</span>
                       </AvatarFallback>
                     </Avatar>
                   </CardContent>
@@ -608,17 +611,36 @@ const MileageTracker: React.FC = () => {
                   </CardContent>
                 </Card>
                 <Card className={cn(
+                  "lg:col-span-2",
                   milesUntilNextService !== null && milesUntilNextService < 1000 ? "bg-orange-100 text-orange-800" : ""
                 )}>
                   <CardHeader>
-                    <CardTitle className="text-base">Miles Until Next Service</CardTitle>
+                    <CardTitle className="text-base">Next Service Due</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex flex-col sm:flex-row sm:items-center gap-6">
                     {milesUntilNextService !== null && currentCar.service_interval_miles ? (
-                      <p className="text-3xl font-bold">
-                        {milesUntilNextService.toFixed(0)}
-                        <span className="text-lg text-muted-foreground ml-2">miles</span>
-                      </p>
+                      <>
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold uppercase text-muted-foreground flex items-center">
+                            <Gauge className="mr-1 h-3 w-3" /> Distance
+                          </p>
+                          <p className="text-3xl font-bold">
+                            {milesUntilNextService.toFixed(0)}
+                            <span className="text-lg text-muted-foreground ml-2">miles</span>
+                          </p>
+                        </div>
+                        {weeksUntilNextService !== null && (
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold uppercase text-muted-foreground flex items-center">
+                              <Clock className="mr-1 h-3 w-3" /> Estimated Time
+                            </p>
+                            <p className="text-3xl font-bold text-primary">
+                              {Math.ceil(weeksUntilNextService)}
+                              <span className="text-lg text-muted-foreground ml-2">weeks</span>
+                            </p>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p className="text-sm text-muted-foreground">
                         Set a <span className="font-medium">service interval</span> for this car to track.
