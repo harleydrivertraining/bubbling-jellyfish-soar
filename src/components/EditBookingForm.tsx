@@ -29,7 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addMinutes } from "date-fns";
-import { Check, ChevronsUpDown, Target } from "lucide-react";
+import { Check, ChevronsUpDown, Target, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -322,16 +322,25 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
                           )}
                           disabled={isLoadingStudents}
                         >
-                          {field.value
-                            ? students.find((student) => student.id === field.value)?.name
-                            : "Select student"}
+                          <div className="flex items-center gap-2 truncate">
+                            {openStudentSelect ? (
+                              <Search className="h-4 w-4 shrink-0 opacity-50" />
+                            ) : null}
+                            <span className="truncate">
+                              {openStudentSelect 
+                                ? "Search students..." 
+                                : (field.value
+                                    ? students.find((student) => student.id === field.value)?.name
+                                    : "Select student")}
+                            </span>
+                          </div>
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                       <Command>
-                        <CommandInput placeholder="Search student..." />
+                        <CommandInput placeholder="Type student name..." />
                         <CommandEmpty>No student found.</CommandEmpty>
                         <CommandGroup>
                           {students.map((student) => (
