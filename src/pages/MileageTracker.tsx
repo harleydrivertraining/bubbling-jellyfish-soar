@@ -520,8 +520,8 @@ const MileageTracker: React.FC = () => {
 
           {currentCar ? (
             <>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5 mb-6">
-                <Card className="lg:col-span-1 lg:row-span-2 flex flex-col items-center justify-center p-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-5 mb-6">
+                <Card className="col-span-2 lg:col-span-1 lg:row-span-2 flex flex-col items-center justify-center p-4">
                   <CardContent className="flex-1 flex flex-col items-center justify-center p-0">
                     <Avatar className="h-full w-full rounded-lg">
                       <AvatarImage src={currentCar.car_image_url || undefined} alt={`${currentCar.make} ${currentCar.model} image`} className="object-cover h-full w-full" />
@@ -533,7 +533,7 @@ const MileageTracker: React.FC = () => {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="col-span-2 lg:col-span-1">
                   <CardHeader>
                     <CardTitle className="text-base">Current Total Mileage</CardTitle>
                   </CardHeader>
@@ -611,7 +611,7 @@ const MileageTracker: React.FC = () => {
                   </CardContent>
                 </Card>
                 <Card className={cn(
-                  "lg:col-span-2",
+                  "col-span-2 lg:col-span-2",
                   milesUntilNextService !== null && milesUntilNextService < 1000 ? "bg-orange-100 text-orange-800" : ""
                 )}>
                   <CardHeader>
