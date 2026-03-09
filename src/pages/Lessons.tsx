@@ -205,7 +205,7 @@ const Lessons: React.FC = () => {
       )}
 
       <Dialog open={isEditBookingDialogOpen} onOpenChange={handleCloseEditBookingDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Lesson</DialogTitle>
           </DialogHeader>
