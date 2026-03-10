@@ -12,7 +12,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,20 +28,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addMinutes } from "date-fns";
-import { Check, ChevronsUpDown, Target, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Target } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
+import StudentSearch from "@/components/StudentSearch";
 
 interface Student {
   id: string;
@@ -92,7 +83,6 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingBooking, setIsLoadingBooking] = useState(true);
-  const [openStudentSelect, setOpenStudentSelect] = useState(false);
   const [previousTargets, setPreviousTargets] = useState<string | null>(null);
   const [isLoadingPrevTargets, setIsLoadingPrevTargets] = useState(false);
 
@@ -310,68 +300,15 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Student {selectedLessonType === "Personal" && "(Opt)"}</FormLabel>
-                  <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "w-full justify-between",
-                            !field.value && "text-muted-foreground"
-                          )}
-                          disabled={isLoadingStudents}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            {openStudentSelect ? (
-                              <Search className="h-4 w-4 shrink-0 opacity-50" />
-                            ) : null}
-                            <span className="truncate">
-                              {openStudentSelect 
-                                ? "Search students..." 
-                                : (field.value
-                                    ? students.find((student) => student.id === field.value)?.name
-                                    : "Select student")}
-                            </span>
-                          </div>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent 
-                      className="w-[calc(100vw-2rem)] sm:w-[--radix-popover-trigger-width] p-0" 
-                      side="bottom" 
-                      align="start"
-                      avoidCollisions={true}
-                    >
-                      <Command>
-                        <CommandInput placeholder="Type student name..." className="h-12 sm:h-9" />
-                        <CommandEmpty>No student found.</CommandEmpty>
-                        <CommandGroup className="max-h-[200px] overflow-y-auto">
-                          {students.map((student) => (
-                            <CommandItem
-                              value={student.name}
-                              key={student.id}
-                              onSelect={() => {
-                                form.setValue("student_id", student.id);
-                                setOpenStudentSelect(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  student.id === field.value
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                )}
-                              />
-                              {student.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <FormControl>
+                    <StudentSearch
+                      value={field.value}
+                      onChange={field.onChange}
+                      students={students}
+                      isLoading={isLoadingStudents}
+                      placeholder={selectedLessonType === "Personal" ? "Optional student" : "Select student"}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
