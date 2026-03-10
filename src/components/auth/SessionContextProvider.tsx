@@ -68,15 +68,18 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     const getInitialSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const publicRoutes = ["/login", "/signup"];
+        const isPublicRoute = publicRoutes.includes(location.pathname);
+
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
           fetchInitialBookings(initialSession.user.id);
-          if (location.pathname === "/login") {
+          if (isPublicRoute) {
             navigate("/", { replace: true });
           }
         } else {
-          if (location.pathname !== "/login") {
+          if (!isPublicRoute) {
             navigate("/login", { replace: true });
           }
         }
@@ -93,20 +96,23 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      const publicRoutes = ["/login", "/signup"];
+      const isPublicRoute = publicRoutes.includes(location.pathname);
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         if (currentSession?.user) {
           fetchInitialBookings(currentSession.user.id);
         }
-        if (location.pathname === "/login") {
+        if (isPublicRoute) {
           navigate("/", { replace: true });
         }
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
         setInitialBookings(null);
-        if (location.pathname !== "/login") {
+        if (!isPublicRoute) {
           navigate("/login", { replace: true });
         }
       }
