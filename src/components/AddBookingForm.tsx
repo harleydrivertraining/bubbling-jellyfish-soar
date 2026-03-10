@@ -284,11 +284,16 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" side="bottom">
+                    <PopoverContent 
+                      className="w-[calc(100vw-2rem)] sm:w-[--radix-popover-trigger-width] p-0" 
+                      side="bottom" 
+                      align="start"
+                      avoidCollisions={true}
+                    >
                       <Command>
-                        <CommandInput placeholder="Type student name..." />
+                        <CommandInput placeholder="Type student name..." className="h-12 sm:h-9" />
                         <CommandEmpty>No student found.</CommandEmpty>
-                        <CommandGroup>
+                        <CommandGroup className="max-h-[200px] overflow-y-auto">
                           {students.map((student) => (
                             <CommandItem
                               value={student.name}
