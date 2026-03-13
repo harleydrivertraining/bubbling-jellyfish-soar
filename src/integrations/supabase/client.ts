@@ -1,13 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// These variables are injected by the "Add Supabase" integration.
+// If you see an error regarding these, please ensure you have clicked the "Add Supabase" button 
+// and entered your project details, then click "Rebuild".
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
-if (!supabaseUrl) {
-  throw new Error('VITE_SUPABASE_URL is required. Please set it in your environment variables.');
-}
-if (!supabaseAnonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY is required. Please set it in your environment variables.');
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('Supabase credentials missing. Please use the "Add Supabase" integration button to connect your database.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// We provide fallback strings to prevent the client from throwing an error on initialization,
+// allowing the UI to at least render.
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder-url.supabase.co', 
+  supabaseAnonKey || 'placeholder-anon-key'
+);
