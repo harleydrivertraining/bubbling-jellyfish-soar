@@ -103,7 +103,10 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
         .single();
 
       if (!error && data?.default_lesson_duration) {
-        form.setValue("lesson_length", data.default_lesson_duration as "60" | "90" | "120");
+        // Only set if not already a Driving Test (which overrides to 120)
+        if (form.getValues("lesson_type") !== "Driving Test") {
+          form.setValue("lesson_length", data.default_lesson_duration as "60" | "90" | "120");
+        }
       }
     };
 
@@ -126,6 +129,13 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   const selectedStartTime = form.watch("start_time");
   const selectedRepeatBooking = form.watch("repeat_booking");
   const selectedLessonType = form.watch("lesson_type");
+
+  // Automatically set duration to 120 mins for Driving Tests
+  useEffect(() => {
+    if (selectedLessonType === "Driving Test") {
+      form.setValue("lesson_length", "120");
+    }
+  }, [selectedLessonType, form]);
 
   const [calculatedEndTime, setCalculatedEndTime] = useState<Date>(initialEndTime);
 
