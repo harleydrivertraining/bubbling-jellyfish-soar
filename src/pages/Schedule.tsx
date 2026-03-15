@@ -14,16 +14,6 @@ import { Event as BigCalendarEvent } from 'react-big-calendar';
 import { useIsMobile } from "@/hooks/use-mobile";
 import CalendarLegend from "@/components/CalendarLegend";
 
-interface CustomEventResource {
-  student_id: string;
-  description?: string;
-  status: "scheduled" | "completed" | "cancelled";
-  lesson_type: string;
-  targets_for_next_session?: string;
-  is_paid: boolean;
-  is_covered: boolean;
-}
-
 const Schedule: React.FC = () => {
   const { user, isLoading: isSessionLoading, initialBookings } = useSession();
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
@@ -31,12 +21,12 @@ const Schedule: React.FC = () => {
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [currentCalendarView, _setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
   
   const lastFetchedRange = useRef<string>("");
-
   const isMobile = useIsMobile();
 
   const handleSetCurrentCalendarView = useCallback((view: 'month' | 'week' | 'day' | 'agenda') => {
@@ -49,27 +39,24 @@ const Schedule: React.FC = () => {
     }
   }, [isMobile, handleSetCurrentCalendarView]);
 
-  // Initialize events from preloaded data if available
   useEffect(() => {
-    if (initialBookings && events.length === 0) {
-      const formatted = initialBookings.map(booking => ({
-        id: booking.id,
-        title: booking.students?.name || booking.title,
-        start: new Date(booking.start_time),
-        end: new Date(booking.end_time),
-        resource: {
-          student_id: booking.student_id,
-          description: booking.description,
-          status: booking.status,
-          lesson_type: booking.lesson_type,
-          is_paid: false, // Default for preload, will be updated by background fetch
-          is_covered: false
-        },
-      }));
-      setEvents(formatted);
-      setIsLoadingEvents(false);
-    }
-  }, [initialBookings, events.length]);
+    const fetchSettings = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("calendar_start_hour, calendar_end_hour")
+        .eq("id", user.id)
+        .single();
+      
+      if (data) {
+        setCalendarHours({
+          start: data.calendar_start_hour ?? 9,
+          end: data.calendar_end_hour ?? 18
+        });
+      }
+    };
+    fetchSettings();
+  }, [user]);
 
   const fetchBookings = useCallback(async (startDate: Date, endDate: Date, force = false) => {
     if (!user) {
@@ -84,7 +71,6 @@ const Schedule: React.FC = () => {
     setFetchError(null);
     
     try {
-      // 1. Fetch Main Bookings
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, is_paid, students(name)")
@@ -100,7 +86,6 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      // 2. Fetch Secondary Data (Non-blocking)
       let paidViaCreditIds = new Set<string>();
       let studentBalances: Record<string, number> = {};
       
@@ -111,9 +96,7 @@ const Schedule: React.FC = () => {
           .select("booking_id")
           .in("booking_id", bookingIds);
         
-        if (transactions) {
-          paidViaCreditIds = new Set(transactions.map(t => t.booking_id));
-        }
+        if (transactions) paidViaCreditIds = new Set(transactions.map(t => t.booking_id));
 
         const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
         if (studentIds.length > 0) {
@@ -127,30 +110,22 @@ const Schedule: React.FC = () => {
           });
         }
       } catch (secondaryError) {
-        console.warn("Failed to fetch secondary schedule data (payments/balances):", secondaryError);
+        console.warn("Secondary data fetch failed:", secondaryError);
       }
 
-      // 3. Process and Validate Bookings
       const sortedBookings = [...bookings]
-        .filter(b => {
-          const start = parseISO(b.start_time);
-          const end = parseISO(b.end_time);
-          return isValid(start) && isValid(end);
-        })
+        .filter(b => isValid(parseISO(b.start_time)) && isValid(parseISO(b.end_time)))
         .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime());
 
       const coverageMap: Record<string, boolean> = {};
-      
       sortedBookings.forEach(b => {
         const isAlreadyPaid = b.is_paid || paidViaCreditIds.has(b.id);
         if (!b.student_id || isAlreadyPaid || b.status === 'cancelled') {
           coverageMap[b.id] = false;
           return;
         }
-
         const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
         const balance = studentBalances[b.student_id] || 0;
-
         if (balance >= duration) {
           coverageMap[b.id] = true;
           studentBalances[b.student_id] -= duration;
@@ -177,14 +152,8 @@ const Schedule: React.FC = () => {
       
       setEvents(formattedEvents);
     } catch (error: any) {
-      console.error("Error fetching schedule data:", error);
-      const isNetworkError = error.message?.toLowerCase().includes("failed to fetch");
-      const msg = isNetworkError 
-        ? "Connection lost. Please check your internet or Supabase project status." 
-        : error.message || "An unexpected error occurred.";
-      
-      setFetchError(msg);
-      showError("Failed to load schedule: " + msg);
+      setFetchError(error.message || "An unexpected error occurred.");
+      showError("Failed to load schedule.");
     } finally {
       setIsLoadingEvents(false);
     }
@@ -206,22 +175,11 @@ const Schedule: React.FC = () => {
 
   const handleMarkAsPaid = async (bookingId: string) => {
     if (!user) return;
-
-    try {
-      // Only update the paid status. The actual deduction of hours will happen 
-      // when the lesson is marked as completed (handled by DB logic).
-      const { error } = await supabase
-        .from("bookings")
-        .update({ is_paid: true })
-        .eq("id", bookingId);
-
-      if (error) throw error;
-      
+    const { error } = await supabase.from("bookings").update({ is_paid: true }).eq("id", bookingId);
+    if (error) showError("Failed to mark as paid.");
+    else {
       showSuccess("Lesson marked as paid.");
-      await handleRetry();
-    } catch (error: any) {
-      console.error("Error marking as paid:", error);
-      showError("Failed to mark as paid: " + error.message);
+      handleRetry();
     }
   };
 
@@ -236,53 +194,15 @@ const Schedule: React.FC = () => {
     setSelectedSlot(null);
   }, [handleRetry]);
 
-  const handleCloseAddBookingDialog = useCallback(() => {
-    setIsAddBookingDialogOpen(false);
-    setSelectedSlot(null);
-  }, []);
-
-  const handleMakeNewBookingClick = () => {
-    const now = new Date();
-    const minutes = now.getMinutes();
-    const roundedMinutes = Math.ceil(minutes / 15) * 15;
-    const defaultStartTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMinutes, 0);
-    const defaultEndTime = addMinutes(defaultStartTime, 60);
-    handleOpenAddBookingDialog(defaultStartTime, defaultEndTime);
-  };
-
-  const handleCalendarEventsRefetch = useCallback((startDate: Date, endDate: Date) => {
-    fetchBookings(startDate, endDate);
-  }, [fetchBookings]);
-
   if (isSessionLoading) {
-    return (
-      <div className="flex flex-col space-y-6 h-full items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-muted-foreground font-medium">Loading schedule...</p>
-      </div>
-    );
-  }
-
-  if (fetchError && events.length === 0) {
-    return (
-      <div className="flex flex-col space-y-6 h-full items-center justify-center p-6 text-center">
-        <div className="bg-destructive/10 p-4 rounded-full mb-4">
-          <AlertCircle className="h-12 w-12 text-destructive" />
-        </div>
-        <h2 className="text-2xl font-bold">Unable to load schedule</h2>
-        <p className="text-muted-foreground max-w-md">{fetchError}</p>
-        <Button onClick={handleRetry} className="mt-4 font-bold">
-          <RefreshCcw className="mr-2 h-4 w-4" /> Try Again
-        </Button>
-      </div>
-    );
+    return <div className="flex flex-col h-full items-center justify-center"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div><p className="text-muted-foreground">Loading schedule...</p></div>;
   }
 
   return (
     <div className="flex flex-col space-y-6 h-full">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Schedule</h1>
-        <Button onClick={handleMakeNewBookingClick}>
+        <Button onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))}>
           <PlusCircle className="mr-2 h-4 w-4" /> Make New Booking
         </Button>
       </div>
@@ -290,29 +210,29 @@ const Schedule: React.FC = () => {
       <div className="flex-1 min-h-[600px]">
         <CalendarComponent
           events={events}
-          onEventsRefetch={handleCalendarEventsRefetch}
+          onEventsRefetch={(s, e) => fetchBookings(s, e)}
           onSelectSlot={handleOpenAddBookingDialog}
           currentDate={currentCalendarDate}
           setCurrentDate={setCurrentCalendarDate}
           currentView={currentCalendarView}
           setCurrentView={handleSetCurrentCalendarView}
           onMarkAsPaid={handleMarkAsPaid}
+          defaultStartHour={calendarHours.start}
+          defaultEndHour={calendarHours.end}
         />
       </div>
 
       <CalendarLegend />
 
-      <Dialog open={isAddBookingDialogOpen} onOpenChange={handleCloseAddBookingDialog}>
+      <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Booking</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Add New Booking</DialogTitle></DialogHeader>
           {selectedSlot && (
             <AddBookingForm
               initialStartTime={selectedSlot.start}
               initialEndTime={selectedSlot.end}
               onBookingAdded={handleBookingAdded}
-              onClose={handleCloseAddBookingDialog}
+              onClose={() => setIsAddBookingDialogOpen(false)}
             />
           )}
         </DialogContent>

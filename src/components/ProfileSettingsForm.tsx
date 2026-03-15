@@ -25,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Link as LinkIcon } from "lucide-react";
+import { User as UserIcon, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -37,13 +37,11 @@ const formSchema = z.object({
   ),
   logo_url: z.string().url({ message: "Must be a valid URL." }).optional().nullable().or(z.literal("")),
   default_lesson_duration: z.enum(["60", "90", "120"]).optional().nullable(),
+  calendar_start_hour: z.string().optional().nullable(),
+  calendar_end_hour: z.string().optional().nullable(),
 });
 
-interface ProfileSettingsFormProps {
-  onProfileUpdated?: () => void;
-}
-
-const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpdated }) => {
+const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
@@ -55,6 +53,8 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
+      calendar_start_hour: "9",
+      calendar_end_hour: "18",
     },
   });
 
@@ -63,7 +63,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
     setIsLoadingProfile(true);
     const { data, error } = await supabase
       .from("profiles")
-      .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration")
+      .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour")
       .eq("id", user.id)
       .single();
 
@@ -77,22 +77,19 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
         hourly_rate: data.hourly_rate,
         logo_url: data.logo_url || "",
         default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
+        calendar_start_hour: data.calendar_start_hour?.toString() || "9",
+        calendar_end_hour: data.calendar_end_hour?.toString() || "18",
       });
     }
     setIsLoadingProfile(false);
   };
 
   useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
+    if (user) fetchProfile();
   }, [user]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!user) {
-      showError("You must be logged in to update your profile.");
-      return;
-    }
+    if (!user) return;
 
     const { error } = await supabase
       .from("profiles")
@@ -102,43 +99,37 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
+        calendar_start_hour: values.calendar_start_hour ? parseInt(values.calendar_start_hour) : 9,
+        calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
 
     if (error) {
-      console.error("Error updating profile:", error);
       showError("Failed to update profile: " + error.message);
     } else {
       showSuccess("Profile updated successfully!");
       fetchProfile();
-      if (onProfileUpdated) {
-        onProfileUpdated();
-      }
+      if (onProfileUpdated) onProfileUpdated();
     }
   };
 
+  const hours = Array.from({ length: 24 }, (_, i) => ({
+    label: `${i.toString().padStart(2, '0')}:00`,
+    value: i.toString()
+  }));
+
   if (isLoadingProfile) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-    );
+    return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>;
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex items-center space-x-4">
           <Avatar className="h-20 w-20">
             <AvatarImage src={form.watch("logo_url") || undefined} alt="Logo" />
-            <AvatarFallback>
-              <UserIcon className="h-10 w-10 text-muted-foreground" />
-            </AvatarFallback>
+            <AvatarFallback><UserIcon className="h-10 w-10 text-muted-foreground" /></AvatarFallback>
           </Avatar>
           <FormField
             control={form.control}
@@ -146,13 +137,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
             render={({ field }) => (
               <FormItem className="flex-1">
                 <FormLabel>Logo URL</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="https://example.com/your-logo.png"
-                    {...field}
-                    value={field.value || ""}
-                  />
-                </FormControl>
+                <FormControl><Input placeholder="https://example.com/logo.png" {...field} value={field.value || ""} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -166,9 +151,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
             render={({ field }) => (
               <FormItem>
                 <FormLabel>First Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="John" {...field} value={field.value || ""} />
-                </FormControl>
+                <FormControl><Input placeholder="John" {...field} value={field.value || ""} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -179,9 +162,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Last Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="Doe" {...field} value={field.value || ""} />
-                </FormControl>
+                <FormControl><Input placeholder="Doe" {...field} value={field.value || ""} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -199,8 +180,6 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
                   <Input
                     type="number"
                     step="0.01"
-                    min="0"
-                    placeholder="e.g., 35.00"
                     {...field}
                     value={field.value === null ? "" : field.value}
                     onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
@@ -217,11 +196,7 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
               <FormItem>
                 <FormLabel>Default Lesson Duration</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select default" />
-                    </SelectTrigger>
-                  </FormControl>
+                  <FormControl><SelectTrigger><SelectValue placeholder="Select default" /></SelectTrigger></FormControl>
                   <SelectContent>
                     <SelectItem value="60">1 hour</SelectItem>
                     <SelectItem value="90">1.5 hours</SelectItem>
@@ -232,6 +207,44 @@ const ProfileSettingsForm: React.FC<ProfileSettingsFormProps> = ({ onProfileUpda
               </FormItem>
             )}
           />
+        </div>
+
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
+            <Clock className="h-4 w-4" /> Calendar Display Hours
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="calendar_start_hour"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Hour</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "9"}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="calendar_end_hour"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>End Hour</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "18"}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
 
         <Button type="submit" className="w-full">Save Changes</Button>

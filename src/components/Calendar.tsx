@@ -31,21 +31,16 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-const DEFAULT_MIN_HOUR = 9;
-const DEFAULT_MAX_HOUR = 18;
-
-const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[], currentView: string) => {
+const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[], currentView: string, defaultMin: number, defaultMax: number) => {
   if (currentView === 'month' || currentView === 'agenda') {
     return { min: undefined, max: undefined };
   }
 
-  let minHour = DEFAULT_MIN_HOUR;
-  let maxHour = DEFAULT_MAX_HOUR;
+  let minHour = defaultMin;
+  let maxHour = defaultMax;
 
-  // Filter events to only those visible in the current view (Week or Day)
   const visibleEvents = events.filter(event => {
     const start = event.start instanceof Date ? event.start : new Date(event.start!);
-    
     if (currentView === 'week') {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -63,24 +58,16 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
     visibleEvents.forEach(event => {
       const start = event.start instanceof Date ? event.start : new Date(event.start!);
       const end = event.end instanceof Date ? event.end : new Date(event.end!);
-
       const sHour = getHours(start);
       const eHour = getHours(end) + (getMinutes(end) > 0 ? 1 : 0);
-
       if (sHour < earliestEventHour) earliestEventHour = sHour;
       if (eHour > latestEventHour) latestEventHour = eHour;
     });
 
-    // Only expand if events are outside the 9-6 range
-    if (earliestEventHour < DEFAULT_MIN_HOUR) {
-      minHour = earliestEventHour;
-    }
-    if (latestEventHour > DEFAULT_MAX_HOUR) {
-      maxHour = latestEventHour;
-    }
+    if (earliestEventHour < defaultMin) minHour = earliestEventHour;
+    if (latestEventHour > defaultMax) maxHour = latestEventHour;
   }
 
-  // Create date objects for the min/max time grid
   const minDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), minHour, 0, 0);
   const maxDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), maxHour, 0, 0);
 
@@ -96,6 +83,8 @@ interface CalendarComponentProps {
   currentView: 'month' | 'week' | 'day' | 'agenda';
   setCurrentView: (view: 'month' | 'week' | 'day' | 'agenda') => void;
   onMarkAsPaid: (bookingId: string, studentId: string, startTime: string, endTime: string) => void;
+  defaultStartHour?: number;
+  defaultEndHour?: number;
 }
 
 const CalendarComponent: React.FC<CalendarComponentProps> = ({
@@ -107,26 +96,18 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   currentView,
   setCurrentView,
   onMarkAsPaid,
+  defaultStartHour = 9,
+  defaultEndHour = 18,
 }) => {
   const { user } = useSession();
 
-  // Correctly destructure the min and max properties from the calculation
   const { min: minTime, max: maxTime } = useMemo(() => {
-    return calculateDynamicTimeRange(currentDate, events, currentView);
-  }, [events, currentDate, currentView]);
+    return calculateDynamicTimeRange(currentDate, events, currentView, defaultStartHour, defaultEndHour);
+  }, [events, currentDate, currentView, defaultStartHour, defaultEndHour]);
 
-  const handleNavigate = useCallback((newDate: Date) => {
-    setCurrentDate(newDate);
-  }, [setCurrentDate]);
-
-  const handleView = useCallback((newView: string) => {
-    setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda');
-  }, [setCurrentView]);
-
-  const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
-    onSelectSlot(start, end);
-  }, [onSelectSlot]);
-
+  const handleNavigate = useCallback((newDate: Date) => setCurrentDate(newDate), [setCurrentDate]);
+  const handleView = useCallback((newView: string) => setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda'), [setCurrentView]);
+  const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => onSelectSlot(start, end), [onSelectSlot]);
   const handleSelectEvent = useCallback((event: BigCalendarEvent) => {
     setSelectedBookingId(event.id as string);
     setIsEditBookingDialogOpen(true);
@@ -144,15 +125,10 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   };
 
   const handleMarkAllDayBookingsAsCompleted = useCallback(async () => {
-    if (!user) {
-      showError("You must be logged in to update bookings.");
-      return;
-    }
-
+    if (!user) return;
     const startOfCurrentDay = startOfDay(currentDate);
     const endOfCurrentDay = endOfDay(currentDate);
-
-    const { data: bookingsToUpdate, error: fetchError } = await supabase
+    const { data: bookingsToUpdate } = await supabase
       .from("bookings")
       .select("id")
       .eq("user_id", user.id)
@@ -160,36 +136,20 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
       .gte("start_time", startOfCurrentDay.toISOString())
       .lte("end_time", endOfCurrentDay.toISOString());
 
-    if (fetchError) {
-      console.error("Error fetching bookings to mark as completed:", fetchError);
-      showError("Failed to fetch bookings: " + fetchError.message);
-      return;
-    }
-
     if (!bookingsToUpdate || bookingsToUpdate.length === 0) {
-      showError("No scheduled bookings found for this day to mark as completed.");
+      showError("No scheduled bookings found for this day.");
       return;
     }
 
-    const bookingIdsToUpdate = bookingsToUpdate.map(b => b.id);
-
-    const { error: updateError } = await supabase
-      .from("bookings")
-      .update({ status: "completed" })
-      .in("id", bookingIdsToUpdate);
-
-    if (updateError) {
-      console.error("Error marking all day bookings as completed:", updateError);
-      showError("Failed to mark all bookings as completed: " + updateError.message);
-    } else {
-      showSuccess(`${bookingIdsToUpdate.length} booking(s) marked as completed for ${format(currentDate, "PPP")}!`);
-      const start = startOfMonth(currentDate);
-      const end = endOfMonth(addMonths(currentDate, 2));
-      onEventsRefetch(start, end);
+    const { error } = await supabase.from("bookings").update({ status: "completed" }).in("id", bookingsToUpdate.map(b => b.id));
+    if (error) showError("Failed to update bookings.");
+    else {
+      showSuccess("Bookings marked as completed!");
+      onEventsRefetch(startOfMonth(currentDate), endOfMonth(addMonths(currentDate, 2)));
     }
   }, [user, currentDate, onEventsRefetch]);
 
-  const scrollToTime = useMemo(() => new Date(1970, 1, 1, 9, 0, 0), []);
+  const scrollToTime = useMemo(() => new Date(1970, 1, 1, defaultStartHour, 0, 0), [defaultStartHour]);
 
   return (
     <div className="h-full flex flex-col bg-card p-4 rounded-lg shadow-sm">
@@ -233,9 +193,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
 
       <Dialog open={isEditBookingDialogOpen} onOpenChange={setIsEditBookingDialogOpen}>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Booking</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Edit Booking</DialogTitle></DialogHeader>
           {selectedBookingId && (
             <EditBookingForm
               bookingId={selectedBookingId}
