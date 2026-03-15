@@ -9,7 +9,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock, Trash2, MinusCircle, Info, MessageSquare } from "lucide-react";
+import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock, Trash2, MinusCircle, MessageSquare, RefreshCw } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import DeductPrePaidHoursForm from "@/components/DeductPrePaidHoursForm";
@@ -33,7 +33,8 @@ interface BookingTransaction {
   id: string;
   hours_deducted: number;
   transaction_date: string;
-  notes?: string; // Notes from manual deduction
+  notes?: string;
+  booking_id?: string | null;
   bookings: {
     id: string;
     title: string;
@@ -61,43 +62,36 @@ const PrePaidHoursDetails: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
-    const { data: packageData, error: packageError } = await supabase
-      .from("pre_paid_hours")
-      .select("*, students(name)")
-      .eq("id", packageId)
-      .eq("user_id", user.id)
-      .single();
-
-    if (packageError) {
-      console.error("Error fetching pre-paid hours package:", packageError);
-      showError("Failed to load package details: " + packageError.message);
-      setError("Failed to load package details.");
-      setIsLoading(false);
-      return;
-    }
-
-    if (packageData) {
-      setPrePaidPackage(packageData);
-
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from("pre_paid_hours_transactions")
-        .select("id, hours_deducted, transaction_date, notes, bookings(id, title, description, start_time, end_time, status, lesson_type)")
-        .eq("pre_paid_hours_id", packageId)
+    try {
+      const { data: packageData, error: packageError } = await supabase
+        .from("pre_paid_hours")
+        .select("*, students(name)")
+        .eq("id", packageId)
         .eq("user_id", user.id)
-        .order("transaction_date", { ascending: false });
+        .single();
 
-      if (transactionsError) {
-        console.error("Error fetching package transactions:", transactionsError);
-        showError("Failed to load package transactions: " + transactionsError.message);
-        setError("Failed to load package transactions.");
-        setPackageTransactions([]);
-      } else {
+      if (packageError) throw packageError;
+
+      if (packageData) {
+        setPrePaidPackage(packageData);
+
+        const { data: transactionsData, error: transactionsError } = await supabase
+          .from("pre_paid_hours_transactions")
+          .select("id, hours_deducted, transaction_date, notes, booking_id, bookings(id, title, description, start_time, end_time, status, lesson_type)")
+          .eq("pre_paid_hours_id", packageId)
+          .eq("user_id", user.id)
+          .order("transaction_date", { ascending: false });
+
+        if (transactionsError) throw transactionsError;
         setPackageTransactions(transactionsData || []);
       }
-    } else {
-      setError("Pre-paid hours package not found.");
+    } catch (err: any) {
+      console.error("Error fetching package details:", err);
+      showError("Failed to load data: " + err.message);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [user, packageId]);
 
   useEffect(() => {
@@ -107,22 +101,11 @@ const PrePaidHoursDetails: React.FC = () => {
   }, [isSessionLoading, fetchPackageDetails]);
 
   const handleDeleteBooking = async (bookingId: string) => {
-    if (!user) {
-      showError("You must be logged in to delete a booking.");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("bookings")
-      .delete()
-      .eq("id", bookingId)
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("Error deleting booking:", error);
-      showError("Failed to delete booking: " + error.message);
-    } else {
-      showSuccess("Booking deleted successfully! Hours have been returned to the package.");
+    if (!user) return;
+    const { error } = await supabase.from("bookings").delete().eq("id", bookingId);
+    if (error) showError("Failed to delete booking: " + error.message);
+    else {
+      showSuccess("Booking deleted and hours returned.");
       fetchPackageDetails();
     }
   };
@@ -145,22 +128,15 @@ const PrePaidHoursDetails: React.FC = () => {
       .delete()
       .eq("id", transactionId);
 
-    if (deleteError) {
-      showError("Failed to delete transaction record: " + deleteError.message);
-    } else {
-      showSuccess("Manual deduction reversed successfully.");
+    if (deleteError) showError("Failed to delete record: " + deleteError.message);
+    else {
+      showSuccess("Manual deduction reversed.");
       fetchPackageDetails();
     }
   };
 
   if (isSessionLoading || isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-8 w-32" />
-        <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /></CardContent></Card>
-      </div>
-    );
+    return <div className="space-y-6"><Skeleton className="h-10 w-64" /><Skeleton className="h-64 w-full" /></div>;
   }
 
   if (error || !prePaidPackage) {
@@ -175,12 +151,17 @@ const PrePaidHoursDetails: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="outline" asChild>
-          <Link to="/pre-paid-hours">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Pre-Paid Hours
-          </Link>
-        </Button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/pre-paid-hours">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" onClick={fetchPackageDetails} title="Refresh data">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
 
         <Dialog open={isDeductDialogOpen} onOpenChange={setIsDeductDialogOpen}>
           <DialogTrigger asChild>
@@ -202,8 +183,6 @@ const PrePaidHoursDetails: React.FC = () => {
           </DialogContent>
         </Dialog>
       </div>
-
-      <h1 className="text-3xl font-bold">Pre-Paid Hours Details</h1>
 
       <Card>
         <CardHeader>
@@ -227,9 +206,6 @@ const PrePaidHoursDetails: React.FC = () => {
             <CalendarDays className="mr-2 h-4 w-4" />
             <span>Purchase Date: {format(new Date(prePaidPackage.purchase_date), "PPP")}</span>
           </div>
-          {prePaidPackage.notes && (
-            <p className="text-muted-foreground italic">Notes: {prePaidPackage.notes}</p>
-          )}
         </CardContent>
       </Card>
 
@@ -238,104 +214,82 @@ const PrePaidHoursDetails: React.FC = () => {
         <p className="text-muted-foreground">No hours have been used from this package yet.</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {packageTransactions.map((transaction) => (
-            <Card key={transaction.id} className={cn("flex flex-col", !transaction.bookings && "border-destructive/20 bg-destructive/5")}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex flex-col gap-1">
-                  <CardTitle className="text-lg">
-                    {transaction.bookings ? transaction.bookings.title : "Manual Deduction"}
-                  </CardTitle>
-                  {!transaction.bookings && (
-                    <Badge variant="destructive" className="w-fit text-[10px] font-bold uppercase">Manual Adjustment</Badge>
-                  )}
-                </div>
-                
-                {transaction.bookings ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete this booking.
-                          <br />
-                          <span className="font-bold text-primary">The {transaction.hours_deducted.toFixed(1)} hours deducted for this booking will be returned to this pre-paid package.</span>
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteBooking(transaction.bookings!.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Delete Booking
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Reverse Manual Deduction?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will delete the record of this manual deduction and return <span className="font-bold text-primary">{transaction.hours_deducted.toFixed(1)} hours</span> to the package balance.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteManualTransaction(transaction.id, transaction.hours_deducted)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Reverse Deduction
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </CardHeader>
-              <CardContent className="flex-1 space-y-1 text-sm">
-                {transaction.bookings ? (
-                  <>
-                    <CardDescription className="flex items-center text-muted-foreground">
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      <span>{transaction.bookings.lesson_type}</span>
-                    </CardDescription>
-                    <div className="flex items-center text-muted-foreground">
-                      <CalendarDays className="mr-2 h-4 w-4" />
-                      <span>{format(new Date(transaction.bookings.start_time), "PPP")}</span>
-                    </div>
-                    <div className="flex items-center text-muted-foreground">
-                      <Clock className="mr-2 h-4 w-4" />
-                      <span>{format(new Date(transaction.bookings.start_time), "p")} - {format(new Date(transaction.bookings.end_time), "p")}</span>
-                    </div>
-                    {transaction.bookings.description && (
-                      <p className="text-muted-foreground italic mt-2">Notes: {transaction.bookings.description}</p>
+          {packageTransactions.map((transaction) => {
+            const isManual = !transaction.booking_id;
+            
+            return (
+              <Card key={transaction.id} className={cn("flex flex-col", isManual && "border-destructive/20 bg-destructive/5")}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex flex-col gap-1">
+                    <CardTitle className="text-lg">
+                      {transaction.bookings ? transaction.bookings.title : "Manual Deduction"}
+                    </CardTitle>
+                    {isManual && (
+                      <Badge variant="destructive" className="w-fit text-[10px] font-bold uppercase">Manual Adjustment</Badge>
                     )}
-                    <p className="text-sm font-medium mt-2">Status: <span className="capitalize">{transaction.bookings.status}</span></p>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center text-muted-foreground">
-                      <CalendarDays className="mr-2 h-4 w-4" />
-                      <span>Date: {format(new Date(transaction.transaction_date), "PPP")}</span>
-                    </div>
-                    {transaction.notes && (
-                      <div className="flex items-start text-muted-foreground mt-2 bg-white/50 p-2 rounded border border-destructive/10">
-                        <MessageSquare className="mr-2 h-4 w-4 mt-0.5 shrink-0" />
-                        <p className="italic">"{transaction.notes}"</p>
+                  </div>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{isManual ? "Reverse Manual Deduction?" : "Delete Booking?"}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will return <span className="font-bold text-primary">{transaction.hours_deducted.toFixed(1)} hours</span> to the package balance.
+                          {!isManual && " This will also permanently delete the booking record."}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => isManual ? handleDeleteManualTransaction(transaction.id, transaction.hours_deducted) : handleDeleteBooking(transaction.booking_id!)} 
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Confirm
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardHeader>
+                <CardContent className="flex-1 space-y-1 text-sm">
+                  {!isManual && transaction.bookings ? (
+                    <>
+                      <CardDescription className="flex items-center text-muted-foreground">
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        <span>{transaction.bookings.lesson_type}</span>
+                      </CardDescription>
+                      <div className="flex items-center text-muted-foreground">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        <span>{format(new Date(transaction.bookings.start_time), "PPP")}</span>
                       </div>
-                    )}
-                  </>
-                )}
-                <p className="text-sm font-bold text-primary mt-2">Hours Deducted: {transaction.hours_deducted.toFixed(1)}</p>
-              </CardContent>
-            </Card>
-          ))}
+                      <div className="flex items-center text-muted-foreground">
+                        <Clock className="mr-2 h-4 w-4" />
+                        <span>{format(new Date(transaction.bookings.start_time), "p")} - {format(new Date(transaction.bookings.end_time), "p")}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center text-muted-foreground">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        <span>Date: {format(new Date(transaction.transaction_date), "PPP")}</span>
+                      </div>
+                      {transaction.notes && (
+                        <div className="flex items-start text-muted-foreground mt-2 bg-white/50 p-2 rounded border border-destructive/10">
+                          <MessageSquare className="mr-2 h-4 w-4 mt-0.5 shrink-0" />
+                          <p className="italic">"{transaction.notes}"</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <p className="text-sm font-bold text-primary mt-2">Hours Deducted: {transaction.hours_deducted.toFixed(1)}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
