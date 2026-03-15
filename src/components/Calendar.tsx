@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer, Event as BigCalendarEvent } from 'react-big-calendar';
 import format from 'date-fns/format';
 import parse from 'date-fns/parse';
@@ -35,56 +35,41 @@ const DEFAULT_MIN_HOUR = 9;
 const DEFAULT_MAX_HOUR = 18;
 
 const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[], currentView: string) => {
-  if (currentView !== 'month' && currentView !== 'day') {
-    return {
-      min: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0),
-      max: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0),
-    };
+  // Month and Agenda views don't use the time grid min/max props
+  if (currentView === 'month' || currentView === 'agenda') {
+    return { min: undefined, max: undefined };
   }
 
   let minHour = DEFAULT_MIN_HOUR;
   let maxHour = DEFAULT_MAX_HOUR;
 
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1, locale: locales['en-US'] });
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1, locale: locales['en-US'] });
+  // Check all events currently loaded in the calendar
+  if (events.length > 0) {
+    let earliestEventHour = 24;
+    let latestEventHour = 0;
 
-  const eventsInCurrentWeek = events.filter(event => {
-    const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
-    const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
+    events.forEach(event => {
+      const start = event.start instanceof Date ? event.start : new Date(event.start!);
+      const end = event.end instanceof Date ? event.end : new Date(event.end!);
 
-    return (
-      isWithinInterval(eventStart, { start: weekStart, end: weekEnd }) ||
-      isWithinInterval(eventEnd, { start: weekStart, end: weekEnd }) ||
-      (eventStart < weekStart && eventEnd > weekEnd)
-    );
-  });
+      const sHour = getHours(start);
+      const eHour = getHours(end) + (getMinutes(end) > 0 ? 1 : 0);
 
-  if (eventsInCurrentWeek.length > 0) {
-    let earliestEventTime = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59, 999);
-    let latestEventTime = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 0, 0, 0, 0);
-
-    eventsInCurrentWeek.forEach(event => {
-      const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
-      const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
-
-      if (eventStart < earliestEventTime) earliestEventTime = eventStart;
-      if (eventEnd > latestEventTime) latestEventTime = eventEnd;
+      if (sHour < earliestEventHour) earliestEventHour = sHour;
+      if (eHour > latestEventHour) latestEventHour = eHour;
     });
 
-    const earliestEventHour = getHours(earliestEventTime);
-    const latestEventHour = getHours(latestEventTime);
-    const latestEventMinute = getMinutes(latestEventTime);
-
+    // Expand range if events fall outside defaults
     if (earliestEventHour < DEFAULT_MIN_HOUR) {
       minHour = earliestEventHour;
     }
-    if (latestEventHour > DEFAULT_MAX_HOUR || (latestEventHour === DEFAULT_MAX_HOUR && latestEventMinute > 0)) {
-      maxHour = latestEventHour + (latestEventMinute > 0 ? 1 : 0);
+    if (latestEventHour > DEFAULT_MAX_HOUR) {
+      maxHour = latestEventHour;
     }
   }
 
-  const minDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), minHour, 0, 0, 0);
-  const maxDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), maxHour, 0, 0, 0);
+  const minDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), minHour, 0, 0);
+  const maxDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), maxHour, 0, 0);
 
   return { min: minDate, max: maxDate };
 };
@@ -112,26 +97,16 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
 }) => {
   const { user } = useSession();
 
-  const [minTime, setMinTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MIN_HOUR, 0, 0, 0));
-  const [maxTime, setMaxTime] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), DEFAULT_MAX_HOUR, 0, 0, 0));
-
-  const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const { min, max } = calculateDynamicTimeRange(currentDate, events, currentView);
-    setMinTime(min);
-    setMaxTime(max);
+  const { minTime, maxTime } = useMemo(() => {
+    return calculateDynamicTimeRange(currentDate, events, currentView);
   }, [events, currentDate, currentView]);
 
   const handleNavigate = useCallback((newDate: Date) => {
     setCurrentDate(newDate);
-    // Removed redundant onEventsRefetch call here as the parent's useEffect watches currentDate
   }, [setCurrentDate]);
 
   const handleView = useCallback((newView: string) => {
     setCurrentView(newView as 'month' | 'week' | 'day' | 'agenda');
-    // Removed redundant onEventsRefetch call here
   }, [setCurrentView]);
 
   const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
@@ -142,6 +117,9 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     setSelectedBookingId(event.id as string);
     setIsEditBookingDialogOpen(true);
   }, []);
+
+  const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   const handleBookingUpdated = () => {
     const start = startOfMonth(currentDate);
@@ -197,6 +175,9 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     }
   }, [user, currentDate, onEventsRefetch]);
 
+  // Default scroll position to 9 AM
+  const scrollToTime = useMemo(() => new Date(1970, 1, 1, 9, 0, 0), []);
+
   return (
     <div className="h-full flex flex-col bg-card p-4 rounded-lg shadow-sm">
       {currentView === 'day' && (
@@ -228,6 +209,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
           }}
           min={minTime}
           max={maxTime}
+          scrollToTime={scrollToTime}
           onNavigate={handleNavigate}
           date={currentDate}
           selectable
