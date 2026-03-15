@@ -42,7 +42,7 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
   let minHour = DEFAULT_MIN_HOUR;
   let maxHour = DEFAULT_MAX_HOUR;
 
-  // Filter events to only those visible in the current view
+  // Filter events to only those visible in the current view (Week or Day)
   const visibleEvents = events.filter(event => {
     const start = event.start instanceof Date ? event.start : new Date(event.start!);
     
@@ -71,6 +71,7 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
       if (eHour > latestEventHour) latestEventHour = eHour;
     });
 
+    // Only expand if events are outside the 9-6 range
     if (earliestEventHour < DEFAULT_MIN_HOUR) {
       minHour = earliestEventHour;
     }
@@ -79,6 +80,7 @@ const calculateDynamicTimeRange = (currentDate: Date, events: BigCalendarEvent[]
     }
   }
 
+  // Create date objects for the min/max time grid
   const minDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), minHour, 0, 0);
   const maxDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), maxHour, 0, 0);
 
@@ -108,7 +110,8 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
 }) => {
   const { user } = useSession();
 
-  const { minTime, maxTime } = useMemo(() => {
+  // Correctly destructure the min and max properties from the calculation
+  const { min: minTime, max: maxTime } = useMemo(() => {
     return calculateDynamicTimeRange(currentDate, events, currentView);
   }, [events, currentDate, currentView]);
 
