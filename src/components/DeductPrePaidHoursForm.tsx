@@ -72,7 +72,6 @@ const DeductPrePaidHoursForm: React.FC<DeductPrePaidHoursFormProps> = ({
     }
 
     // 2. Record the manual transaction
-    // Note: booking_id is left null to signify a manual deduction
     const { error: transactionError } = await supabase
       .from("pre_paid_hours_transactions")
       .insert({
@@ -81,13 +80,11 @@ const DeductPrePaidHoursForm: React.FC<DeductPrePaidHoursFormProps> = ({
         pre_paid_hours_id: packageId,
         hours_deducted: values.hours_to_deduct,
         transaction_date: new Date().toISOString(),
-        // We can't easily add notes to the transaction table if the column doesn't exist,
-        // but we've updated the balance and recorded the hours.
+        notes: values.notes, // Now including notes in the transaction
       });
 
     if (transactionError) {
       console.error("Error recording transaction:", transactionError);
-      // We don't stop here as the balance was already updated
     }
 
     showSuccess("Hours deducted successfully!");

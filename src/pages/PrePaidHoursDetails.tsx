@@ -9,10 +9,12 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock, Trash2, MinusCircle, Info } from "lucide-react";
+import { ArrowLeft, Hourglass, PoundSterling, CalendarDays, User, BookOpen, Clock, Trash2, MinusCircle, Info, MessageSquare } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import DeductPrePaidHoursForm from "@/components/DeductPrePaidHoursForm";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface PrePaidHoursPackage {
   id: string;
@@ -28,18 +30,19 @@ interface PrePaidHoursPackage {
 }
 
 interface BookingTransaction {
-  id: string; // Transaction ID
+  id: string;
   hours_deducted: number;
   transaction_date: string;
+  notes?: string; // Notes from manual deduction
   bookings: {
-    id: string; // Booking ID
+    id: string;
     title: string;
     description?: string;
     start_time: string;
     end_time: string;
     status: string;
     lesson_type: string;
-  } | null; // Can be null for manual deductions
+  } | null;
 }
 
 const PrePaidHoursDetails: React.FC = () => {
@@ -76,10 +79,9 @@ const PrePaidHoursDetails: React.FC = () => {
     if (packageData) {
       setPrePaidPackage(packageData);
 
-      // Now fetch transactions for this specific pre-paid hours package
       const { data: transactionsData, error: transactionsError } = await supabase
         .from("pre_paid_hours_transactions")
-        .select("id, hours_deducted, transaction_date, bookings(id, title, description, start_time, end_time, status, lesson_type)")
+        .select("id, hours_deducted, transaction_date, notes, bookings(id, title, description, start_time, end_time, status, lesson_type)")
         .eq("pre_paid_hours_id", packageId)
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false });
@@ -114,21 +116,20 @@ const PrePaidHoursDetails: React.FC = () => {
       .from("bookings")
       .delete()
       .eq("id", bookingId)
-      .eq("user_id", user.id); // Ensure user owns the booking
+      .eq("user_id", user.id);
 
     if (error) {
       console.error("Error deleting booking:", error);
       showError("Failed to delete booking: " + error.message);
     } else {
       showSuccess("Booking deleted successfully! Hours have been returned to the package.");
-      fetchPackageDetails(); // Re-fetch details to update remaining hours and transaction list
+      fetchPackageDetails();
     }
   };
 
   const handleDeleteManualTransaction = async (transactionId: string, hoursToReturn: number) => {
     if (!user || !prePaidPackage) return;
 
-    // 1. Return hours to the package
     const { error: updateError } = await supabase
       .from("pre_paid_hours")
       .update({ remaining_hours: prePaidPackage.remaining_hours + hoursToReturn })
@@ -139,7 +140,6 @@ const PrePaidHoursDetails: React.FC = () => {
       return;
     }
 
-    // 2. Delete the transaction record
     const { error: deleteError } = await supabase
       .from("pre_paid_hours_transactions")
       .delete()
@@ -158,46 +158,17 @@ const PrePaidHoursDetails: React.FC = () => {
       <div className="space-y-6">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-8 w-32" />
-        <Card>
-          <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
-          <CardContent className="space-y-2">
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3" /></CardContent>
-        </Card>
-        <Skeleton className="h-8 w-48" />
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /></CardContent></Card>
-        </div>
+        <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /></CardContent></Card>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !prePaidPackage) {
     return (
       <div className="space-y-6">
-        <Button variant="outline" asChild>
-          <Link to="/pre-paid-hours">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Pre-Paid Hours
-          </Link>
-        </Button>
+        <Button variant="outline" asChild><Link to="/pre-paid-hours"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>
         <h1 className="text-3xl font-bold text-destructive">Error</h1>
-        <p className="text-muted-foreground">{error}</p>
-      </div>
-    );
-  }
-
-  if (!prePaidPackage) {
-    return (
-      <div className="space-y-6">
-        <Button variant="outline" asChild>
-          <Link to="/pre-paid-hours">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Pre-Paid Hours
-          </Link>
-        </Button>
-        <h1 className="text-3xl font-bold">Pre-Paid Hours Details</h1>
-        <p className="text-muted-foreground">No package found with ID: {packageId}</p>
+        <p className="text-muted-foreground">{error || "Package not found."}</p>
       </div>
     );
   }
@@ -270,9 +241,14 @@ const PrePaidHoursDetails: React.FC = () => {
           {packageTransactions.map((transaction) => (
             <Card key={transaction.id} className={cn("flex flex-col", !transaction.bookings && "border-destructive/20 bg-destructive/5")}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg">
-                  {transaction.bookings ? transaction.bookings.title : "Manual Deduction"}
-                </CardTitle>
+                <div className="flex flex-col gap-1">
+                  <CardTitle className="text-lg">
+                    {transaction.bookings ? transaction.bookings.title : "Manual Deduction"}
+                  </CardTitle>
+                  {!transaction.bookings && (
+                    <Badge variant="destructive" className="w-fit text-[10px] font-bold uppercase">Manual Adjustment</Badge>
+                  )}
+                </div>
                 
                 {transaction.bookings ? (
                   <AlertDialog>
@@ -348,10 +324,12 @@ const PrePaidHoursDetails: React.FC = () => {
                       <CalendarDays className="mr-2 h-4 w-4" />
                       <span>Date: {format(new Date(transaction.transaction_date), "PPP")}</span>
                     </div>
-                    <div className="flex items-start text-muted-foreground mt-2">
-                      <Info className="mr-2 h-4 w-4 mt-0.5 shrink-0" />
-                      <p className="italic">Manual adjustment made by instructor.</p>
-                    </div>
+                    {transaction.notes && (
+                      <div className="flex items-start text-muted-foreground mt-2 bg-white/50 p-2 rounded border border-destructive/10">
+                        <MessageSquare className="mr-2 h-4 w-4 mt-0.5 shrink-0" />
+                        <p className="italic">"{transaction.notes}"</p>
+                      </div>
+                    )}
                   </>
                 )}
                 <p className="text-sm font-bold text-primary mt-2">Hours Deducted: {transaction.hours_deducted.toFixed(1)}</p>
