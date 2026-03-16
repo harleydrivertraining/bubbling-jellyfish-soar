@@ -17,7 +17,11 @@ import {
   User,
   Calendar,
   PlusCircle,
-  Coins
+  Coins,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Calculator,
+  Tag
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,15 +36,23 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
+import AddExpenditureForm from "@/components/AddExpenditureForm";
 
-interface Transaction {
+interface IncomeTransaction {
   id: string;
   type: 'lesson' | 'package' | 'additional';
   date: string;
   amount: number;
   description: string;
   student_name: string;
-  status: string;
+}
+
+interface ExpenditureTransaction {
+  id: string;
+  date: string;
+  amount: number;
+  description: string;
+  category: string;
 }
 
 const getTaxYearRange = (startYear: number) => {
@@ -59,9 +71,12 @@ const Accounts: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [hourlyRate, setHourlyRate] = useState<number>(0);
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [incomeTransactions, setIncomeTransactions] = useState<IncomeTransaction[]>([]);
+  const [expenditureTransactions, setExpenditureTransactions] = useState<ExpenditureTransaction[]>([]);
   const [unpaidLessons, setUnpaidLessons] = useState<any[]>([]);
+  
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
 
@@ -79,28 +94,28 @@ const Accounts: React.FC = () => {
       const rate = profile?.hourly_rate || 0;
       setHourlyRate(rate);
 
-      const [packagesRes, lessonsRes, creditTxRes, additionalRes] = await Promise.all([
+      const [packagesRes, lessonsRes, creditTxRes, additionalRes, expensesRes] = await Promise.all([
         supabase.from("pre_paid_hours").select("id, amount_paid, purchase_date, students(name)").eq("user_id", user.id),
         supabase.from("bookings").select("id, title, start_time, end_time, is_paid, status, students(name)").eq("user_id", user.id).eq("status", "completed").order("start_time", { ascending: false }),
         supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id),
-        supabase.from("additional_income").select("*").eq("user_id", user.id)
+        supabase.from("additional_income").select("*").eq("user_id", user.id),
+        supabase.from("expenditures").select("*").eq("user_id", user.id)
       ]);
 
       const creditPaidIds = new Set(creditTxRes.data?.map(t => t.booking_id) || []);
-      const allTx: Transaction[] = [];
+      const income: IncomeTransaction[] = [];
       const unpaid: any[] = [];
 
       // 1. Packages
       packagesRes.data?.forEach(pkg => {
         if (pkg.amount_paid) {
-          allTx.push({
+          income.push({
             id: pkg.id,
             type: 'package',
             date: pkg.purchase_date,
             amount: pkg.amount_paid,
             description: "Pre-paid Hours Package",
-            student_name: (pkg.students as any)?.name || "Unknown",
-            status: 'paid'
+            student_name: (pkg.students as any)?.name || "Unknown"
           });
         }
       });
@@ -112,14 +127,13 @@ const Accounts: React.FC = () => {
         const value = duration * rate;
 
         if (lesson.is_paid && !isCredit) {
-          allTx.push({
+          income.push({
             id: lesson.id,
             type: 'lesson',
             date: lesson.start_time,
             amount: value,
             description: "Individual Lesson Payment",
-            student_name: (lesson.students as any)?.name || "Unknown",
-            status: 'paid'
+            student_name: (lesson.students as any)?.name || "Unknown"
           });
         } else if (!lesson.is_paid && !isCredit) {
           unpaid.push({ ...lesson, value });
@@ -128,18 +142,18 @@ const Accounts: React.FC = () => {
 
       // 3. Additional Income
       additionalRes.data?.forEach(item => {
-        allTx.push({
+        income.push({
           id: item.id,
           type: 'additional',
           date: item.date,
           amount: item.amount,
           description: item.description,
-          student_name: "Other Income",
-          status: 'paid'
+          student_name: "Other Income"
         });
       });
 
-      setAllTransactions(allTx.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setIncomeTransactions(income.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setExpenditureTransactions((expensesRes.data || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       setUnpaidLessons(unpaid);
 
     } catch (error: any) {
@@ -156,26 +170,29 @@ const Accounts: React.FC = () => {
 
   const taxYearRange = useMemo(() => getTaxYearRange(selectedTaxYearStart), [selectedTaxYearStart]);
 
-  const filteredTransactions = useMemo(() => {
-    return allTransactions.filter(tx => {
+  const filteredIncome = useMemo(() => {
+    return incomeTransactions.filter(tx => {
       const date = new Date(tx.date);
       return date >= taxYearRange.start && date <= taxYearRange.end;
     });
-  }, [allTransactions, taxYearRange]);
+  }, [incomeTransactions, taxYearRange]);
+
+  const filteredExpenditure = useMemo(() => {
+    return expenditureTransactions.filter(tx => {
+      const date = new Date(tx.date);
+      return date >= taxYearRange.start && date <= taxYearRange.end;
+    });
+  }, [expenditureTransactions, taxYearRange]);
 
   const stats = useMemo(() => {
-    const totalIncome = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-    
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthIncome = filteredTransactions
-      .filter(tx => new Date(tx.date) >= monthStart)
-      .reduce((sum, tx) => sum + tx.amount, 0);
+    const totalIncome = filteredIncome.reduce((sum, tx) => sum + tx.amount, 0);
+    const totalExpenditure = filteredExpenditure.reduce((sum, tx) => sum + tx.amount, 0);
+    const netProfit = totalIncome - totalExpenditure;
     
     const pendingIncome = unpaidLessons.reduce((sum, l) => sum + l.value, 0);
 
-    return { totalIncome, monthIncome, pendingIncome };
-  }, [filteredTransactions, unpaidLessons]);
+    return { totalIncome, totalExpenditure, netProfit, pendingIncome };
+  }, [filteredIncome, filteredExpenditure, unpaidLessons]);
 
   const availableYears = useMemo(() => {
     const currentYear = getTaxYearStartForDate(new Date());
@@ -194,11 +211,11 @@ const Accounts: React.FC = () => {
           <p className="text-muted-foreground font-medium">Financial Year: 6th April {selectedTaxYearStart} — 5th April {selectedTaxYearStart + 1}</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Dialog open={isAddIncomeOpen} onOpenChange={setIsAddIncomeOpen}>
             <DialogTrigger asChild>
-              <Button className="font-bold">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Other Income
+              <Button className="font-bold bg-green-600 hover:bg-green-700">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Income
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
@@ -206,6 +223,20 @@ const Accounts: React.FC = () => {
                 <DialogTitle>Add Additional Income</DialogTitle>
               </DialogHeader>
               <AddAdditionalIncomeForm onSuccess={fetchData} onClose={() => setIsAddIncomeOpen(false)} />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="font-bold border-red-200 text-red-700 hover:bg-red-50">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Expenditure
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add Business Expenditure</DialogTitle>
+              </DialogHeader>
+              <AddExpenditureForm onSuccess={fetchData} onClose={() => setIsAddExpenseOpen(false)} />
             </DialogContent>
           </Dialog>
 
@@ -232,64 +263,65 @@ const Accounts: React.FC = () => {
         <Card className="border-l-4 border-l-green-500 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-3 w-3 text-green-600" /> Year Total Income
+              <ArrowUpCircle className="h-3 w-3 text-green-600" /> Total Income
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">£{stats.totalIncome.toFixed(2)}</div>
-            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Earnings for selected tax year</p>
+            <div className="text-3xl font-black text-green-700">£{stats.totalIncome.toFixed(2)}</div>
+            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Gross earnings for the year</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500 shadow-sm">
+        <Card className="border-l-4 border-l-red-500 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-              <CalendarDays className="h-3 w-3 text-blue-600" /> This Month
+              <ArrowDownCircle className="h-3 w-3 text-red-600" /> Total Expenditure
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">£{stats.monthIncome.toFixed(2)}</div>
-            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Earnings in current calendar month</p>
+            <div className="text-3xl font-black text-red-700">£{stats.totalExpenditure.toFixed(2)}</div>
+            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Business costs for the year</p>
           </CardContent>
         </Card>
 
-        <Card className={cn("border-l-4 shadow-sm", stats.pendingIncome > 0 ? "border-l-orange-500 bg-orange-50/30" : "border-l-muted")}>
+        <Card className={cn("border-l-4 shadow-sm", stats.netProfit >= 0 ? "border-l-blue-500" : "border-l-orange-500")}>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-              <Clock className="h-3 w-3 text-orange-600" /> Total Pending
+              <Calculator className="h-3 w-3 text-blue-600" /> Net Profit
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={cn("text-3xl font-black", stats.pendingIncome > 0 ? "text-orange-700" : "text-foreground")}>
-              £{stats.pendingIncome.toFixed(2)}
+            <div className={cn("text-3xl font-black", stats.netProfit >= 0 ? "text-blue-700" : "text-orange-700")}>
+              £{stats.netProfit.toFixed(2)}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1 font-medium">All unpaid completed lessons</p>
+            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Income minus expenditure</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="history" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-12">
-          <TabsTrigger value="history" className="font-bold">Year Transactions</TabsTrigger>
+      <Tabs defaultValue="income" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 h-12">
+          <TabsTrigger value="income" className="font-bold">Income History</TabsTrigger>
+          <TabsTrigger value="expenditure" className="font-bold">Expenditure History</TabsTrigger>
           <TabsTrigger value="unpaid" className="font-bold">
-            Unpaid Lessons {unpaidLessons.length > 0 && <Badge className="ml-2 bg-orange-500">{unpaidLessons.length}</Badge>}
+            Unpaid {unpaidLessons.length > 0 && <Badge className="ml-2 bg-orange-500">{unpaidLessons.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="history" className="mt-6">
+        <TabsContent value="income" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-primary" /> Transaction Log
+                <ArrowUpCircle className="h-5 w-5 text-green-600" /> Income Log
               </CardTitle>
-              <CardDescription>Payments received between {format(taxYearRange.start, "do MMM yyyy")} and {format(taxYearRange.end, "do MMM yyyy")}.</CardDescription>
+              <CardDescription>All payments received in the selected tax year.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {filteredTransactions.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground italic">No transactions recorded for this period.</div>
+              {filteredIncome.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground italic">No income recorded for this period.</div>
               ) : (
                 <div className="divide-y">
-                  {filteredTransactions.map((tx) => (
+                  {filteredIncome.map((tx) => (
                     <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
                       <div className="flex items-center gap-4">
                         <div className={cn(
@@ -309,7 +341,43 @@ const Accounts: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-lg text-green-600">+£{tx.amount.toFixed(2)}</p>
-                        <Badge variant="outline" className="text-[8px] h-4 px-1 uppercase font-bold">Received</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="expenditure" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ArrowDownCircle className="h-5 w-5 text-red-600" /> Expenditure Log
+              </CardTitle>
+              <CardDescription>All business costs recorded in the selected tax year.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {filteredExpenditure.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground italic">No expenditures recorded for this period.</div>
+              ) : (
+                <div className="divide-y">
+                  {filteredExpenditure.map((tx) => (
+                    <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                          <Tag className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm truncate">{tx.description}</p>
+                          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
+                            {tx.category} • {format(new Date(tx.date), "MMM d, yyyy")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-lg text-red-600">-£{tx.amount.toFixed(2)}</p>
                       </div>
                     </div>
                   ))}
