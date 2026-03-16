@@ -350,72 +350,6 @@ const Accounts: React.FC = () => {
         </Card>
       </div>
 
-      {/* New Summary Section */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Coins className="h-5 w-5 text-green-600" /> Income by Category
-            </CardTitle>
-            <CardDescription>Breakdown of your top earning categories.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {stats.chartData.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground italic">No income data to summarize.</p>
-              ) : (
-                stats.chartData.slice(0, 5).map((item, index) => (
-                  <div key={item.name} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-muted">
-                    <div className="flex items-center gap-3">
-                      <div className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                      <span className="font-bold text-sm">{item.name}</span>
-                    </div>
-                    <span className="font-black text-green-600">£{item.value.toFixed(2)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5 text-blue-600" /> Revenue Distribution
-            </CardTitle>
-            <CardDescription>Visual representation of your income sources.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            {stats.chartData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground italic">No data available.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.chartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {stats.chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip 
-                    formatter={(value: number) => `£${value.toFixed(2)}`}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36}/>
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
       <Tabs defaultValue="income" className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-12">
           <TabsTrigger value="income" className="font-bold">Income History</TabsTrigger>
@@ -425,7 +359,73 @@ const Accounts: React.FC = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="income" className="mt-6">
+        <TabsContent value="income" className="mt-6 space-y-6">
+          {/* Income Summary Charts moved here */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Coins className="h-5 w-5 text-green-600" /> Income by Category
+                </CardTitle>
+                <CardDescription>Breakdown of your top earning categories.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {stats.chartData.length === 0 ? (
+                    <p className="text-center py-8 text-muted-foreground italic">No income data to summarize.</p>
+                  ) : (
+                    stats.chartData.slice(0, 5).map((item, index) => (
+                      <div key={item.name} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-muted">
+                        <div className="flex items-center gap-3">
+                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                          <span className="font-bold text-sm">{item.name}</span>
+                        </div>
+                        <span className="font-black text-green-600">£{item.value.toFixed(2)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <PieChartIcon className="h-5 w-5 text-blue-600" /> Revenue Distribution
+                </CardTitle>
+                <CardDescription>Visual representation of your income sources.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                {stats.chartData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground italic">No data available.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={stats.chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {stats.chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        formatter={(value: number) => `£${value.toFixed(2)}`}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                      />
+                      <Legend verticalAlign="bottom" height={36}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
           <Collapsible open={isIncomeLogExpanded} onOpenChange={setIsIncomeLogExpanded}>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
