@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -71,9 +71,80 @@ interface SidebarProps {
   onLinkClick?: () => void;
 }
 
+const ICON_MAP: Record<string, any> = {
+  dashboard: LayoutDashboard,
+  students: Users,
+  schedule: CalendarDays,
+  lessons: BookOpen,
+  "lesson-notes": NotebookText,
+  "student-targets": Target,
+  progress: TrendingUp,
+  "test-bookings": Car,
+  "test-records": ClipboardCheck,
+  "test-stats": BarChart3,
+  "pre-paid": Hourglass,
+  mileage: Gauge,
+  accounts: PoundSterling,
+  topics: ListChecks,
+  support: LifeBuoy,
+  settings: Settings,
+};
+
+const DEFAULT_NAV_ITEMS = [
+  { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { id: "students", to: "/students", icon: Users, label: "Students" },
+  { id: "schedule", to: "/schedule", icon: CalendarDays, label: "Schedule" },
+  { id: "lessons", to: "/lessons", icon: BookOpen, label: "Lessons" },
+  { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
+  { id: "student-targets", to: "/student-targets", icon: Target, label: "Student Targets" },
+  { id: "progress", to: "/progress", icon: TrendingUp, label: "Progress" },
+  { id: "test-bookings", to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
+  { id: "test-records", to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
+  { id: "test-stats", to: "/test-statistics", icon: BarChart3, label: "Test Statistics" },
+  { id: "pre-paid", to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
+  { id: "mileage", to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
+  { id: "accounts", to: "/accounts", icon: PoundSterling, label: "Accounts" },
+  { id: "topics", to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
+  { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
+  { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
+];
+
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
   const { user } = useSession();
   const [isOwner, setIsOwner] = useState(false);
+  const [navItems, setNavItems] = useState(DEFAULT_NAV_ITEMS);
+
+  const loadConfig = useCallback(() => {
+    const saved = localStorage.getItem("sidebar_menu_config");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const visibleItems = parsed
+          .filter((p: any) => p.visible)
+          .map((p: any) => {
+            const original = DEFAULT_NAV_ITEMS.find(d => d.id === p.id);
+            return original ? { ...original } : null;
+          })
+          .filter(Boolean);
+        
+        // Ensure new items that aren't in the saved config yet are still shown at the end
+        const missingItems = DEFAULT_NAV_ITEMS.filter(d => !parsed.find((p: any) => p.id === d.id));
+        
+        setNavItems([...visibleItems, ...missingItems]);
+      } catch (e) {
+        console.error("Failed to parse menu config", e);
+        setNavItems(DEFAULT_NAV_ITEMS);
+      }
+    } else {
+      setNavItems(DEFAULT_NAV_ITEMS);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConfig();
+    window.addEventListener("sidebar-config-updated", loadConfig);
+    return () => window.removeEventListener("sidebar-config-updated", loadConfig);
+  }, [loadConfig]);
 
   useEffect(() => {
     const checkRole = async () => {
@@ -83,25 +154,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     };
     checkRole();
   }, [user]);
-
-  const navItems = [
-    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/students", icon: Users, label: "Students" },
-    { to: "/schedule", icon: CalendarDays, label: "Schedule" },
-    { to: "/lessons", icon: BookOpen, label: "Lessons" },
-    { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
-    { to: "/student-targets", icon: Target, label: "Student Targets" },
-    { to: "/progress", icon: TrendingUp, label: "Progress" },
-    { to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
-    { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
-    { to: "/test-statistics", icon: BarChart3, label: "Test Statistics" },
-    { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
-    { to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
-    { to: "/accounts", icon: PoundSterling, label: "Accounts" },
-    { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
-    { to: "/support", icon: LifeBuoy, label: "Support" },
-    { to: "/settings", icon: Settings, label: "Settings" },
-  ];
 
   return (
     <div
@@ -130,7 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
         <nav className="grid items-start gap-2 px-2">
           {navItems.map((item) => (
             <NavLink
-              key={item.to}
+              key={item.id}
               to={item.to}
               icon={item.icon}
               label={item.label}
