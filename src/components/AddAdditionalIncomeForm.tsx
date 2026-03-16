@@ -35,6 +35,7 @@ const formSchema = z.object({
   ),
   description: z.string().min(2, { message: "Description is required." }),
   category: z.string().min(1, { message: "Please select a category." }),
+  custom_category: z.string().optional(),
   date: z.date({ required_error: "Date is required." }),
 });
 
@@ -46,6 +47,7 @@ interface AddAdditionalIncomeFormProps {
 const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuccess, onClose }) => {
   const { user } = useSession();
   const [categories, setCategories] = useState<string[]>([]);
+  const [isCustom, setIsCustom] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     if (!user) return;
@@ -68,6 +70,7 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
       amount: 0,
       description: "",
       category: "Other",
+      custom_category: "",
       date: new Date(),
     },
   });
@@ -75,13 +78,27 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
 
+    let finalCategory = values.category;
+
+    // If user entered a custom category, save it to the categories table first
+    if (values.category === "Other" && values.custom_category?.trim()) {
+      finalCategory = values.custom_category.trim();
+      
+      // Check if it already exists to avoid unique constraint error
+      if (!categories.includes(finalCategory)) {
+        await supabase
+          .from("income_categories")
+          .insert({ user_id: user.id, name: finalCategory });
+      }
+    }
+
     const { error } = await supabase
       .from("additional_income")
       .insert({
         user_id: user.id,
         amount: values.amount,
         description: values.description,
-        category: values.category,
+        category: finalCategory,
         date: format(values.date, "yyyy-MM-dd"),
       });
 
@@ -117,7 +134,13 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
           render={({ field }) => (
             <FormItem>
               <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select 
+                onValueChange={(val) => {
+                  field.onChange(val);
+                  setIsCustom(val === "Other");
+                }} 
+                defaultValue={field.value}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -129,12 +152,29 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
                       {cat}
                     </SelectItem>
                   ))}
+                  {!categories.includes("Other") && <SelectItem value="Other">Other (Add New)</SelectItem>}
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {isCustom && (
+          <FormField
+            control={form.control}
+            name="custom_category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>New Category Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Car Hire" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={form.control}

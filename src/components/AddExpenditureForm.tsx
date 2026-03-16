@@ -35,6 +35,7 @@ const formSchema = z.object({
   ),
   description: z.string().min(2, { message: "Description is required." }),
   category: z.string().min(1, { message: "Please select a category." }),
+  custom_category: z.string().optional(),
   date: z.date({ required_error: "Date is required." }),
 });
 
@@ -46,6 +47,7 @@ interface AddExpenditureFormProps {
 const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onClose }) => {
   const { user } = useSession();
   const [categories, setCategories] = useState<string[]>([]);
+  const [isCustom, setIsCustom] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     if (!user) return;
@@ -68,6 +70,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       amount: 0,
       description: "",
       category: "Fuel",
+      custom_category: "",
       date: new Date(),
     },
   });
@@ -75,13 +78,25 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
 
+    let finalCategory = values.category;
+
+    if (values.category === "Other" && values.custom_category?.trim()) {
+      finalCategory = values.custom_category.trim();
+      
+      if (!categories.includes(finalCategory)) {
+        await supabase
+          .from("expenditure_categories")
+          .insert({ user_id: user.id, name: finalCategory });
+      }
+    }
+
     const { error } = await supabase
       .from("expenditures")
       .insert({
         user_id: user.id,
         amount: values.amount,
         description: values.description,
-        category: values.category,
+        category: finalCategory,
         date: format(values.date, "yyyy-MM-dd"),
       });
 
@@ -110,13 +125,20 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
             </FormItem>
           )}
         />
+        
         <FormField
           control={form.control}
           name="category"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select 
+                onValueChange={(val) => {
+                  field.onChange(val);
+                  setIsCustom(val === "Other");
+                }} 
+                defaultValue={field.value}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -128,12 +150,30 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
                       {cat}
                     </SelectItem>
                   ))}
+                  {!categories.includes("Other") && <SelectItem value="Other">Other (Add New)</SelectItem>}
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {isCustom && (
+          <FormField
+            control={form.control}
+            name="custom_category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>New Category Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Office Supplies" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         <FormField
           control={form.control}
           name="date"
@@ -147,6 +187,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
             </FormItem>
           )}
         />
+        
         <FormField
           control={form.control}
           name="description"
@@ -154,7 +195,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Shell fuel station, Annual insurance renewal" {...field} />
+                <Textarea placeholder="e.g., Shell fuel station" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
