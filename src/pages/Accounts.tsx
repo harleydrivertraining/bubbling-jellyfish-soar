@@ -64,6 +64,7 @@ interface ExpenditureTransaction {
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+const EXP_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#8b5cf6', '#3b82f6', '#06b6d4', '#ec4899', '#64748b'];
 
 const getTaxYearRange = (startYear: number) => {
   const start = new Date(startYear, 3, 6);
@@ -89,6 +90,7 @@ const Accounts: React.FC = () => {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
   const [isIncomeLogExpanded, setIsIncomeLogExpanded] = useState(false);
+  const [isExpenditureLogExpanded, setIsExpenditureLogExpanded] = useState(false);
   
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
 
@@ -206,7 +208,7 @@ const Accounts: React.FC = () => {
     
     const pendingIncome = unpaidLessons.reduce((sum, l) => sum + l.value, 0);
 
-    // Group income by category for chart and cards
+    // Group income by category
     const categoryMap: Record<string, number> = {};
     filteredIncome.forEach(tx => {
       categoryMap[tx.category] = (categoryMap[tx.category] || 0) + tx.amount;
@@ -216,7 +218,17 @@ const Accounts: React.FC = () => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    return { totalIncome, totalExpenditure, netProfit, pendingIncome, chartData };
+    // Group expenditure by category
+    const expCategoryMap: Record<string, number> = {};
+    filteredExpenditure.forEach(tx => {
+      expCategoryMap[tx.category] = (expCategoryMap[tx.category] || 0) + tx.amount;
+    });
+
+    const expChartData = Object.entries(expCategoryMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    return { totalIncome, totalExpenditure, netProfit, pendingIncome, chartData, expChartData };
   }, [filteredIncome, filteredExpenditure, unpaidLessons]);
 
   const availableYears = useMemo(() => {
@@ -360,7 +372,6 @@ const Accounts: React.FC = () => {
         </TabsList>
 
         <TabsContent value="income" className="mt-6 space-y-6">
-          {/* Income Summary Charts moved here */}
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="shadow-sm">
               <CardHeader>
@@ -479,41 +490,118 @@ const Accounts: React.FC = () => {
           </Collapsible>
         </TabsContent>
 
-        <TabsContent value="expenditure" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ArrowDownCircle className="h-5 w-5 text-red-600" /> Expenditure Log
-              </CardTitle>
-              <CardDescription>All business costs recorded in the selected tax year.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {filteredExpenditure.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground italic">No expenditures recorded for this period.</div>
-              ) : (
-                <div className="divide-y">
-                  {filteredExpenditure.map((tx) => (
-                    <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center shrink-0">
-                          <Tag className="h-5 w-5" />
+        <TabsContent value="expenditure" className="mt-6 space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-red-600" /> Expenditure by Category
+                </CardTitle>
+                <CardDescription>Breakdown of your top business expenses.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {stats.expChartData.length === 0 ? (
+                    <p className="text-center py-8 text-muted-foreground italic">No expenditure data to summarize.</p>
+                  ) : (
+                    stats.expChartData.slice(0, 5).map((item, index) => (
+                      <div key={item.name} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-muted">
+                        <div className="flex items-center gap-3">
+                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: EXP_COLORS[index % EXP_COLORS.length] }} />
+                          <span className="font-bold text-sm">{item.name}</span>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm truncate">{tx.description}</p>
-                          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
-                            {tx.category} • {format(new Date(tx.date), "MMM d, yyyy")}
-                          </p>
-                        </div>
+                        <span className="font-black text-red-600">£{item.value.toFixed(2)}</span>
                       </div>
-                      <div className="text-right">
-                        <p className="font-black text-lg text-red-600">-£{tx.amount.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <PieChartIcon className="h-5 w-5 text-red-600" /> Expense Distribution
+                </CardTitle>
+                <CardDescription>Visual representation of your business costs.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                {stats.expChartData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground italic">No data available.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={stats.expChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {stats.expChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={EXP_COLORS[index % EXP_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        formatter={(value: number) => `£${value.toFixed(2)}`}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                      />
+                      <Legend verticalAlign="bottom" height={36}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Collapsible open={isExpenditureLogExpanded} onOpenChange={setIsExpenditureLogExpanded}>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ArrowDownCircle className="h-5 w-5 text-red-600" /> Expenditure Log
+                  </CardTitle>
+                  <CardDescription>All business costs recorded in the selected tax year.</CardDescription>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-9 p-0">
+                    {isExpenditureLogExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    <span className="sr-only">Toggle</span>
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="p-0 border-t">
+                  {filteredExpenditure.length === 0 ? (
+                    <div className="p-12 text-center text-muted-foreground italic">No expenditures recorded for this period.</div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredExpenditure.map((tx) => (
+                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                              <Tag className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-sm truncate">{tx.description}</p>
+                              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
+                                {tx.category} • {format(new Date(tx.date), "MMM d, yyyy")}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-black text-lg text-red-600">-£{tx.amount.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         </TabsContent>
 
         <TabsContent value="unpaid" className="mt-6">
