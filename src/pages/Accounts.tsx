@@ -6,7 +6,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isBefore, addDays, addWeeks, addMonths, parseISO, startOfDay } from "date-fns";
+import { 
+  format, 
+  isBefore, 
+  addDays, 
+  addWeeks, 
+  addMonths, 
+  parseISO, 
+  startOfDay, 
+  startOfYear, 
+  endOfYear, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek, 
+  endOfWeek 
+} from "date-fns";
 import { 
   PoundSterling, 
   TrendingUp, 
@@ -26,7 +40,8 @@ import {
   ChevronUp,
   PieChart as PieChartIcon,
   Settings2,
-  Repeat
+  Repeat,
+  Filter
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -80,6 +95,8 @@ const getTaxYearStartForDate = (date: Date) => {
   return isBefore(date, taxYearStartThisYear) ? year - 1 : year;
 };
 
+type TimeframeType = 'tax-year' | 'calendar-year' | 'month' | 'week';
+
 const Accounts: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [isLoading, setIsLoading] = useState(true);
@@ -95,6 +112,7 @@ const Accounts: React.FC = () => {
   const [isIncomeLogExpanded, setIsIncomeLogExpanded] = useState(false);
   const [isExpenditureLogExpanded, setIsExpenditureLogExpanded] = useState(false);
   
+  const [timeframe, setTimeframe] = useState<TimeframeType>('tax-year');
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
 
   const processRecurringExpenditures = useCallback(async () => {
@@ -117,7 +135,6 @@ const Accounts: React.FC = () => {
       const maxOccurrences = item.max_occurrences;
       let currentOccurrences = item.current_occurrences || 0;
       
-      // If it's never been processed, we should process the start date if it's today or in the past
       let nextDate = item.last_processed_date ? null : lastDate;
       
       if (item.last_processed_date) {
@@ -167,7 +184,6 @@ const Accounts: React.FC = () => {
         }
       }
       
-      // Deactivate if limits reached
       const reachedEndDate = endDate && (isBefore(endDate, today) || endDate.getTime() === today.getTime()) && lastDate.getTime() === endDate.getTime();
       const reachedMaxOccurrences = maxOccurrences && currentOccurrences >= maxOccurrences;
 
@@ -188,7 +204,6 @@ const Accounts: React.FC = () => {
     if (!user) return;
     setIsLoading(true);
 
-    // Process recurring items first
     await processRecurringExpenditures();
 
     try {
@@ -213,7 +228,6 @@ const Accounts: React.FC = () => {
       const income: IncomeTransaction[] = [];
       const unpaid: any[] = [];
 
-      // 1. Packages
       packagesRes.data?.forEach(pkg => {
         if (pkg.amount_paid) {
           income.push({
@@ -228,7 +242,6 @@ const Accounts: React.FC = () => {
         }
       });
 
-      // 2. Lessons
       lessonsRes.data?.forEach(lesson => {
         const isCredit = creditPaidIds.has(lesson.id);
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
@@ -249,7 +262,6 @@ const Accounts: React.FC = () => {
         }
       });
 
-      // 3. Additional Income
       additionalRes.data?.forEach(item => {
         income.push({
           id: item.id,
@@ -278,21 +290,33 @@ const Accounts: React.FC = () => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
 
-  const taxYearRange = useMemo(() => getTaxYearRange(selectedTaxYearStart), [selectedTaxYearStart]);
+  const activeRange = useMemo(() => {
+    const now = new Date();
+    switch(timeframe) {
+      case 'calendar-year':
+        return { start: startOfYear(now), end: endOfYear(now) };
+      case 'month':
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case 'week':
+        return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+      default:
+        return getTaxYearRange(selectedTaxYearStart);
+    }
+  }, [timeframe, selectedTaxYearStart]);
 
   const filteredIncome = useMemo(() => {
     return incomeTransactions.filter(tx => {
       const date = new Date(tx.date);
-      return date >= taxYearRange.start && date <= taxYearRange.end;
+      return date >= activeRange.start && date <= activeRange.end;
     });
-  }, [incomeTransactions, taxYearRange]);
+  }, [incomeTransactions, activeRange]);
 
   const filteredExpenditure = useMemo(() => {
     return expenditureTransactions.filter(tx => {
       const date = new Date(tx.date);
-      return date >= taxYearRange.start && date <= taxYearRange.end;
+      return date >= activeRange.start && date <= activeRange.end;
     });
-  }, [expenditureTransactions, taxYearRange]);
+  }, [expenditureTransactions, activeRange]);
 
   const stats = useMemo(() => {
     const totalIncome = filteredIncome.reduce((sum, tx) => sum + tx.amount, 0);
@@ -301,7 +325,6 @@ const Accounts: React.FC = () => {
     
     const pendingIncome = unpaidLessons.reduce((sum, l) => sum + l.value, 0);
 
-    // Group income by category
     const categoryMap: Record<string, number> = {};
     filteredIncome.forEach(tx => {
       categoryMap[tx.category] = (categoryMap[tx.category] || 0) + tx.amount;
@@ -311,7 +334,6 @@ const Accounts: React.FC = () => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Group expenditure by category
     const expCategoryMap: Record<string, number> = {};
     filteredExpenditure.forEach(tx => {
       expCategoryMap[tx.category] = (expCategoryMap[tx.category] || 0) + tx.amount;
@@ -338,7 +360,16 @@ const Accounts: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Accounts</h1>
-          <p className="text-muted-foreground font-medium">Financial Year: 6th April {selectedTaxYearStart} — 5th April {selectedTaxYearStart + 1}</p>
+          <p className="text-muted-foreground font-medium">
+            {timeframe === 'tax-year' 
+              ? `Tax Year: 6th April ${selectedTaxYearStart} — 5th April ${selectedTaxYearStart + 1}`
+              : timeframe === 'calendar-year'
+              ? `Calendar Year: ${new Date().getFullYear()}`
+              : timeframe === 'month'
+              ? `Month: ${format(new Date(), "MMMM yyyy")}`
+              : `Week: ${format(startOfWeek(new Date(), { weekStartsOn: 1 }), "MMM d")} — ${format(endOfWeek(new Date(), { weekStartsOn: 1 }), "MMM d")}`
+            }
+          </p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
@@ -395,23 +426,46 @@ const Accounts: React.FC = () => {
               </Tabs>
             </DialogContent>
           </Dialog>
+        </div>
+      </div>
 
-          <Select 
-            value={selectedTaxYearStart.toString()} 
-            onValueChange={(val) => setSelectedTaxYearStart(parseInt(val))}
-          >
-            <SelectTrigger className="w-[200px] font-bold">
-              <Calendar className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Select Tax Year" />
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center bg-muted/30 p-4 rounded-xl border">
+        <div className="flex items-center gap-2 shrink-0">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-bold uppercase text-muted-foreground">View By:</span>
+        </div>
+        
+        <div className="flex flex-wrap gap-2 flex-1">
+          <Select value={timeframe} onValueChange={(val: TimeframeType) => setTimeframe(val)}>
+            <SelectTrigger className="w-[160px] font-bold">
+              <SelectValue placeholder="Select Timeframe" />
             </SelectTrigger>
             <SelectContent>
-              {availableYears.map(year => (
-                <SelectItem key={year} value={year.toString()} className="font-medium">
-                  Tax Year {year}/{year + 1}
-                </SelectItem>
-              ))}
+              <SelectItem value="tax-year">Tax Year</SelectItem>
+              <SelectItem value="calendar-year">Calendar Year</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
             </SelectContent>
           </Select>
+
+          {timeframe === 'tax-year' && (
+            <Select 
+              value={selectedTaxYearStart.toString()} 
+              onValueChange={(val) => setSelectedTaxYearStart(parseInt(val))}
+            >
+              <SelectTrigger className="w-[180px] font-bold">
+                <Calendar className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()} className="font-medium">
+                    {year}/{year + 1}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
@@ -424,7 +478,7 @@ const Accounts: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black text-green-700">£{stats.totalIncome.toFixed(2)}</div>
-            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Gross earnings for the year</p>
+            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Gross earnings for selected period</p>
           </CardContent>
         </Card>
 
@@ -436,7 +490,7 @@ const Accounts: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black text-red-700">£{stats.totalExpenditure.toFixed(2)}</div>
-            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Business costs for the year</p>
+            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Business costs for selected period</p>
           </CardContent>
         </Card>
 
@@ -537,7 +591,7 @@ const Accounts: React.FC = () => {
                   <CardTitle className="text-lg flex items-center gap-2">
                     <ArrowUpCircle className="h-5 w-5 text-green-600" /> Income Log
                   </CardTitle>
-                  <CardDescription>All payments received in the selected tax year.</CardDescription>
+                  <CardDescription>All payments received in the selected period.</CardDescription>
                 </div>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="w-9 p-0">
@@ -678,7 +732,7 @@ const Accounts: React.FC = () => {
                   <CardTitle className="text-lg flex items-center gap-2">
                     <ArrowDownCircle className="h-5 w-5 text-red-600" /> Expenditure Log
                   </CardTitle>
-                  <CardDescription>All business costs recorded in the selected tax year.</CardDescription>
+                  <CardDescription>All business costs recorded in the selected period.</CardDescription>
                 </div>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="w-9 p-0">
