@@ -19,6 +19,8 @@ interface RecurringExpenditure {
   frequency: string;
   start_date: string;
   end_date: string | null;
+  max_occurrences: number | null;
+  current_occurrences: number;
   is_active: boolean;
 }
 
@@ -98,6 +100,12 @@ const ManageRecurringExpenditures: React.FC<{ onUpdate: () => void }> = ({ onUpd
                         <>
                           <ArrowRight className="h-2 w-2" />
                           <span>Ends {format(new Date(item.end_date), "MMM d, yyyy")}</span>
+                        </>
+                      )}
+                      {item.max_occurrences && (
+                        <>
+                          <ArrowRight className="h-2 w-2" />
+                          <span>{item.current_occurrences} / {item.max_occurrences} times</span>
                         </>
                       )}
                     </div>

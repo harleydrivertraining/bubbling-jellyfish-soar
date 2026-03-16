@@ -115,6 +115,8 @@ const Accounts: React.FC = () => {
     for (const item of recurringItems) {
       let lastDate = item.last_processed_date ? parseISO(item.last_processed_date) : parseISO(item.start_date);
       const endDate = item.end_date ? parseISO(item.end_date) : null;
+      const maxOccurrences = item.max_occurrences;
+      let currentOccurrences = item.current_occurrences || 0;
       
       // If it's never been processed, we should process the start date if it's today or in the past
       let nextDate = item.last_processed_date ? null : lastDate;
@@ -132,7 +134,8 @@ const Accounts: React.FC = () => {
       while (
         currentProcessingDate && 
         (isBefore(currentProcessingDate, today) || currentProcessingDate.getTime() === today.getTime()) &&
-        (!endDate || isBefore(currentProcessingDate, endDate) || currentProcessingDate.getTime() === endDate.getTime())
+        (!endDate || isBefore(currentProcessingDate, endDate) || currentProcessingDate.getTime() === endDate.getTime()) &&
+        (!maxOccurrences || currentOccurrences < maxOccurrences)
       ) {
         newExpenditures.push({
           user_id: user.id,
@@ -143,6 +146,8 @@ const Accounts: React.FC = () => {
         });
 
         lastDate = currentProcessingDate;
+        currentOccurrences++;
+
         if (item.frequency === 'daily') currentProcessingDate = addDays(currentProcessingDate, 1);
         else if (item.frequency === 'weekly') currentProcessingDate = addWeeks(currentProcessingDate, 1);
         else if (item.frequency === 'fortnightly') currentProcessingDate = addWeeks(currentProcessingDate, 2);
@@ -154,14 +159,20 @@ const Accounts: React.FC = () => {
         if (!insertError) {
           await supabase
             .from("recurring_expenditures")
-            .update({ last_processed_date: format(lastDate, "yyyy-MM-dd") })
+            .update({ 
+              last_processed_date: format(lastDate, "yyyy-MM-dd"),
+              current_occurrences: currentOccurrences
+            })
             .eq("id", item.id);
           processedCount += newExpenditures.length;
         }
       }
       
-      // If we've reached or passed the end date, deactivate the recurring item
-      if (endDate && (isBefore(endDate, today) || endDate.getTime() === today.getTime()) && lastDate.getTime() === endDate.getTime()) {
+      // Deactivate if limits reached
+      const reachedEndDate = endDate && (isBefore(endDate, today) || endDate.getTime() === today.getTime()) && lastDate.getTime() === endDate.getTime();
+      const reachedMaxOccurrences = maxOccurrences && currentOccurrences >= maxOccurrences;
+
+      if (reachedEndDate || reachedMaxOccurrences) {
         await supabase
           .from("recurring_expenditures")
           .update({ is_active: false })

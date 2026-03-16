@@ -24,11 +24,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import DatePicker from "@/components/DatePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { Repeat } from "lucide-react";
 
 const formSchema = z.object({
@@ -42,8 +44,24 @@ const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
   is_recurring: z.boolean().default(false),
   frequency: z.enum(['daily', 'weekly', 'fortnightly', 'monthly']).optional(),
+  day_of_week: z.string().optional(),
+  end_type: z.enum(['never', 'date', 'occurrences']).optional(),
   end_date: z.date().optional().nullable(),
+  max_occurrences: z.preprocess(
+    (val) => (val === "" ? null : Number(val)),
+    z.number().min(1).optional().nullable()
+  ),
 });
+
+const DAYS = [
+  { label: "Monday", value: "1" },
+  { label: "Tuesday", value: "2" },
+  { label: "Wednesday", value: "3" },
+  { label: "Thursday", value: "4" },
+  { label: "Friday", value: "5" },
+  { label: "Saturday", value: "6" },
+  { label: "Sunday", value: "0" },
+];
 
 interface AddExpenditureFormProps {
   onSuccess: () => void;
@@ -80,11 +98,16 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       date: new Date(),
       is_recurring: false,
       frequency: "weekly",
+      day_of_week: "1",
+      end_type: "never",
       end_date: null,
+      max_occurrences: null,
     },
   });
 
   const isRecurring = form.watch("is_recurring");
+  const frequency = form.watch("frequency");
+  const endType = form.watch("end_type");
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
@@ -119,6 +142,16 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
 
     // 2. If recurring is checked, set up the schedule
     if (values.is_recurring && values.frequency) {
+      let finalStartDate = values.date;
+      
+      // If a specific day of week is chosen, adjust start date to the next occurrence
+      if ((values.frequency === 'weekly' || values.frequency === 'fortnightly') && values.day_of_week) {
+        const targetDay = parseInt(values.day_of_week);
+        while (finalStartDate.getDay() !== targetDay) {
+          finalStartDate = addDays(finalStartDate, 1);
+        }
+      }
+
       const { error: recError } = await supabase
         .from("recurring_expenditures")
         .insert({
@@ -127,9 +160,12 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
           description: values.description,
           category: finalCategory,
           frequency: values.frequency,
-          start_date: format(values.date, "yyyy-MM-dd"),
-          end_date: values.end_date ? format(values.end_date, "yyyy-MM-dd") : null,
+          day_of_week: (values.frequency === 'weekly' || values.frequency === 'fortnightly') ? parseInt(values.day_of_week || "1") : null,
+          start_date: format(finalStartDate, "yyyy-MM-dd"),
           last_processed_date: format(values.date, "yyyy-MM-dd"), // Mark today as processed
+          end_date: values.end_type === 'date' ? format(values.end_date!, "yyyy-MM-dd") : null,
+          max_occurrences: values.end_type === 'occurrences' ? values.max_occurrences : null,
+          current_occurrences: 1, // The first one was added above
           is_active: true
         });
 
@@ -248,44 +284,120 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
           />
 
           {isRecurring && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
-              <FormField
-                control={form.control}
-                name="frequency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Repeat Frequency</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select frequency" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="fortnightly">Fortnightly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+            <div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="frequency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Repeat Frequency</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select frequency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {(frequency === 'weekly' || frequency === 'fortnightly') && (
+                  <FormField
+                    control={form.control}
+                    name="day_of_week"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Day of Week</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select day" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {DAYS.map((day) => (
+                              <SelectItem key={day.value} value={day.value}>{day.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
+              </div>
 
               <FormField
                 control={form.control}
-                name="end_date"
+                name="end_type"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>End Date (Optional)</FormLabel>
+                  <FormItem className="space-y-3">
+                    <FormLabel>End Condition</FormLabel>
                     <FormControl>
-                      <DatePicker date={field.value || undefined} setDate={field.onChange} placeholder="Never ends" />
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-col space-y-1"
+                      >
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl><RadioGroupItem value="never" /></FormControl>
+                          <Label className="font-normal">Never</Label>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl><RadioGroupItem value="date" /></FormControl>
+                          <Label className="font-normal">On date</Label>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl><RadioGroupItem value="occurrences" /></FormControl>
+                          <Label className="font-normal">After X times</Label>
+                        </FormItem>
+                      </RadioGroup>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {endType === 'date' && (
+                <FormField
+                  control={form.control}
+                  name="end_date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>End Date</FormLabel>
+                      <FormControl>
+                        <DatePicker date={field.value || undefined} setDate={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {endType === 'occurrences' && (
+                <FormField
+                  control={form.control}
+                  name="max_occurrences"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Number of Occurrences</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="1" placeholder="e.g., 12" {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
           )}
         </div>
