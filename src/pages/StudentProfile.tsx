@@ -37,7 +37,9 @@ import {
   Save,
   ClipboardCheck,
   AlertTriangle,
-  Hand
+  Hand,
+  KeyRound,
+  UserCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -49,6 +51,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import EditStudentForm from "@/components/EditStudentForm";
 import AddBookingForm from "@/components/AddBookingForm";
 import AddPrePaidHoursForm from "@/components/AddPrePaidHoursForm";
+import EnableStudentLoginForm from "@/components/EnableStudentLoginForm";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -71,6 +74,7 @@ interface Student {
   full_address?: string;
   notes?: string;
   is_past_student: boolean;
+  auth_user_id?: string | null;
 }
 
 interface Booking {
@@ -124,6 +128,7 @@ const StudentProfile: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [isAddHoursDialogOpen, setIsAddHoursDialogOpen] = useState(false);
+  const [isEnableLoginDialogOpen, setIsEnableLoginDialogOpen] = useState(false);
   const [activeLessonView, setActiveLessonView] = useState<'future' | 'past'>('future');
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
   
@@ -240,8 +245,6 @@ const StudentProfile: React.FC = () => {
   const handleMarkAsCompleted = async (booking: Booking) => {
     if (!user) return;
 
-    // Update status to completed. The system's background logic will handle 
-    // the pre-paid hour deduction if the lesson isn't already marked as paid.
     const { error } = await supabase
       .from("bookings")
       .update({ status: "completed" })
@@ -259,8 +262,6 @@ const StudentProfile: React.FC = () => {
     if (!user || !studentId) return;
 
     try {
-      // Only update the paid status. The actual deduction of hours will happen 
-      // when the lesson is marked as completed (handled by DB logic).
       const { error } = await supabase
         .from("bookings")
         .update({ is_paid: true })
@@ -464,9 +465,16 @@ const StudentProfile: React.FC = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Students
           </Link>
         </Button>
-        <Button onClick={() => setIsEditDialogOpen(true)}>
-          <Edit className="mr-2 h-4 w-4" /> Edit Profile
-        </Button>
+        <div className="flex gap-2">
+          {!student.auth_user_id && (
+            <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => setIsEnableLoginDialogOpen(true)}>
+              <KeyRound className="mr-2 h-4 w-4" /> Enable Login
+            </Button>
+          )}
+          <Button onClick={() => setIsEditDialogOpen(true)}>
+            <Edit className="mr-2 h-4 w-4" /> Edit Profile
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3 items-stretch">
@@ -482,6 +490,11 @@ const StudentProfile: React.FC = () => {
                 {student.status}
               </Badge>
               {student.is_past_student && <Badge variant="outline" className="bg-muted">Past Student</Badge>}
+              {student.auth_user_id && (
+                <Badge variant="default" className="bg-green-600">
+                  <UserCheck className="mr-1 h-3 w-3" /> Login Active
+                </Badge>
+              )}
             </div>
             
             <div className="lg:hidden pt-1">
@@ -560,7 +573,6 @@ const StudentProfile: React.FC = () => {
             </Card>
           </div>
 
-          {/* New Driving Test History Section */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center">
@@ -942,6 +954,20 @@ const StudentProfile: React.FC = () => {
             onHoursAdded={() => { fetchData(); setIsAddHoursDialogOpen(false); }}
             onClose={() => setIsAddHoursDialogOpen(false)}
             initialStudentId={student.id}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEnableLoginDialogOpen} onOpenChange={setIsEnableLoginDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Enable Student Login</DialogTitle>
+          </DialogHeader>
+          <EnableStudentLoginForm 
+            studentId={student.id}
+            studentPhone={student.phone_number || ""}
+            studentName={student.name}
+            onSuccess={() => { fetchData(); setIsEnableLoginDialogOpen(false); }}
           />
         </DialogContent>
       </Dialog>

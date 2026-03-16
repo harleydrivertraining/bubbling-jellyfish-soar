@@ -22,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 import OwnerDashboard from "./OwnerDashboard";
+import StudentDashboard from "./StudentDashboard";
 
 interface Booking {
   id: string;
@@ -169,8 +170,8 @@ const Dashboard: React.FC = () => {
         setCurrentHourlyRate(profileData.hourly_rate);
         setUserRole(profileData.role);
 
-        // If owner, we stop here and let OwnerDashboard handle its own data
-        if (profileData.role?.toLowerCase() === 'owner') {
+        // If owner or student, we stop here and let their specific dashboards handle data
+        if (profileData.role?.toLowerCase() === 'owner' || profileData.role?.toLowerCase() === 'student') {
           setIsLoadingDashboard(false);
           return;
         }
@@ -301,7 +302,7 @@ const Dashboard: React.FC = () => {
   }, [isSessionLoading, fetchDashboardData]);
 
   useEffect(() => {
-    if (!isSessionLoading && user && userRole?.toLowerCase() !== 'owner') fetchBookedHoursForWeek(selectedWeekStartISO);
+    if (!isSessionLoading && user && userRole?.toLowerCase() === 'instructor') fetchBookedHoursForWeek(selectedWeekStartISO);
   }, [isSessionLoading, user, userRole, selectedWeekStartISO, fetchBookedHoursForWeek]);
 
   const generateWeekOptions = useMemo(() => {
@@ -645,6 +646,11 @@ const Dashboard: React.FC = () => {
   // Render Owner Dashboard if user is an owner
   if (userRole?.toLowerCase() === 'owner') {
     return <OwnerDashboard />;
+  }
+
+  // Render Student Dashboard if user is a student
+  if (userRole?.toLowerCase() === 'student') {
+    return <StudentDashboard />;
   }
 
   return (

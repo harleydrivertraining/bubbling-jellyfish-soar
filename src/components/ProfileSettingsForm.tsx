@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,7 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock } from "lucide-react";
+import { User as UserIcon, Clock, Shield } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -39,6 +40,7 @@ const formSchema = z.object({
   default_lesson_duration: z.enum(["60", "90", "120"]).optional().nullable(),
   calendar_start_hour: z.string().optional().nullable(),
   calendar_end_hour: z.string().optional().nullable(),
+  instructor_pin: z.string().length(4, "PIN must be exactly 4 digits").regex(/^\d+$/, "PIN must be numbers only").optional().nullable(),
 });
 
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
@@ -55,6 +57,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       default_lesson_duration: "60",
       calendar_start_hour: "9",
       calendar_end_hour: "18",
+      instructor_pin: "",
     },
   });
 
@@ -63,7 +66,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     setIsLoadingProfile(true);
     const { data, error } = await supabase
       .from("profiles")
-      .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour")
+      .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour, instructor_pin")
       .eq("id", user.id)
       .single();
 
@@ -79,6 +82,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
         calendar_start_hour: data.calendar_start_hour?.toString() || "9",
         calendar_end_hour: data.calendar_end_hour?.toString() || "18",
+        instructor_pin: data.instructor_pin || "",
       });
     }
     setIsLoadingProfile(false);
@@ -101,6 +105,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         default_lesson_duration: values.default_lesson_duration,
         calendar_start_hour: values.calendar_start_hour ? parseInt(values.calendar_start_hour) : 9,
         calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
+        instructor_pin: values.instructor_pin,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -138,6 +143,32 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
               <FormItem className="flex-1">
                 <FormLabel>Logo URL</FormLabel>
                 <FormControl><Input placeholder="https://example.com/logo.png" {...field} value={field.value || ""} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="p-4 border rounded-xl bg-primary/5 space-y-4">
+          <h3 className="text-sm font-bold uppercase text-primary flex items-center gap-2">
+            <Shield className="h-4 w-4" /> Student Access PIN
+          </h3>
+          <FormField
+            control={form.control}
+            name="instructor_pin"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Your Unique 4-Digit PIN</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="e.g. 1234" 
+                    maxLength={4} 
+                    {...field} 
+                    value={field.value || ""} 
+                    className="font-mono text-lg tracking-widest"
+                  />
+                </FormControl>
+                <FormDescription>Students will need this PIN to link their account to you.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
