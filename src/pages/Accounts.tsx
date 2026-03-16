@@ -4,9 +4,9 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isBefore } from "date-fns";
+import { format, isBefore, addDays, addWeeks, addMonths, parseISO, startOfDay } from "date-fns";
 import { 
   PoundSterling, 
   TrendingUp, 
@@ -25,7 +25,8 @@ import {
   ChevronDown,
   ChevronUp,
   PieChart as PieChartIcon,
-  Settings2
+  Settings2,
+  Repeat
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,6 +43,8 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
 import AddExpenditureForm from "@/components/AddExpenditureForm";
+import AddRecurringExpenditureForm from "@/components/AddRecurringExpenditureForm";
+import ManageRecurringExpenditures from "@/components/ManageRecurringExpenditures";
 import ManageAccountCategories from "@/components/ManageAccountCategories";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 
@@ -88,15 +91,82 @@ const Accounts: React.FC = () => {
   
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [isAddRecurringOpen, setIsAddRecurringOpen] = useState(false);
   const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
   const [isIncomeLogExpanded, setIsIncomeLogExpanded] = useState(false);
   const [isExpenditureLogExpanded, setIsExpenditureLogExpanded] = useState(false);
   
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
 
+  const processRecurringExpenditures = useCallback(async () => {
+    if (!user) return;
+
+    const { data: recurringItems, error } = await supabase
+      .from("recurring_expenditures")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_active", true);
+
+    if (error || !recurringItems) return;
+
+    const today = startOfDay(new Date());
+    let processedCount = 0;
+
+    for (const item of recurringItems) {
+      let lastDate = item.last_processed_date ? parseISO(item.last_processed_date) : parseISO(item.start_date);
+      
+      // If it's never been processed, we should process the start date if it's today or in the past
+      let nextDate = item.last_processed_date ? null : lastDate;
+      
+      if (item.last_processed_date) {
+        if (item.frequency === 'daily') nextDate = addDays(lastDate, 1);
+        else if (item.frequency === 'weekly') nextDate = addWeeks(lastDate, 1);
+        else if (item.frequency === 'fortnightly') nextDate = addWeeks(lastDate, 2);
+        else if (item.frequency === 'monthly') nextDate = addMonths(lastDate, 1);
+      }
+
+      const newExpenditures = [];
+      let currentProcessingDate = nextDate;
+
+      while (currentProcessingDate && (isBefore(currentProcessingDate, today) || currentProcessingDate.getTime() === today.getTime())) {
+        newExpenditures.push({
+          user_id: user.id,
+          amount: item.amount,
+          description: `${item.description} (Recurring)`,
+          category: item.category,
+          date: format(currentProcessingDate, "yyyy-MM-dd")
+        });
+
+        lastDate = currentProcessingDate;
+        if (item.frequency === 'daily') currentProcessingDate = addDays(currentProcessingDate, 1);
+        else if (item.frequency === 'weekly') currentProcessingDate = addWeeks(currentProcessingDate, 1);
+        else if (item.frequency === 'fortnightly') currentProcessingDate = addWeeks(currentProcessingDate, 2);
+        else if (item.frequency === 'monthly') currentProcessingDate = addMonths(currentProcessingDate, 1);
+      }
+
+      if (newExpenditures.length > 0) {
+        const { error: insertError } = await supabase.from("expenditures").insert(newExpenditures);
+        if (!insertError) {
+          await supabase
+            .from("recurring_expenditures")
+            .update({ last_processed_date: format(lastDate, "yyyy-MM-dd") })
+            .eq("id", item.id);
+          processedCount += newExpenditures.length;
+        }
+      }
+    }
+
+    if (processedCount > 0) {
+      showSuccess(`Processed ${processedCount} recurring expenditures.`);
+    }
+  }, [user]);
+
   const fetchData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
+
+    // Process recurring items first
+    await processRecurringExpenditures();
 
     try {
       const { data: profile } = await supabase
@@ -179,7 +249,7 @@ const Accounts: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, processRecurringExpenditures]);
 
   useEffect(() => {
     if (!isSessionLoading) fetchData();
@@ -491,6 +561,32 @@ const Accounts: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="expenditure" className="mt-6 space-y-6">
+          <div className="flex justify-end">
+            <Dialog open={isAddRecurringOpen} onOpenChange={setIsAddRecurringOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="font-bold">
+                  <Repeat className="mr-2 h-4 w-4" /> Manage Recurring
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Recurring Expenditures</DialogTitle>
+                  <CardDescription>Set up and manage costs that repeat automatically.</CardDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                  <div className="p-4 border rounded-xl bg-muted/30">
+                    <h3 className="text-sm font-bold uppercase mb-4">Add New Recurring Item</h3>
+                    <AddRecurringExpenditureForm onSuccess={fetchData} onClose={() => {}} />
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold uppercase">Active Recurring Items</h3>
+                    <ManageRecurringExpenditures onUpdate={fetchData} />
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="shadow-sm">
               <CardHeader>
