@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -28,14 +28,6 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format } from "date-fns";
 
-const INCOME_CATEGORIES = [
-  "Theory Materials",
-  "Test Fees",
-  "Consultation",
-  "Gift Vouchers",
-  "Other",
-];
-
 const formSchema = z.object({
   amount: z.preprocess(
     (val) => Number(val),
@@ -43,7 +35,6 @@ const formSchema = z.object({
   ),
   description: z.string().min(2, { message: "Description is required." }),
   category: z.string().min(1, { message: "Please select a category." }),
-  custom_category: z.string().optional(),
   date: z.date({ required_error: "Date is required." }),
 });
 
@@ -54,7 +45,22 @@ interface AddAdditionalIncomeFormProps {
 
 const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuccess, onClose }) => {
   const { user } = useSession();
-  const [isCustom, setIsCustom] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+
+  const fetchCategories = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("income_categories")
+      .select("name")
+      .eq("user_id", user.id)
+      .order("name", { ascending: true });
+    
+    setCategories(data?.map(c => c.name) || ["Other"]);
+  }, [user]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -62,7 +68,6 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
       amount: 0,
       description: "",
       category: "Other",
-      custom_category: "",
       date: new Date(),
     },
   });
@@ -70,17 +75,13 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
 
-    const finalCategory = values.category === "Other" && values.custom_category 
-      ? values.custom_category 
-      : values.category;
-
     const { error } = await supabase
       .from("additional_income")
       .insert({
         user_id: user.id,
         amount: values.amount,
         description: values.description,
-        category: finalCategory,
+        category: values.category,
         date: format(values.date, "yyyy-MM-dd"),
       });
 
@@ -116,20 +117,14 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
           render={({ field }) => (
             <FormItem>
               <FormLabel>Category</FormLabel>
-              <Select 
-                onValueChange={(val) => {
-                  field.onChange(val);
-                  setIsCustom(val === "Other");
-                }} 
-                defaultValue={field.value}
-              >
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {INCOME_CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>
@@ -140,22 +135,6 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
             </FormItem>
           )}
         />
-
-        {isCustom && (
-          <FormField
-            control={form.control}
-            name="custom_category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Custom Category Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., Car Hire" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         <FormField
           control={form.control}

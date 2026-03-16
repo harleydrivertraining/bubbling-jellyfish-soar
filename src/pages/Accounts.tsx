@@ -24,7 +24,8 @@ import {
   Tag,
   ChevronDown,
   ChevronUp,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Settings2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
 import AddExpenditureForm from "@/components/AddExpenditureForm";
+import ManageAccountCategories from "@/components/ManageAccountCategories";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 
 interface IncomeTransaction {
@@ -85,6 +87,7 @@ const Accounts: React.FC = () => {
   
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
   const [isIncomeLogExpanded, setIsIncomeLogExpanded] = useState(false);
   
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
@@ -259,6 +262,32 @@ const Accounts: React.FC = () => {
                 <DialogTitle>Add Business Expenditure</DialogTitle>
               </DialogHeader>
               <AddExpenditureForm onSuccess={fetchData} onClose={() => setIsAddExpenseOpen(false)} />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isManageCategoriesOpen} onOpenChange={setIsManageCategoriesOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-10 w-10">
+                <Settings2 className="h-5 w-5" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Manage Categories</DialogTitle>
+                <CardDescription>Add or edit your custom income and expenditure categories.</CardDescription>
+              </DialogHeader>
+              <Tabs defaultValue="income_cat" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="income_cat">Income</TabsTrigger>
+                  <TabsTrigger value="expense_cat">Expenditure</TabsTrigger>
+                </TabsList>
+                <TabsContent value="income_cat" className="mt-4">
+                  <ManageAccountCategories type="income" onUpdate={fetchData} />
+                </TabsContent>
+                <TabsContent value="expense_cat" className="mt-4">
+                  <ManageAccountCategories type="expenditure" onUpdate={fetchData} />
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
 

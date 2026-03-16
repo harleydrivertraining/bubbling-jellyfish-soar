@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -28,18 +28,6 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format } from "date-fns";
 
-const EXPENDITURE_CATEGORIES = [
-  "Fuel",
-  "Insurance",
-  "Maintenance",
-  "Repairs",
-  "Marketing",
-  "Software/Apps",
-  "Training/CPD",
-  "Vehicle Lease/Loan",
-  "Other",
-];
-
 const formSchema = z.object({
   amount: z.preprocess(
     (val) => Number(val),
@@ -57,6 +45,23 @@ interface AddExpenditureFormProps {
 
 const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onClose }) => {
   const { user } = useSession();
+  const [categories, setCategories] = useState<string[]>([]);
+
+  const fetchCategories = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("expenditure_categories")
+      .select("name")
+      .eq("user_id", user.id)
+      .order("name", { ascending: true });
+    
+    setCategories(data?.map(c => c.name) || ["Other"]);
+  }, [user]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -118,7 +123,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {EXPENDITURE_CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>
@@ -159,6 +164,3 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       </form>
     </Form>
   );
-};
-
-export default AddExpenditureForm;
