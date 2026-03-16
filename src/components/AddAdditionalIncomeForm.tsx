@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,11 +15,26 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import DatePicker from "@/components/DatePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format } from "date-fns";
+
+const INCOME_CATEGORIES = [
+  "Theory Materials",
+  "Test Fees",
+  "Consultation",
+  "Gift Vouchers",
+  "Other",
+];
 
 const formSchema = z.object({
   amount: z.preprocess(
@@ -27,6 +42,8 @@ const formSchema = z.object({
     z.number().min(0.01, { message: "Amount must be greater than 0." })
   ),
   description: z.string().min(2, { message: "Description is required." }),
+  category: z.string().min(1, { message: "Please select a category." }),
+  custom_category: z.string().optional(),
   date: z.date({ required_error: "Date is required." }),
 });
 
@@ -37,11 +54,15 @@ interface AddAdditionalIncomeFormProps {
 
 const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuccess, onClose }) => {
   const { user } = useSession();
+  const [isCustom, setIsCustom] = useState(false);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: 0,
       description: "",
+      category: "Other",
+      custom_category: "",
       date: new Date(),
     },
   });
@@ -49,12 +70,17 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
 
+    const finalCategory = values.category === "Other" && values.custom_category 
+      ? values.custom_category 
+      : values.category;
+
     const { error } = await supabase
       .from("additional_income")
       .insert({
         user_id: user.id,
         amount: values.amount,
         description: values.description,
+        category: finalCategory,
         date: format(values.date, "yyyy-MM-dd"),
       });
 
@@ -83,6 +109,54 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
             </FormItem>
           )}
         />
+        
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Category</FormLabel>
+              <Select 
+                onValueChange={(val) => {
+                  field.onChange(val);
+                  setIsCustom(val === "Other");
+                }} 
+                defaultValue={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {INCOME_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {isCustom && (
+          <FormField
+            control={form.control}
+            name="custom_category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Custom Category Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Car Hire" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         <FormField
           control={form.control}
           name="date"
@@ -96,6 +170,7 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
             </FormItem>
           )}
         />
+        
         <FormField
           control={form.control}
           name="description"
@@ -103,7 +178,7 @@ const AddAdditionalIncomeForm: React.FC<AddAdditionalIncomeFormProps> = ({ onSuc
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Theory test material sale, Consultation fee" {...field} />
+                <Textarea placeholder="e.g., Theory test material sale" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
