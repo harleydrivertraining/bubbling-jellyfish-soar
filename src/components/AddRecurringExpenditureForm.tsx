@@ -36,7 +36,7 @@ const formSchema = z.object({
     (val) => Number(val),
     z.number().min(0.01, { message: "Amount must be greater than 0." })
   ),
-  description: z.string().min(2, { message: "Description is required." }),
+  description: z.string().optional().nullable(),
   category: z.string().min(1, { message: "Please select a category." }),
   frequency: z.enum(['daily', 'weekly', 'fortnightly', 'monthly']),
   day_of_week: z.string().optional(),
@@ -119,7 +119,7 @@ const AddRecurringExpenditureForm: React.FC<AddRecurringExpenditureFormProps> = 
       .insert({
         user_id: user.id,
         amount: values.amount,
-        description: values.description,
+        description: values.description || values.category,
         category: values.category,
         frequency: values.frequency,
         day_of_week: (values.frequency === 'weekly' || values.frequency === 'fortnightly') ? parseInt(values.day_of_week || "1") : null,
@@ -318,9 +318,9 @@ const AddRecurringExpenditureForm: React.FC<AddRecurringExpenditureFormProps> = 
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel>Description (Optional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Car Lease Payment" {...field} />
+                <Textarea placeholder="e.g., Car Lease Payment" {...field} value={field.value || ""} />
               </FormControl>
               <FormMessage />
             </FormItem>

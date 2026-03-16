@@ -31,14 +31,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addDays } from "date-fns";
-import { Repeat, AlertCircle } from "lucide-react";
+import { Repeat } from "lucide-react";
 
 const formSchema = z.object({
   amount: z.preprocess(
     (val) => (val === "" ? 0 : Number(val)),
     z.number().min(0.01, { message: "Amount must be greater than 0." })
   ),
-  description: z.string().min(2, { message: "Description must be at least 2 characters." }),
+  description: z.string().optional().nullable(),
   category: z.string().min(1, { message: "Please select a category." }),
   custom_category: z.string().optional(),
   date: z.date({ required_error: "Date is required." }),
@@ -124,13 +124,16 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
         }
       }
 
+      const baseDescription = values.description || finalCategory;
+      const finalDescription = baseDescription + (values.is_recurring ? " (Recurring)" : "");
+
       // 1. Add the initial expenditure entry
       const { error: expError } = await supabase
         .from("expenditures")
         .insert({
           user_id: user.id,
           amount: values.amount,
-          description: values.description + (values.is_recurring ? " (Recurring)" : ""),
+          description: finalDescription,
           category: finalCategory,
           date: format(values.date, "yyyy-MM-dd"),
         });
@@ -153,7 +156,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
           .insert({
             user_id: user.id,
             amount: values.amount,
-            description: values.description,
+            description: baseDescription,
             category: finalCategory,
             frequency: values.frequency,
             day_of_week: (values.frequency === 'weekly' || values.frequency === 'fortnightly') ? parseInt(values.day_of_week || "1") : null,
@@ -181,15 +184,9 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
     }
   };
 
-  // Helper to show validation errors if the user clicks submit and nothing happens
-  const onInvalid = (errors: any) => {
-    console.log("Validation errors:", errors);
-    showError("Please check the form for errors.");
-  };
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="amount"
@@ -410,9 +407,9 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel>Description (Optional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Shell fuel station" {...field} />
+                <Textarea placeholder="e.g., Shell fuel station" {...field} value={field.value || ""} />
               </FormControl>
               <FormMessage />
             </FormItem>
