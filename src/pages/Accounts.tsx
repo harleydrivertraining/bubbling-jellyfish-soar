@@ -216,34 +216,52 @@ const Accounts: React.FC = () => {
       const rate = profile?.hourly_rate || 0;
       setHourlyRate(rate);
 
-      const [packagesRes, lessonsRes, creditTxRes, additionalRes, expensesRes] = await Promise.all([
-        supabase.from("pre_paid_hours").select("id, amount_paid, purchase_date, students(name)").eq("user_id", user.id),
+      const [creditTxRes, lessonsRes, additionalRes, expensesRes] = await Promise.all([
+        supabase.from("pre_paid_hours_transactions")
+          .select(`
+            id, 
+            hours_deducted, 
+            transaction_date, 
+            bookings(id, title, start_time, status, students(name)),
+            pre_paid_hours(amount_paid, package_hours)
+          `)
+          .eq("user_id", user.id),
         supabase.from("bookings").select("id, title, start_time, end_time, is_paid, status, students(name)").eq("user_id", user.id).eq("status", "completed").order("start_time", { ascending: false }),
-        supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id),
         supabase.from("additional_income").select("*").eq("user_id", user.id),
         supabase.from("expenditures").select("*").eq("user_id", user.id)
       ]);
 
-      const creditPaidIds = new Set(creditTxRes.data?.map(t => t.booking_id) || []);
       const income: IncomeTransaction[] = [];
       const unpaid: any[] = [];
+      const creditPaidBookingIds = new Set<string>();
 
-      packagesRes.data?.forEach(pkg => {
-        if (pkg.amount_paid) {
+      // 1. Process Pre-paid Credit Usage (Earned Revenue)
+      // We only count income when the lesson is completed
+      creditTxRes.data?.forEach(tx => {
+        const booking = tx.bookings as any;
+        const pkg = tx.pre_paid_hours as any;
+        
+        if (booking?.status === 'completed' && pkg?.amount_paid && pkg?.package_hours) {
+          creditPaidBookingIds.add(booking.id);
+          
+          const effectiveRate = pkg.amount_paid / pkg.package_hours;
+          const earnedAmount = tx.hours_deducted * effectiveRate;
+          
           income.push({
-            id: pkg.id,
+            id: tx.id,
             type: 'package',
-            date: pkg.purchase_date,
-            amount: pkg.amount_paid,
-            description: "Pre-paid Hours Package",
-            student_name: (pkg.students as any)?.name || "Unknown",
-            category: "Block Bookings"
+            date: booking.start_time,
+            amount: earnedAmount,
+            description: "Lesson (Pre-paid Credit)",
+            student_name: booking.students?.name || "Unknown",
+            category: "Driving Lessons"
           });
         }
       });
 
+      // 2. Process Individual Lessons (Cash/Bank)
       lessonsRes.data?.forEach(lesson => {
-        const isCredit = creditPaidIds.has(lesson.id);
+        const isCredit = creditPaidBookingIds.has(lesson.id);
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
         const value = duration * rate;
 
@@ -262,6 +280,7 @@ const Accounts: React.FC = () => {
         }
       });
 
+      // 3. Additional Income
       additionalRes.data?.forEach(item => {
         income.push({
           id: item.id,
