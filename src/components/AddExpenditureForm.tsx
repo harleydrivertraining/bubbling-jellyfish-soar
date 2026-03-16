@@ -31,14 +31,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addDays } from "date-fns";
-import { Repeat } from "lucide-react";
+import { Repeat, AlertCircle } from "lucide-react";
 
 const formSchema = z.object({
   amount: z.preprocess(
-    (val) => Number(val),
+    (val) => (val === "" ? 0 : Number(val)),
     z.number().min(0.01, { message: "Amount must be greater than 0." })
   ),
-  description: z.string().min(2, { message: "Description is required." }),
+  description: z.string().min(2, { message: "Description must be at least 2 characters." }),
   category: z.string().min(1, { message: "Please select a category." }),
   custom_category: z.string().optional(),
   date: z.date({ required_error: "Date is required." }),
@@ -48,8 +48,8 @@ const formSchema = z.object({
   end_type: z.enum(['never', 'date', 'occurrences']).optional(),
   end_date: z.date().optional().nullable(),
   max_occurrences: z.preprocess(
-    (val) => (val === "" ? null : Number(val)),
-    z.number().min(1).optional().nullable()
+    (val) => (val === "" || val === null ? null : Number(val)),
+    z.number().min(1, { message: "Must be at least 1." }).optional().nullable()
   ),
 });
 
@@ -72,6 +72,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
   const { user } = useSession();
   const [categories, setCategories] = useState<string[]>([]);
   const [isCustom, setIsCustom] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     if (!user) return;
@@ -81,7 +82,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       .eq("user_id", user.id)
       .order("name", { ascending: true });
     
-    setCategories(data?.map(c => c.name) || ["Other"]);
+    setCategories(data?.map(c => c.name) || ["Fuel", "Insurance", "Maintenance", "Other"]);
   }, [user]);
 
   useEffect(() => {
@@ -111,80 +112,84 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
+    setIsSubmitting(true);
 
-    let finalCategory = values.category;
+    try {
+      let finalCategory = values.category;
 
-    if (values.category === "Other" && values.custom_category?.trim()) {
-      finalCategory = values.custom_category.trim();
-      
-      if (!categories.includes(finalCategory)) {
-        await supabase
-          .from("expenditure_categories")
-          .insert({ user_id: user.id, name: finalCategory });
-      }
-    }
-
-    // 1. Always add the initial expenditure entry
-    const { error: expError } = await supabase
-      .from("expenditures")
-      .insert({
-        user_id: user.id,
-        amount: values.amount,
-        description: values.description + (values.is_recurring ? " (Recurring)" : ""),
-        category: finalCategory,
-        date: format(values.date, "yyyy-MM-dd"),
-      });
-
-    if (expError) {
-      showError("Failed to add expenditure: " + expError.message);
-      return;
-    }
-
-    // 2. If recurring is checked, set up the schedule
-    if (values.is_recurring && values.frequency) {
-      let finalStartDate = values.date;
-      
-      // If a specific day of week is chosen, adjust start date to the next occurrence
-      if ((values.frequency === 'weekly' || values.frequency === 'fortnightly') && values.day_of_week) {
-        const targetDay = parseInt(values.day_of_week);
-        while (finalStartDate.getDay() !== targetDay) {
-          finalStartDate = addDays(finalStartDate, 1);
+      if (values.category === "Other" && values.custom_category?.trim()) {
+        finalCategory = values.custom_category.trim();
+        if (!categories.includes(finalCategory)) {
+          await supabase.from("expenditure_categories").insert({ user_id: user.id, name: finalCategory });
         }
       }
 
-      const { error: recError } = await supabase
-        .from("recurring_expenditures")
+      // 1. Add the initial expenditure entry
+      const { error: expError } = await supabase
+        .from("expenditures")
         .insert({
           user_id: user.id,
           amount: values.amount,
-          description: values.description,
+          description: values.description + (values.is_recurring ? " (Recurring)" : ""),
           category: finalCategory,
-          frequency: values.frequency,
-          day_of_week: (values.frequency === 'weekly' || values.frequency === 'fortnightly') ? parseInt(values.day_of_week || "1") : null,
-          start_date: format(finalStartDate, "yyyy-MM-dd"),
-          last_processed_date: format(values.date, "yyyy-MM-dd"), // Mark today as processed
-          end_date: values.end_type === 'date' ? format(values.end_date!, "yyyy-MM-dd") : null,
-          max_occurrences: values.end_type === 'occurrences' ? values.max_occurrences : null,
-          current_occurrences: 1, // The first one was added above
-          is_active: true
+          date: format(values.date, "yyyy-MM-dd"),
         });
 
-      if (recError) {
-        showError("Expenditure added, but failed to set up recurring schedule: " + recError.message);
-      } else {
-        showSuccess("Recurring expenditure set up successfully!");
-      }
-    } else {
-      showSuccess("Expenditure added successfully!");
-    }
+      if (expError) throw expError;
 
-    onSuccess();
-    onClose();
+      // 2. If recurring is checked, set up the schedule
+      if (values.is_recurring && values.frequency) {
+        let finalStartDate = values.date;
+        
+        if ((values.frequency === 'weekly' || values.frequency === 'fortnightly') && values.day_of_week) {
+          const targetDay = parseInt(values.day_of_week);
+          while (finalStartDate.getDay() !== targetDay) {
+            finalStartDate = addDays(finalStartDate, 1);
+          }
+        }
+
+        const { error: recError } = await supabase
+          .from("recurring_expenditures")
+          .insert({
+            user_id: user.id,
+            amount: values.amount,
+            description: values.description,
+            category: finalCategory,
+            frequency: values.frequency,
+            day_of_week: (values.frequency === 'weekly' || values.frequency === 'fortnightly') ? parseInt(values.day_of_week || "1") : null,
+            start_date: format(finalStartDate, "yyyy-MM-dd"),
+            last_processed_date: format(values.date, "yyyy-MM-dd"),
+            end_date: values.end_type === 'date' && values.end_date ? format(values.end_date, "yyyy-MM-dd") : null,
+            max_occurrences: values.end_type === 'occurrences' ? values.max_occurrences : null,
+            current_occurrences: 1,
+            is_active: true
+          });
+
+        if (recError) throw recError;
+        showSuccess("Recurring expenditure set up successfully!");
+      } else {
+        showSuccess("Expenditure added successfully!");
+      }
+
+      onSuccess();
+      onClose();
+    } catch (error: any) {
+      console.error("Form submission error:", error);
+      showError(error.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Helper to show validation errors if the user clicks submit and nothing happens
+  const onInvalid = (errors: any) => {
+    console.log("Validation errors:", errors);
+    showError("Please check the form for errors.");
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
         <FormField
           control={form.control}
           name="amount"
@@ -219,11 +224,9 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
                 </FormControl>
                 <SelectContent>
                   {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
-                  {!categories.includes("Other") && <SelectItem value="Other">Other (Add New)</SelectItem>}
+                  <SelectItem value="Other">Other (Add New)</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -354,11 +357,11 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
                         </FormItem>
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl><RadioGroupItem value="date" /></FormControl>
-                          <Label className="font-normal">On date</Label>
+                          <Label className="font-normal">On specific date</Label>
                         </FormItem>
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl><RadioGroupItem value="occurrences" /></FormControl>
-                          <Label className="font-normal">After X times</Label>
+                          <Label className="font-normal">After a number of times</Label>
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
@@ -415,8 +418,8 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full font-bold">
-          {isRecurring ? "Set Up Recurring Cost" : "Add Expenditure Entry"}
+        <Button type="submit" className="w-full font-bold" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : isRecurring ? "Set Up Recurring Cost" : "Add Expenditure Entry"}
         </Button>
       </form>
     </Form>
