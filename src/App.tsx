@@ -24,9 +24,10 @@ import MileageTracker from "./pages/MileageTracker";
 import TestStatistics from "./pages/TestStatistics";
 import Support from "./pages/Support";
 import AdminSupport from "./pages/AdminSupport";
+import Accounts from "./pages/Accounts"; // New import
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup"; // New import
+import Signup from "./pages/Signup";
 import { SessionContextProvider } from "./components/auth/SessionContextProvider";
 
 const queryClient = new QueryClient();
@@ -40,7 +41,7 @@ const App = () => (
         <SessionContextProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} /> {/* New hidden route */}
+            <Route path="/signup" element={<Signup />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="students" element={<Students />} />
@@ -59,6 +60,7 @@ const App = () => (
               <Route path="manage-topics" element={<ManageTopics />} />
               <Route path="admin/topics" element={<AdminProgressTopics />} />
               <Route path="mileage-tracker" element={<MileageTracker />} />
+              <Route path="accounts" element={<Accounts />} /> {/* New route */}
               <Route path="support" element={<Support />} />
               <Route path="admin/support" element={<AdminSupport />} />
               <Route path="settings" element={<Settings />} />

@@ -27,6 +27,7 @@ import {
   BarChart3,
   LifeBuoy,
   ShieldCheck,
+  PoundSterling,
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -96,6 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     { to: "/test-statistics", icon: BarChart3, label: "Test Statistics" },
     { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
     { to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
+    { to: "/accounts", icon: PoundSterling, label: "Accounts" },
     { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
     { to: "/support", icon: LifeBuoy, label: "Support" },
     { to: "/settings", icon: Settings, label: "Settings" },
