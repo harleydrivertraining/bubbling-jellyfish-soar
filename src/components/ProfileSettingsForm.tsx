@@ -63,55 +63,60 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
   });
 
   const generateUniquePin = async () => {
-    // Generate a random 4-digit PIN
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
     setIsLoadingProfile(true);
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour, instructor_pin, role")
-      .eq("id", user.id)
-      .single();
+    
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour, instructor_pin, role")
+        .eq("id", user.id)
+        .single();
 
-    if (error) {
-      console.error("Error fetching profile:", error);
-      showError("Failed to load profile.");
-    } else if (data) {
-      // If it's an instructor and they don't have a PIN, generate one automatically
-      if (data.role === 'instructor' && !data.instructor_pin) {
-        setIsGeneratingPin(true);
-        const newPin = await generateUniquePin();
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ instructor_pin: newPin })
-          .eq("id", user.id);
-        
-        if (!updateError) {
-          data.instructor_pin = newPin;
+      if (error) throw error;
+
+      if (data) {
+        // Auto-generate PIN if missing for instructors
+        if (data.role === 'instructor' && !data.instructor_pin) {
+          setIsGeneratingPin(true);
+          const newPin = await generateUniquePin();
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update({ instructor_pin: newPin })
+            .eq("id", user.id);
+          
+          if (!updateError) {
+            data.instructor_pin = newPin;
+          }
+          setIsGeneratingPin(false);
         }
-        setIsGeneratingPin(false);
-      }
 
-      form.reset({
-        first_name: data.first_name || "",
-        last_name: data.last_name || "",
-        hourly_rate: data.hourly_rate,
-        logo_url: data.logo_url || "",
-        default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
-        calendar_start_hour: data.calendar_start_hour?.toString() || "9",
-        calendar_end_hour: data.calendar_end_hour?.toString() || "18",
-        instructor_pin: data.instructor_pin || "",
-      });
+        form.reset({
+          first_name: data.first_name || "",
+          last_name: data.last_name || "",
+          hourly_rate: data.hourly_rate,
+          logo_url: data.logo_url || "",
+          default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
+          calendar_start_hour: data.calendar_start_hour?.toString() || "9",
+          calendar_end_hour: data.calendar_end_hour?.toString() || "18",
+          instructor_pin: data.instructor_pin || "",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error fetching profile:", error);
+      showError("Failed to load profile. Please ensure the 'instructor_pin' column exists in your database.");
+    } finally {
+      setIsLoadingProfile(false);
     }
-    setIsLoadingProfile(false);
   }, [user, form]);
 
   useEffect(() => {
-    if (user) fetchProfile();
-  }, [user, fetchProfile]);
+    fetchProfile();
+  }, [fetchProfile]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
@@ -145,7 +150,14 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
   }));
 
   if (isLoadingProfile) {
-    return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>;
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-20 w-20 rounded-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
   }
 
   return (
