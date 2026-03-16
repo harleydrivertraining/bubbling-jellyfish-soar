@@ -114,6 +114,7 @@ const Accounts: React.FC = () => {
 
     for (const item of recurringItems) {
       let lastDate = item.last_processed_date ? parseISO(item.last_processed_date) : parseISO(item.start_date);
+      const endDate = item.end_date ? parseISO(item.end_date) : null;
       
       // If it's never been processed, we should process the start date if it's today or in the past
       let nextDate = item.last_processed_date ? null : lastDate;
@@ -128,7 +129,11 @@ const Accounts: React.FC = () => {
       const newExpenditures = [];
       let currentProcessingDate = nextDate;
 
-      while (currentProcessingDate && (isBefore(currentProcessingDate, today) || currentProcessingDate.getTime() === today.getTime())) {
+      while (
+        currentProcessingDate && 
+        (isBefore(currentProcessingDate, today) || currentProcessingDate.getTime() === today.getTime()) &&
+        (!endDate || isBefore(currentProcessingDate, endDate) || currentProcessingDate.getTime() === endDate.getTime())
+      ) {
         newExpenditures.push({
           user_id: user.id,
           amount: item.amount,
@@ -153,6 +158,14 @@ const Accounts: React.FC = () => {
             .eq("id", item.id);
           processedCount += newExpenditures.length;
         }
+      }
+      
+      // If we've reached or passed the end date, deactivate the recurring item
+      if (endDate && (isBefore(endDate, today) || endDate.getTime() === today.getTime()) && lastDate.getTime() === endDate.getTime()) {
+        await supabase
+          .from("recurring_expenditures")
+          .update({ is_active: false })
+          .eq("id", item.id);
       }
     }
 

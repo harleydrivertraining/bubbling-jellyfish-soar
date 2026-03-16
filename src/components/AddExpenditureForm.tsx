@@ -42,6 +42,7 @@ const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
   is_recurring: z.boolean().default(false),
   frequency: z.enum(['daily', 'weekly', 'fortnightly', 'monthly']).optional(),
+  end_date: z.date().optional().nullable(),
 });
 
 interface AddExpenditureFormProps {
@@ -79,6 +80,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       date: new Date(),
       is_recurring: false,
       frequency: "weekly",
+      end_date: null,
     },
   });
 
@@ -126,6 +128,7 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
           category: finalCategory,
           frequency: values.frequency,
           start_date: format(values.date, "yyyy-MM-dd"),
+          end_date: values.end_date ? format(values.end_date, "yyyy-MM-dd") : null,
           last_processed_date: format(values.date, "yyyy-MM-dd"), // Mark today as processed
           is_active: true
         });
@@ -245,29 +248,45 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
           />
 
           {isRecurring && (
-            <FormField
-              control={form.control}
-              name="frequency"
-              render={({ field }) => (
-                <FormItem className="animate-in slide-in-from-top-2 duration-200">
-                  <FormLabel>Repeat Frequency</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+              <FormField
+                control={form.control}
+                name="frequency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Repeat Frequency</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select frequency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="end_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>End Date (Optional)</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select frequency" />
-                      </SelectTrigger>
+                      <DatePicker date={field.value || undefined} setDate={field.onChange} placeholder="Never ends" />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="fortnightly">Fortnightly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           )}
         </div>
         

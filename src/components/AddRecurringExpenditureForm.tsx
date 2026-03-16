@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +38,7 @@ const formSchema = z.object({
   category: z.string().min(1, { message: "Please select a category." }),
   frequency: z.enum(['daily', 'weekly', 'fortnightly', 'monthly']),
   start_date: z.date({ required_error: "Start date is required." }),
+  end_date: z.date().optional().nullable(),
 });
 
 interface AddRecurringExpenditureFormProps {
@@ -71,6 +73,7 @@ const AddRecurringExpenditureForm: React.FC<AddRecurringExpenditureFormProps> = 
       category: "Other",
       frequency: "weekly",
       start_date: new Date(),
+      end_date: null,
     },
   });
 
@@ -86,6 +89,7 @@ const AddRecurringExpenditureForm: React.FC<AddRecurringExpenditureFormProps> = 
         category: values.category,
         frequency: values.frequency,
         start_date: format(values.start_date, "yyyy-MM-dd"),
+        end_date: values.end_date ? format(values.end_date, "yyyy-MM-dd") : null,
         is_active: true
       });
 
@@ -166,19 +170,36 @@ const AddRecurringExpenditureForm: React.FC<AddRecurringExpenditureFormProps> = 
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="start_date"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Start Date</FormLabel>
-              <FormControl>
-                <DatePicker date={field.value} setDate={field.onChange} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="start_date"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Start Date</FormLabel>
+                <FormControl>
+                  <DatePicker date={field.value} setDate={field.onChange} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="end_date"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>End Date (Optional)</FormLabel>
+                <FormControl>
+                  <DatePicker date={field.value || undefined} setDate={field.onChange} placeholder="Never ends" />
+                </FormControl>
+                <FormDescription className="text-[10px]">Leave blank to repeat indefinitely</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         
         <FormField
           control={form.control}

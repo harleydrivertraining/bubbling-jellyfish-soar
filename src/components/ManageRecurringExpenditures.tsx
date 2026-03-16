@@ -7,7 +7,7 @@ import { showError, showSuccess } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Power, PowerOff, RefreshCw, Calendar } from "lucide-react";
+import { Trash2, Power, PowerOff, RefreshCw, Calendar, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -18,6 +18,7 @@ interface RecurringExpenditure {
   category: string;
   frequency: string;
   start_date: string;
+  end_date: string | null;
   is_active: boolean;
 }
 
@@ -88,9 +89,19 @@ const ManageRecurringExpenditures: React.FC<{ onUpdate: () => void }> = ({ onUpd
                     <p className="font-bold text-sm truncate">{item.description}</p>
                     <Badge variant="outline" className="text-[10px] uppercase">{item.frequency}</Badge>
                   </div>
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                    {item.category} • Starts {format(new Date(item.start_date), "MMM d, yyyy")}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground font-bold uppercase">
+                    <span>{item.category}</span>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <span>Starts {format(new Date(item.start_date), "MMM d, yyyy")}</span>
+                      {item.end_date && (
+                        <>
+                          <ArrowRight className="h-2 w-2" />
+                          <span>Ends {format(new Date(item.end_date), "MMM d, yyyy")}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                   <p className="font-black text-red-600">£{item.amount.toFixed(2)}</p>
                 </div>
                 
