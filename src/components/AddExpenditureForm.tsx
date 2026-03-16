@@ -164,3 +164,6 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       </form>
     </Form>
   );
+};
+
+export default AddExpenditureForm;
