@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,11 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import DatePicker from "@/components/DatePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format } from "date-fns";
+import { Repeat } from "lucide-react";
 
 const formSchema = z.object({
   amount: z.preprocess(
@@ -37,6 +40,8 @@ const formSchema = z.object({
   category: z.string().min(1, { message: "Please select a category." }),
   custom_category: z.string().optional(),
   date: z.date({ required_error: "Date is required." }),
+  is_recurring: z.boolean().default(false),
+  frequency: z.enum(['daily', 'weekly', 'fortnightly', 'monthly']).optional(),
 });
 
 interface AddExpenditureFormProps {
@@ -72,8 +77,12 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       category: "Fuel",
       custom_category: "",
       date: new Date(),
+      is_recurring: false,
+      frequency: "weekly",
     },
   });
+
+  const isRecurring = form.watch("is_recurring");
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
@@ -90,23 +99,48 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
       }
     }
 
-    const { error } = await supabase
+    // 1. Always add the initial expenditure entry
+    const { error: expError } = await supabase
       .from("expenditures")
       .insert({
         user_id: user.id,
         amount: values.amount,
-        description: values.description,
+        description: values.description + (values.is_recurring ? " (Recurring)" : ""),
         category: finalCategory,
         date: format(values.date, "yyyy-MM-dd"),
       });
 
-    if (error) {
-      showError("Failed to add expenditure: " + error.message);
+    if (expError) {
+      showError("Failed to add expenditure: " + expError.message);
+      return;
+    }
+
+    // 2. If recurring is checked, set up the schedule
+    if (values.is_recurring && values.frequency) {
+      const { error: recError } = await supabase
+        .from("recurring_expenditures")
+        .insert({
+          user_id: user.id,
+          amount: values.amount,
+          description: values.description,
+          category: finalCategory,
+          frequency: values.frequency,
+          start_date: format(values.date, "yyyy-MM-dd"),
+          last_processed_date: format(values.date, "yyyy-MM-dd"), // Mark today as processed
+          is_active: true
+        });
+
+      if (recError) {
+        showError("Expenditure added, but failed to set up recurring schedule: " + recError.message);
+      } else {
+        showSuccess("Recurring expenditure set up successfully!");
+      }
     } else {
       showSuccess("Expenditure added successfully!");
-      onSuccess();
-      onClose();
     }
+
+    onSuccess();
+    onClose();
   };
 
   return (
@@ -187,6 +221,55 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
             </FormItem>
           )}
         />
+
+        <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
+          <FormField
+            control={form.control}
+            name="is_recurring"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between">
+                <div className="space-y-0.5">
+                  <FormLabel className="flex items-center gap-2">
+                    <Repeat className="h-4 w-4 text-primary" /> Make Recurring
+                  </FormLabel>
+                  <FormDescription className="text-[10px]">Automatically repeat this cost</FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          {isRecurring && (
+            <FormField
+              control={form.control}
+              name="frequency"
+              render={({ field }) => (
+                <FormItem className="animate-in slide-in-from-top-2 duration-200">
+                  <FormLabel>Repeat Frequency</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
         
         <FormField
           control={form.control}
@@ -201,7 +284,9 @@ const AddExpenditureForm: React.FC<AddExpenditureFormProps> = ({ onSuccess, onCl
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full font-bold">Add Expenditure Entry</Button>
+        <Button type="submit" className="w-full font-bold">
+          {isRecurring ? "Set Up Recurring Cost" : "Add Expenditure Entry"}
+        </Button>
       </form>
     </Form>
   );
