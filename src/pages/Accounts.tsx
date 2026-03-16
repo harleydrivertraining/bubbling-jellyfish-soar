@@ -21,7 +21,9 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Calculator,
-  Tag
+  Tag,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
 import AddExpenditureForm from "@/components/AddExpenditureForm";
 
@@ -77,6 +80,7 @@ const Accounts: React.FC = () => {
   
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [isIncomeLogExpanded, setIsIncomeLogExpanded] = useState(false);
   
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
 
@@ -309,45 +313,57 @@ const Accounts: React.FC = () => {
         </TabsList>
 
         <TabsContent value="income" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ArrowUpCircle className="h-5 w-5 text-green-600" /> Income Log
-              </CardTitle>
-              <CardDescription>All payments received in the selected tax year.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {filteredIncome.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground italic">No income recorded for this period.</div>
-              ) : (
-                <div className="divide-y">
-                  {filteredIncome.map((tx) => (
-                    <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
-                          tx.type === 'package' ? "bg-purple-100 text-purple-700" : 
-                          tx.type === 'additional' ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
-                        )}>
-                          {tx.type === 'package' ? <Wallet className="h-5 w-5" /> : 
-                           tx.type === 'additional' ? <Coins className="h-5 w-5" /> : <PoundSterling className="h-5 w-5" />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm truncate">{tx.student_name}</p>
-                          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
-                            {tx.description} • {format(new Date(tx.date), "MMM d, yyyy")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-black text-lg text-green-600">+£{tx.amount.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  ))}
+          <Collapsible open={isIncomeLogExpanded} onOpenChange={setIsIncomeLogExpanded}>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ArrowUpCircle className="h-5 w-5 text-green-600" /> Income Log
+                  </CardTitle>
+                  <CardDescription>All payments received in the selected tax year.</CardDescription>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-9 p-0">
+                    {isIncomeLogExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    <span className="sr-only">Toggle</span>
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="p-0 border-t">
+                  {filteredIncome.length === 0 ? (
+                    <div className="p-12 text-center text-muted-foreground italic">No income recorded for this period.</div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredIncome.map((tx) => (
+                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                              tx.type === 'package' ? "bg-purple-100 text-purple-700" : 
+                              tx.type === 'additional' ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+                            )}>
+                              {tx.type === 'package' ? <Wallet className="h-5 w-5" /> : 
+                               tx.type === 'additional' ? <Coins className="h-5 w-5" /> : <PoundSterling className="h-5 w-5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-sm truncate">{tx.student_name}</p>
+                              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
+                                {tx.description} • {format(new Date(tx.date), "MMM d, yyyy")}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-black text-lg text-green-600">+£{tx.amount.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         </TabsContent>
 
         <TabsContent value="expenditure" className="mt-6">
