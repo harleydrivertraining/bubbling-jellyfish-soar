@@ -41,7 +41,8 @@ import {
   PieChart as PieChartIcon,
   Settings2,
   Repeat,
-  Filter
+  Filter,
+  Trash2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,6 +57,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
 import AddExpenditureForm from "@/components/AddExpenditureForm";
 import ManageRecurringExpenditures from "@/components/ManageRecurringExpenditures";
@@ -70,6 +72,9 @@ interface IncomeTransaction {
   description: string;
   student_name: string;
   category: string;
+  // Metadata for deletion
+  package_id?: string;
+  hours_deducted?: number;
 }
 
 interface ExpenditureTransaction {
@@ -224,7 +229,7 @@ const Accounts: React.FC = () => {
             transaction_date, 
             booking_id,
             bookings(id, title, start_time, status, students(name)),
-            pre_paid_hours(amount_paid, package_hours)
+            pre_paid_hours(id, amount_paid, package_hours)
           `)
           .eq("user_id", user.id),
         supabase.from("bookings").select("id, title, start_time, end_time, is_paid, status, students(name)").eq("user_id", user.id).eq("status", "completed").order("start_time", { ascending: false }),
@@ -241,14 +246,11 @@ const Accounts: React.FC = () => {
         const booking = tx.bookings as any;
         const pkg = tx.pre_paid_hours as any;
         
-        // If this transaction is linked to a booking, mark it as "paid by credit"
         if (tx.booking_id) {
           creditPaidBookingIds.add(tx.booking_id);
         }
 
-        // Only count as income if the lesson is completed
         if (booking?.status === 'completed') {
-          // Calculate effective rate: if package has price, use it. Otherwise fallback to standard rate.
           const effectiveRate = (pkg?.amount_paid && pkg?.package_hours) 
             ? (pkg.amount_paid / pkg.package_hours) 
             : rate;
@@ -262,23 +264,20 @@ const Accounts: React.FC = () => {
             amount: earnedAmount,
             description: "Lesson (Pre-paid Credit)",
             student_name: booking.students?.name || "Unknown",
-            category: "Driving Lessons"
+            category: "Driving Lessons",
+            package_id: pkg?.id,
+            hours_deducted: tx.hours_deducted
           });
         }
       });
 
       // 2. Process Individual Lessons (Cash/Bank)
       lessonsRes.data?.forEach(lesson => {
-        // Check if this lesson was already handled by the credit transaction loop
         const isCredit = creditPaidBookingIds.has(lesson.id);
-        
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
         const value = duration * rate;
 
-        if (isCredit) {
-          // Already handled in the credit loop above
-          return;
-        }
+        if (isCredit) return;
 
         if (lesson.is_paid) {
           income.push({
@@ -291,7 +290,6 @@ const Accounts: React.FC = () => {
             category: "Driving Lessons"
           });
         } else {
-          // Not paid by credit AND not marked as paid manually = Unpaid
           unpaid.push({ ...lesson, value });
         }
       });
@@ -324,6 +322,38 @@ const Accounts: React.FC = () => {
   useEffect(() => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
+
+  const handleDeleteIncome = async (item: IncomeTransaction) => {
+    if (!user) return;
+
+    try {
+      if (item.type === 'additional') {
+        const { error } = await supabase.from("additional_income").delete().eq("id", item.id);
+        if (error) throw error;
+      } else if (item.type === 'lesson') {
+        // Mark as unpaid instead of deleting the booking
+        const { error } = await supabase.from("bookings").update({ is_paid: false }).eq("id", item.id);
+        if (error) throw error;
+      } else if (item.type === 'package') {
+        // 1. Return hours to package
+        if (item.package_id && item.hours_deducted) {
+          const { data: pkg } = await supabase.from("pre_paid_hours").select("remaining_hours").eq("id", item.package_id).single();
+          if (pkg) {
+            await supabase.from("pre_paid_hours").update({ remaining_hours: pkg.remaining_hours + item.hours_deducted }).eq("id", item.package_id);
+          }
+        }
+        // 2. Delete transaction record
+        const { error } = await supabase.from("pre_paid_hours_transactions").delete().eq("id", item.id);
+        if (error) throw error;
+      }
+      
+      showSuccess("Income item removed.");
+      fetchData();
+    } catch (err: any) {
+      console.error("Delete error:", err);
+      showError("Failed to delete item: " + err.message);
+    }
+  };
 
   const activeRange = useMemo(() => {
     const now = new Date();
@@ -642,7 +672,7 @@ const Accounts: React.FC = () => {
                   ) : (
                     <div className="divide-y">
                       {filteredIncome.map((tx) => (
-                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
                           <div className="flex items-center gap-4">
                             <div className={cn(
                               "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
@@ -659,8 +689,43 @@ const Accounts: React.FC = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-black text-lg text-green-600">+£{tx.amount.toFixed(2)}</p>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="font-black text-lg text-green-600">+£{tx.amount.toFixed(2)}</p>
+                            </div>
+                            
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Remove Income Entry?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {tx.type === 'lesson' 
+                                      ? "This will mark the lesson as unpaid. It will reappear in your outstanding payments list."
+                                      : tx.type === 'package'
+                                      ? "This will reverse the credit deduction and return the hours to the student's package balance."
+                                      : "This will permanently delete this income record."}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteIncome(tx)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Confirm
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </div>
                       ))}
