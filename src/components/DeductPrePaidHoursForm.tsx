@@ -80,11 +80,12 @@ const DeductPrePaidHoursForm: React.FC<DeductPrePaidHoursFormProps> = ({
         pre_paid_hours_id: packageId,
         hours_deducted: values.hours_to_deduct,
         transaction_date: new Date().toISOString(),
-        notes: values.notes, // Now including notes in the transaction
+        notes: values.notes,
       });
 
     if (transactionError) {
       console.error("Error recording transaction:", transactionError);
+      // We don't show an error to the user here because the balance was already updated successfully
     }
 
     showSuccess("Hours deducted successfully!");
