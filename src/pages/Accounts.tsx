@@ -43,7 +43,6 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
 import AddExpenditureForm from "@/components/AddExpenditureForm";
-import AddRecurringExpenditureForm from "@/components/AddRecurringExpenditureForm";
 import ManageRecurringExpenditures from "@/components/ManageRecurringExpenditures";
 import ManageAccountCategories from "@/components/ManageAccountCategories";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
@@ -595,13 +594,9 @@ const Accounts: React.FC = () => {
               <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Recurring Expenditures</DialogTitle>
-                  <CardDescription>Set up and manage costs that repeat automatically.</CardDescription>
+                  <CardDescription>Manage costs that repeat automatically.</CardDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
-                  <div className="p-4 border rounded-xl bg-muted/30">
-                    <h3 className="text-sm font-bold uppercase mb-4">Add New Recurring Item</h3>
-                    <AddRecurringExpenditureForm onSuccess={fetchData} onClose={() => {}} />
-                  </div>
                   <div className="space-y-4">
                     <h3 className="text-sm font-bold uppercase">Active Recurring Items</h3>
                     <ManageRecurringExpenditures onUpdate={fetchData} />
@@ -641,7 +636,7 @@ const Accounts: React.FC = () => {
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <PieChartIcon className="h-5 w-5 text-red-600" /> Expense Distribution
+                  <PieChartIcon className="h-5 w-5 text-blue-600" /> Expense Distribution
                 </CardTitle>
                 <CardDescription>Visual representation of your business costs.</CardDescription>
               </CardHeader>
