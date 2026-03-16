@@ -222,6 +222,7 @@ const Accounts: React.FC = () => {
             id, 
             hours_deducted, 
             transaction_date, 
+            booking_id,
             bookings(id, title, start_time, status, students(name)),
             pre_paid_hours(amount_paid, package_hours)
           `)
@@ -236,15 +237,22 @@ const Accounts: React.FC = () => {
       const creditPaidBookingIds = new Set<string>();
 
       // 1. Process Pre-paid Credit Usage (Earned Revenue)
-      // We only count income when the lesson is completed
       creditTxRes.data?.forEach(tx => {
         const booking = tx.bookings as any;
         const pkg = tx.pre_paid_hours as any;
         
-        if (booking?.status === 'completed' && pkg?.amount_paid && pkg?.package_hours) {
-          creditPaidBookingIds.add(booking.id);
-          
-          const effectiveRate = pkg.amount_paid / pkg.package_hours;
+        // If this transaction is linked to a booking, mark it as "paid by credit"
+        if (tx.booking_id) {
+          creditPaidBookingIds.add(tx.booking_id);
+        }
+
+        // Only count as income if the lesson is completed
+        if (booking?.status === 'completed') {
+          // Calculate effective rate: if package has price, use it. Otherwise fallback to standard rate.
+          const effectiveRate = (pkg?.amount_paid && pkg?.package_hours) 
+            ? (pkg.amount_paid / pkg.package_hours) 
+            : rate;
+            
           const earnedAmount = tx.hours_deducted * effectiveRate;
           
           income.push({
@@ -261,11 +269,18 @@ const Accounts: React.FC = () => {
 
       // 2. Process Individual Lessons (Cash/Bank)
       lessonsRes.data?.forEach(lesson => {
+        // Check if this lesson was already handled by the credit transaction loop
         const isCredit = creditPaidBookingIds.has(lesson.id);
+        
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
         const value = duration * rate;
 
-        if (lesson.is_paid && !isCredit) {
+        if (isCredit) {
+          // Already handled in the credit loop above
+          return;
+        }
+
+        if (lesson.is_paid) {
           income.push({
             id: lesson.id,
             type: 'lesson',
@@ -275,7 +290,8 @@ const Accounts: React.FC = () => {
             student_name: (lesson.students as any)?.name || "Unknown",
             category: "Driving Lessons"
           });
-        } else if (!lesson.is_paid && !isCredit) {
+        } else {
+          // Not paid by credit AND not marked as paid manually = Unpaid
           unpaid.push({ ...lesson, value });
         }
       });
@@ -303,7 +319,7 @@ const Accounts: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user, processRecurringExpenditures]);
+  }, [user, processRecurringExpenditures, hourlyRate]);
 
   useEffect(() => {
     if (!isSessionLoading) fetchData();
