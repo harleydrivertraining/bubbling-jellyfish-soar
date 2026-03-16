@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, isBefore, parseISO, startOfYear, setMonth, setDate, subYears, addYears } from "date-fns";
+import { format, isBefore } from "date-fns";
 import { 
   PoundSterling, 
   TrendingUp, 
@@ -15,9 +15,9 @@ import {
   Wallet,
   Receipt,
   User,
-  ChevronLeft,
-  ChevronRight,
-  Calendar
+  Calendar,
+  PlusCircle,
+  Coins
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,10 +29,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
 
 interface Transaction {
   id: string;
-  type: 'lesson' | 'package';
+  type: 'lesson' | 'package' | 'additional';
   date: string;
   amount: number;
   description: string;
@@ -40,14 +43,12 @@ interface Transaction {
   status: string;
 }
 
-// Helper to get the start and end of a UK tax year for a given "start year"
 const getTaxYearRange = (startYear: number) => {
-  const start = new Date(startYear, 3, 6); // April 6th
-  const end = new Date(startYear + 1, 3, 5, 23, 59, 59); // April 5th next year
+  const start = new Date(startYear, 3, 6);
+  const end = new Date(startYear + 1, 3, 5, 23, 59, 59);
   return { start, end };
 };
 
-// Helper to determine which tax year a date falls into
 const getTaxYearStartForDate = (date: Date) => {
   const year = date.getFullYear();
   const taxYearStartThisYear = new Date(year, 3, 6);
@@ -60,8 +61,8 @@ const Accounts: React.FC = () => {
   const [hourlyRate, setHourlyRate] = useState<number>(0);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [unpaidLessons, setUnpaidLessons] = useState<any[]>([]);
+  const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
   
-  // Default to current tax year
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
 
   const fetchData = useCallback(async () => {
@@ -78,16 +79,18 @@ const Accounts: React.FC = () => {
       const rate = profile?.hourly_rate || 0;
       setHourlyRate(rate);
 
-      const [packagesRes, lessonsRes, creditTxRes] = await Promise.all([
+      const [packagesRes, lessonsRes, creditTxRes, additionalRes] = await Promise.all([
         supabase.from("pre_paid_hours").select("id, amount_paid, purchase_date, students(name)").eq("user_id", user.id),
         supabase.from("bookings").select("id, title, start_time, end_time, is_paid, status, students(name)").eq("user_id", user.id).eq("status", "completed").order("start_time", { ascending: false }),
-        supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id)
+        supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id),
+        supabase.from("additional_income").select("*").eq("user_id", user.id)
       ]);
 
       const creditPaidIds = new Set(creditTxRes.data?.map(t => t.booking_id) || []);
       const allTx: Transaction[] = [];
       const unpaid: any[] = [];
 
+      // 1. Packages
       packagesRes.data?.forEach(pkg => {
         if (pkg.amount_paid) {
           allTx.push({
@@ -102,6 +105,7 @@ const Accounts: React.FC = () => {
         }
       });
 
+      // 2. Lessons
       lessonsRes.data?.forEach(lesson => {
         const isCredit = creditPaidIds.has(lesson.id);
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
@@ -120,6 +124,19 @@ const Accounts: React.FC = () => {
         } else if (!lesson.is_paid && !isCredit) {
           unpaid.push({ ...lesson, value });
         }
+      });
+
+      // 3. Additional Income
+      additionalRes.data?.forEach(item => {
+        allTx.push({
+          id: item.id,
+          type: 'additional',
+          date: item.date,
+          amount: item.amount,
+          description: item.description,
+          student_name: "Other Income",
+          status: 'paid'
+        });
       });
 
       setAllTransactions(allTx.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -149,7 +166,6 @@ const Accounts: React.FC = () => {
   const stats = useMemo(() => {
     const totalIncome = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
     
-    // Calculate "This Month" within the context of the tax year or just absolute month
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthIncome = filteredTransactions
@@ -179,11 +195,20 @@ const Accounts: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="bg-primary/5 border border-primary/10 px-4 py-2 rounded-lg hidden md:block">
-            <p className="text-[10px] font-bold uppercase text-muted-foreground">Current Rate</p>
-            <p className="text-lg font-black text-primary">£{hourlyRate.toFixed(2)}/hr</p>
-          </div>
-          
+          <Dialog open={isAddIncomeOpen} onOpenChange={setIsAddIncomeOpen}>
+            <DialogTrigger asChild>
+              <Button className="font-bold">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Other Income
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add Additional Income</DialogTitle>
+              </DialogHeader>
+              <AddAdditionalIncomeForm onSuccess={fetchData} onClose={() => setIsAddIncomeOpen(false)} />
+            </DialogContent>
+          </Dialog>
+
           <Select 
             value={selectedTaxYearStart.toString()} 
             onValueChange={(val) => setSelectedTaxYearStart(parseInt(val))}
@@ -269,9 +294,11 @@ const Accounts: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <div className={cn(
                           "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
-                          tx.type === 'package' ? "bg-purple-100 text-purple-700" : "bg-green-100 text-green-700"
+                          tx.type === 'package' ? "bg-purple-100 text-purple-700" : 
+                          tx.type === 'additional' ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
                         )}>
-                          {tx.type === 'package' ? <Wallet className="h-5 w-5" /> : <PoundSterling className="h-5 w-5" />}
+                          {tx.type === 'package' ? <Wallet className="h-5 w-5" /> : 
+                           tx.type === 'additional' ? <Coins className="h-5 w-5" /> : <PoundSterling className="h-5 w-5" />}
                         </div>
                         <div className="min-w-0">
                           <p className="font-bold text-sm truncate">{tx.student_name}</p>
