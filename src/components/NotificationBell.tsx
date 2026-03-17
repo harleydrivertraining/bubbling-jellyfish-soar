@@ -15,6 +15,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '@capacitor/core';
 
 interface Notification {
   id: string;
@@ -51,6 +53,11 @@ const NotificationBell: React.FC = () => {
 
     if (!user) return;
 
+    // Request permissions for local notifications on mobile
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.requestPermissions();
+    }
+
     // Subscribe to real-time notifications
     const channel = supabase
       .channel(`notifications-${user.id}`)
@@ -59,16 +66,37 @@ const NotificationBell: React.FC = () => {
         schema: 'public', 
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
-      }, (payload) => {
+      }, async (payload) => {
         const newNotif = payload.new as Notification;
         setNotifications(prev => [newNotif, ...prev]);
         setUnreadCount(prev => prev + 1);
         
-        // Show a toast for immediate feedback
+        // 1. Show in-app toast
         toast(newNotif.title, {
           description: newNotif.message,
           icon: <Sparkles className="h-4 w-4 text-blue-500" />,
         });
+
+        // 2. Trigger System Notification (Android/iOS)
+        if (Capacitor.isNativePlatform()) {
+          try {
+            await LocalNotifications.schedule({
+              notifications: [
+                {
+                  title: newNotif.title,
+                  body: newNotif.message,
+                  id: Math.floor(Math.random() * 10000),
+                  schedule: { at: new Date(Date.now() + 1000) },
+                  sound: 'default',
+                  actionTypeId: "",
+                  extra: null
+                }
+              ]
+            });
+          } catch (e) {
+            console.error("Local notification failed", e);
+          }
+        }
       })
       .subscribe();
 
