@@ -1,35 +1,35 @@
--- 1. Enable the pg_net extension to allow HTTP requests from SQL
+-- 1. Enable the HTTP extension if not already enabled
 create extension if not exists pg_net;
 
--- 2. Create the trigger function
-create or replace function public.notify_instructor_on_booking()
+-- 2. Create the function that sends the email
+create or replace function public.handle_booking_claimed_email()
 returns trigger
 language plpgsql
 security definer
 as $$
 declare
+  resend_api_key text := 're_Ba7SxYXj_967iieeP97NbXdnZwGe55kpL'; -- Your API Key
   instructor_email text;
+  instructor_name text;
   student_name text;
-  -- IMPORTANT: Replace the string below with your actual Resend API Key
-  resend_api_key text := 're_Ba7SxYXj_967iieeP97NbXdnZwGe55kpL'; 
+  email_enabled boolean;
 begin
-  -- Only proceed if the status changed from 'available' to 'scheduled'
-  -- and a student has been assigned
-  if (OLD.status = 'available' and NEW.status = 'scheduled' and NEW.student_id is not null) then
+  -- Only proceed if a student was just assigned to an available slot
+  if (old.student_id is null and new.student_id is not null) then
     
-    -- Get instructor email and check if notifications are enabled
-    select email into instructor_email 
+    -- Get instructor details and preferences
+    select email, first_name, email_notifications_enabled 
+    into instructor_email, instructor_name, email_enabled
     from public.profiles 
-    where id = NEW.user_id 
-    and email_notifications_enabled = true;
+    where id = new.user_id;
 
     -- Get student name
-    select name into student_name 
-    from public.students 
-    where id = NEW.student_id;
+    select name into student_name
+    from public.students
+    where id = new.student_id;
 
-    -- If we have an email, send the request to Resend
-    if instructor_email is not null and instructor_email != '' then
+    -- Only send if instructor has an email and has enabled alerts
+    if (instructor_email is not null and email_enabled = true) then
       perform net.http_post(
         url := 'https://api.resend.com/emails',
         headers := jsonb_build_object(
@@ -40,19 +40,21 @@ begin
           'from', 'HDT App <onboarding@resend.dev>',
           'to', jsonb_build_array(instructor_email),
           'subject', 'New Lesson Booked: ' || student_name,
-          'html', '<h1>New Lesson Booked!</h1><p><strong>' || student_name || '</strong> has booked the slot on ' || to_char(NEW.start_time, 'Day, DD Mon HH24:MI') || '.</p><p>Check your app for details.</p>'
+          'html', '<h1>New Lesson Booked!</h1>' ||
+                  '<p><strong>' || student_name || '</strong> has booked a slot.</p>' ||
+                  '<p><strong>Time:</strong> ' || to_char(new.start_time at time zone 'UTC', 'Day, DD Mon HH24:MI') || '</p>'
         )
       );
     end if;
   end if;
   
-  return NEW;
+  return new;
 end;
 $$;
 
--- 3. Create the trigger on the bookings table
-drop trigger if exists on_booking_claimed on public.bookings;
-create trigger on_booking_claimed
+-- 3. Create the trigger
+drop trigger if exists on_booking_claimed_email on public.bookings;
+create trigger on_booking_claimed_email
   after update on public.bookings
   for each row
-  execute function public.notify_instructor_on_booking();
+  execute function public.handle_booking_claimed_email();
