@@ -22,19 +22,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, RefreshCw, BellRing, Mail, Send } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { sendBookingNotificationEmail } from "@/utils/email";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
-  email: z.string().email({ message: "Please enter a valid email address." }).optional().nullable().or(z.literal("")),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
@@ -48,20 +45,17 @@ const formSchema = z.object({
     (val) => (val === "" ? 48 : Number(val)),
     z.number().min(0, { message: "Notice period cannot be negative." })
   ),
-  email_notifications_enabled: z.boolean().default(true),
 });
 
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [isSendingTest, setIsSendingTest] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
-      email: "",
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
@@ -69,7 +63,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       calendar_end_hour: "18",
       instructor_pin: "",
       min_booking_notice_hours: 48,
-      email_notifications_enabled: true,
     },
   });
 
@@ -90,7 +83,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
-          email: data.email || user.email || "",
           hourly_rate: data.hourly_rate,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
@@ -98,7 +90,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           calendar_end_hour: data.calendar_end_hour?.toString() || "18",
           instructor_pin: data.instructor_pin || "",
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
-          email_notifications_enabled: data.email_notifications_enabled ?? true,
         });
       }
     } catch (error: any) {
@@ -113,29 +104,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     fetchProfile();
   }, [fetchProfile]);
 
-  const handleSendTestEmail = async () => {
-    const email = form.getValues("email");
-    if (!email) {
-      showError("Please enter and save an email address first.");
-      return;
-    }
-
-    setIsSendingTest(true);
-    try {
-      await sendBookingNotificationEmail({
-        to: email,
-        studentName: "Test Student (Verification)",
-        startTime: new Date(),
-        endTime: new Date(new Date().getTime() + 60 * 60000)
-      });
-      showSuccess("Test email request sent! Check your Resend dashboard or inbox.");
-    } catch (error: any) {
-      showError(error.message || "Failed to send test email.");
-    } finally {
-      setIsSendingTest(false);
-    }
-  };
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
 
@@ -144,14 +112,12 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       .update({
         first_name: values.first_name,
         last_name: values.last_name,
-        email: values.email,
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
         calendar_start_hour: values.calendar_start_hour ? parseInt(values.calendar_start_hour) : 9,
         calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
         min_booking_notice_hours: values.min_booking_notice_hours,
-        email_notifications_enabled: values.email_notifications_enabled,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -253,62 +219,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
                   <Input placeholder="Doe" {...field} value={field.value || ""} />
                 </FormControl>
                 <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Notification Email</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="your@email.com" className="pl-10" {...field} value={field.value || ""} />
-                </div>
-              </FormControl>
-              <FormDescription>Where you will receive booking alerts.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
-              <BellRing className="h-4 w-4" /> Email Notifications
-            </h3>
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
-              className="h-8 text-[10px] font-bold uppercase border-blue-200 text-blue-700 hover:bg-blue-100"
-              onClick={handleSendTestEmail}
-              disabled={isSendingTest}
-            >
-              {isSendingTest ? "Sending..." : <><Send className="mr-1.5 h-3 w-3" /> Send Test Email</>}
-            </Button>
-          </div>
-          <FormField
-            control={form.control}
-            name="email_notifications_enabled"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 bg-white shadow-sm">
-                <div className="space-y-0.5">
-                  <FormLabel>Booking Alerts</FormLabel>
-                  <FormDescription className="text-[10px]">
-                    Receive an email whenever a student books an available slot.
-                  </FormDescription>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
               </FormItem>
             )}
           />
