@@ -270,7 +270,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
 
         <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
           <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
-            <BellRing className="h-4 w-4" /> Booking Restrictions
+            <BellRing className="h-4 w-4" /> Free Slot Booking Restrictions
           </h3>
           <FormField
             control={form.control}
