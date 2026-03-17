@@ -125,8 +125,7 @@ const NotificationBell: React.FC = () => {
     const { error } = await supabase
       .from("notifications")
       .update({ read: true })
-      .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("id", id);
 
     if (error) {
       console.error("Mark as read failed:", error);
@@ -161,8 +160,7 @@ const NotificationBell: React.FC = () => {
     const { error } = await supabase
       .from("notifications")
       .delete()
-      .eq("id", id)
-      .eq("user_id", user.id); // Explicitly include user_id for RLS
+      .eq("id", id);
       
     if (error) {
       console.error("Delete failed:", error);
