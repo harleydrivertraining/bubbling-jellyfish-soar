@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, RefreshCcw, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
-import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid } from "date-fns";
+import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid, isWithinInterval } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -15,7 +15,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import CalendarLegend from "@/components/CalendarLegend";
 
 const Schedule: React.FC = () => {
-  const { user, isLoading: isSessionLoading, initialBookings } = useSession();
+  const { user, isLoading: isSessionLoading, initialBookings, isLoadingInitialBookings } = useSession();
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
@@ -58,6 +58,75 @@ const Schedule: React.FC = () => {
     fetchSettings();
   }, [user]);
 
+  // Helper to format bookings into calendar events with payment logic
+  const processBookings = useCallback(async (bookings: any[]) => {
+    if (!user || !bookings.length) return [];
+
+    let paidViaCreditIds = new Set<string>();
+    let studentBalances: Record<string, number> = {};
+    
+    try {
+      const bookingIds = bookings.map(b => b.id);
+      const { data: transactions } = await supabase
+        .from("pre_paid_hours_transactions")
+        .select("booking_id")
+        .in("booking_id", bookingIds);
+      
+      if (transactions) paidViaCreditIds = new Set(transactions.map(t => t.booking_id));
+
+      const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
+      if (studentIds.length > 0) {
+        const { data: hours } = await supabase
+          .from("pre_paid_hours")
+          .select("student_id, remaining_hours")
+          .in("student_id", studentIds);
+        
+        hours?.forEach(h => {
+          studentBalances[h.student_id] = (studentBalances[h.student_id] || 0) + h.remaining_hours;
+        });
+      }
+    } catch (secondaryError) {
+      console.warn("Secondary data fetch failed:", secondaryError);
+    }
+
+    const sortedBookings = [...bookings]
+      .filter(b => isValid(parseISO(b.start_time)) && isValid(parseISO(b.end_time)))
+      .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime());
+
+    const coverageMap: Record<string, boolean> = {};
+    sortedBookings.forEach(b => {
+      const isAlreadyPaid = b.is_paid || paidViaCreditIds.has(b.id);
+      if (!b.student_id || isAlreadyPaid || b.status === 'cancelled') {
+        coverageMap[b.id] = false;
+        return;
+      }
+      const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
+      const balance = studentBalances[b.student_id] || 0;
+      if (balance >= duration) {
+        coverageMap[b.id] = true;
+        studentBalances[b.student_id] -= duration;
+      } else {
+        coverageMap[b.id] = false;
+      }
+    });
+
+    return sortedBookings.map((booking) => ({
+      id: booking.id,
+      title: booking.students?.name || booking.title,
+      start: new Date(booking.start_time),
+      end: new Date(booking.end_time),
+      resource: {
+        student_id: booking.student_id,
+        description: booking.description,
+        status: booking.status,
+        lesson_type: booking.lesson_type,
+        targets_for_next_session: booking.targets_for_next_session,
+        is_paid: booking.is_paid || paidViaCreditIds.has(booking.id),
+        is_covered: coverageMap[booking.id] || false
+      },
+    }));
+  }, [user]);
+
   const fetchBookings = useCallback(async (startDate: Date, endDate: Date, force = false) => {
     if (!user) {
       setIsLoadingEvents(false);
@@ -86,78 +155,35 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      let paidViaCreditIds = new Set<string>();
-      let studentBalances: Record<string, number> = {};
-      
-      try {
-        const bookingIds = bookings.map(b => b.id);
-        const { data: transactions } = await supabase
-          .from("pre_paid_hours_transactions")
-          .select("booking_id")
-          .in("booking_id", bookingIds);
-        
-        if (transactions) paidViaCreditIds = new Set(transactions.map(t => t.booking_id));
-
-        const studentIds = Array.from(new Set(bookings.map(b => b.student_id).filter(Boolean)));
-        if (studentIds.length > 0) {
-          const { data: hours } = await supabase
-            .from("pre_paid_hours")
-            .select("student_id, remaining_hours")
-            .in("student_id", studentIds);
-          
-          hours?.forEach(h => {
-            studentBalances[h.student_id] = (studentBalances[h.student_id] || 0) + h.remaining_hours;
-          });
-        }
-      } catch (secondaryError) {
-        console.warn("Secondary data fetch failed:", secondaryError);
-      }
-
-      const sortedBookings = [...bookings]
-        .filter(b => isValid(parseISO(b.start_time)) && isValid(parseISO(b.end_time)))
-        .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime());
-
-      const coverageMap: Record<string, boolean> = {};
-      sortedBookings.forEach(b => {
-        const isAlreadyPaid = b.is_paid || paidViaCreditIds.has(b.id);
-        if (!b.student_id || isAlreadyPaid || b.status === 'cancelled') {
-          coverageMap[b.id] = false;
-          return;
-        }
-        const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
-        const balance = studentBalances[b.student_id] || 0;
-        if (balance >= duration) {
-          coverageMap[b.id] = true;
-          studentBalances[b.student_id] -= duration;
-        } else {
-          coverageMap[b.id] = false;
-        }
-      });
-
-      const formattedEvents: BigCalendarEvent[] = sortedBookings.map((booking) => ({
-        id: booking.id,
-        title: booking.students?.name || booking.title,
-        start: new Date(booking.start_time),
-        end: new Date(booking.end_time),
-        resource: {
-          student_id: booking.student_id,
-          description: booking.description,
-          status: booking.status,
-          lesson_type: booking.lesson_type,
-          targets_for_next_session: booking.targets_for_next_session,
-          is_paid: booking.is_paid || paidViaCreditIds.has(booking.id),
-          is_covered: coverageMap[booking.id] || false
-        },
-      }));
-      
-      setEvents(formattedEvents);
+      const processed = await processBookings(bookings);
+      setEvents(processed);
     } catch (error: any) {
       setFetchError(error.message || "An unexpected error occurred.");
       showError("Failed to load schedule.");
     } finally {
       setIsLoadingEvents(false);
     }
-  }, [user]);
+  }, [user, processBookings]);
+
+  // Initial load from context
+  useEffect(() => {
+    if (initialBookings && initialBookings.length > 0 && events.length === 0) {
+      const start = startOfMonth(subMonths(currentCalendarDate, 1));
+      const end = endOfMonth(addMonths(currentCalendarDate, 2));
+      
+      // Filter initial bookings to the current view range
+      const visibleInitial = initialBookings.filter(b => 
+        isWithinInterval(parseISO(b.start_time), { start, end })
+      );
+
+      if (visibleInitial.length > 0) {
+        processBookings(visibleInitial).then(processed => {
+          setEvents(processed);
+          setIsLoadingEvents(false);
+        });
+      }
+    }
+  }, [initialBookings, currentCalendarDate, events.length, processBookings]);
 
   const handleRetry = useCallback(async () => {
     const start = startOfMonth(subMonths(currentCalendarDate, 1));
@@ -194,17 +220,30 @@ const Schedule: React.FC = () => {
     setSelectedSlot(null);
   }, [handleRetry]);
 
-  if (isSessionLoading) {
-    return <div className="flex flex-col h-full items-center justify-center"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div><p className="text-muted-foreground">Loading schedule...</p></div>;
+  // Only show full page loader if we have NO data and are loading
+  if (isSessionLoading || (isLoadingEvents && events.length === 0)) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-muted-foreground">Loading schedule...</p>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col space-y-6 h-full">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Schedule</h1>
-        <Button onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Make New Booking
-        </Button>
+        <div className="flex gap-2">
+          {isLoadingEvents && events.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse mr-2">
+              <RefreshCcw className="h-3 w-3 animate-spin" /> Updating...
+            </div>
+          )}
+          <Button onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Make New Booking
+          </Button>
+        </div>
       </div>
       
       <div className="flex-1 min-h-[600px]">

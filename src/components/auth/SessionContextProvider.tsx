@@ -12,9 +12,11 @@ interface Booking {
   description?: string;
   start_time: string;
   end_time: string;
-  status: "scheduled" | "completed" | "cancelled";
+  status: "scheduled" | "completed" | "cancelled" | "available";
   lesson_type: string;
   student_id: string;
+  is_paid: boolean;
+  targets_for_next_session?: string;
   students: {
     name: string;
   };
@@ -26,6 +28,7 @@ interface SessionContextType {
   isLoading: boolean;
   initialBookings: Booking[] | null;
   isLoadingInitialBookings: boolean;
+  refreshInitialBookings: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -43,28 +46,35 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const fetchInitialBookings = useCallback(async (userId: string) => {
     if (isLoadingInitialBookings) return;
     setIsLoadingInitialBookings(true);
+    
     const now = new Date();
-    const threeMonthsAgo = startOfMonth(addMonths(now, -3));
-    const threeMonthsFromNow = endOfMonth(addMonths(now, 3));
+    // Fetch a wide range (3 months either side) to cover most views
+    const rangeStart = startOfMonth(addMonths(now, -3));
+    const rangeEnd = endOfMonth(addMonths(now, 3));
 
     const { data, error } = await supabase
       .from("bookings")
-      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, students(name)")
+      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, is_paid, targets_for_next_session, students(name)")
       .eq("user_id", userId)
-      .gte("start_time", threeMonthsAgo.toISOString())
-      .lte("end_time", threeMonthsFromNow.toISOString());
+      .gte("start_time", rangeStart.toISOString())
+      .lte("end_time", rangeEnd.toISOString());
 
     if (error) {
       console.error("Error fetching initial bookings:", error);
       setInitialBookings([]);
     } else {
-      setInitialBookings(data || []);
+      setInitialBookings(data as unknown as Booking[] || []);
     }
     setIsLoadingInitialBookings(false);
   }, [isLoadingInitialBookings]);
 
+  const refreshInitialBookings = async () => {
+    if (user) {
+      await fetchInitialBookings(user.id);
+    }
+  };
+
   useEffect(() => {
-    // Initial session check - do this immediately
     const getInitialSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
@@ -131,7 +141,14 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }
 
   return (
-    <SessionContext.Provider value={{ session, user, isLoading, initialBookings, isLoadingInitialBookings }}>
+    <SessionContext.Provider value={{ 
+      session, 
+      user, 
+      isLoading, 
+      initialBookings, 
+      isLoadingInitialBookings,
+      refreshInitialBookings
+    }}>
       {children}
     </SessionContext.Provider>
   );
