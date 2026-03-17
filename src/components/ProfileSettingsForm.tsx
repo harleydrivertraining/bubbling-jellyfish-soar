@@ -26,7 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing, Mail, Send, Loader2, AlertTriangle } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing, Mail, Send, Loader2, AlertTriangle, CalendarCheck, Hourglass, TrendingUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 
@@ -35,6 +35,9 @@ const formSchema = z.object({
   last_name: z.string().optional().nullable(),
   email: z.string().email("Invalid email address").optional().nullable().or(z.literal("")),
   email_notifications_enabled: z.boolean().default(true),
+  notif_lesson_booked: z.boolean().default(true),
+  notif_low_prepaid: z.boolean().default(true),
+  notif_student_progress: z.boolean().default(true),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
@@ -62,6 +65,9 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       last_name: "",
       email: "",
       email_notifications_enabled: true,
+      notif_lesson_booked: true,
+      notif_low_prepaid: true,
+      notif_student_progress: true,
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
@@ -93,6 +99,9 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           last_name: data.last_name || "",
           email: data.email || "",
           email_notifications_enabled: data.email_notifications_enabled ?? true,
+          notif_lesson_booked: data.notif_lesson_booked ?? true,
+          notif_low_prepaid: data.notif_low_prepaid ?? true,
+          notif_student_progress: data.notif_student_progress ?? true,
           hourly_rate: data.hourly_rate,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
@@ -134,16 +143,12 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         target_user_id: user.id 
       });
 
-      if (error) {
-        // If the RPC itself fails (e.g. function not found)
-        throw new Error(error.message);
-      }
+      if (error) throw new Error(error.message);
 
       if (data?.error) {
-        // If the function runs but returns an error (e.g. Resend API error)
         showError("Database Error: " + data.error);
       } else {
-        showSuccess("Test email sent! Please check your inbox (and spam folder).");
+        showSuccess("Test email sent! Please check your inbox.");
       }
     } catch (err: any) {
       console.error("Test email error:", err);
@@ -163,6 +168,9 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         last_name: values.last_name,
         email: values.email,
         email_notifications_enabled: values.email_notifications_enabled,
+        notif_lesson_booked: values.notif_lesson_booked,
+        notif_low_prepaid: values.notif_low_prepaid,
+        notif_student_progress: values.notif_student_progress,
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
@@ -272,7 +280,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
                   <div className="space-y-0.5">
-                    <FormLabel className="text-xs">Enable Emails</FormLabel>
+                    <FormLabel className="text-xs">Master Email Switch</FormLabel>
                   </div>
                   <FormControl>
                     <Switch
@@ -285,7 +293,61 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             />
           </div>
 
-          <div className="flex flex-col gap-3 pt-2">
+          {form.watch("email_notifications_enabled") && (
+            <div className="grid grid-cols-1 gap-3 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Notify me when:</p>
+              
+              <FormField
+                control={form.control}
+                name="notif_lesson_booked"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background px-3 py-2 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <CalendarCheck className="h-4 w-4 text-blue-600" />
+                      <FormLabel className="text-xs cursor-pointer">A student books a free slot</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="notif_low_prepaid"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background px-3 py-2 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <Hourglass className="h-4 w-4 text-orange-600" />
+                      <FormLabel className="text-xs cursor-pointer">A student has low credit (≤ 2h)</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="notif_student_progress"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background px-3 py-2 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-green-600" />
+                      <FormLabel className="text-xs cursor-pointer">A student updates their progress</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 pt-4 border-t">
             <div className="flex items-center gap-3">
               <Button 
                 type="button" 
