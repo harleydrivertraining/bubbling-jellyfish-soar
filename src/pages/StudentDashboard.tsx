@@ -30,7 +30,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
-import { sendBookingNotificationEmail } from "@/utils/email";
 
 interface StudentData {
   id: string;
@@ -177,29 +176,14 @@ const StudentDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      // 1. Create in-app notification
+      // Create in-app notification
+      // The email notification is now handled automatically by the database trigger
       await supabase.from("notifications").insert({
         user_id: student.user_id,
         title: "New Lesson Booked!",
         message: `${student.name} has booked the available slot on ${format(parseISO(slot.start_time), "PPP p")}.`,
         type: "booking_claimed"
       });
-
-      // 2. Send Email Notification
-      const { data: instructorPref } = await supabase
-        .from("profiles")
-        .select("email, email_notifications_enabled")
-        .eq("id", student.user_id)
-        .single();
-
-      if (instructorPref?.email_notifications_enabled && instructorPref?.email) {
-        await sendBookingNotificationEmail({
-          to: instructorPref.email,
-          studentName: student.name,
-          startTime: parseISO(slot.start_time),
-          endTime: parseISO(slot.end_time)
-        });
-      }
 
       showSuccess("Lesson booked successfully!");
       fetchData(true);
@@ -211,7 +195,7 @@ const StudentDashboard: React.FC = () => {
   };
 
   const upcomingLesson = useMemo(() => {
-    return bookings.find(b => isAfter(parseISO(b.start_time), new Date()) && b.status === 'scheduled');
+    return bookings.find(b => b.status === 'scheduled' && isAfter(parseISO(b.start_time), new Date()));
   }, [bookings]);
 
   if (isSessionLoading || isLoading) {
