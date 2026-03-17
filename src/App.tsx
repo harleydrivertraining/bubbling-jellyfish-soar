@@ -16,7 +16,7 @@ import Progress from "./pages/Progress";
 import StudentProgressDetail from "./pages/StudentProgressDetail";
 import StudentProgressReport from "./pages/StudentProgressReport";
 import StudentSelfAssessments from "./pages/StudentSelfAssessments";
-import StudentCalendar from "./pages/StudentCalendar"; // New import
+import StudentCalendar from "./pages/StudentCalendar";
 import DrivingTests from "./pages/DrivingTests";
 import DrivingTestBookings from "./pages/DrivingTestBookings";
 import PrePaidHours from "./pages/PrePaidHours";
@@ -31,9 +31,56 @@ import Accounts from "./pages/Accounts";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import { SessionContextProvider } from "./components/auth/SessionContextProvider";
+import { SessionContextProvider, useSession } from "./components/auth/SessionContextProvider";
+import { useEffect } from "react";
+import { initializePushNotifications } from "./utils/push-notifications";
 
 const queryClient = new QueryClient();
+
+// Wrapper component to handle push initialization after session is ready
+const AppContent = () => {
+  const { user } = useSession();
+
+  useEffect(() => {
+    if (user) {
+      initializePushNotifications(user.id);
+    }
+  }, [user]);
+
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="students" element={<Students />} />
+        <Route path="students/:studentId" element={<StudentProfile />} />
+        <Route path="schedule" element={<Schedule />} />
+        <Route path="lessons" element={<Lessons />} />
+        <Route path="lesson-notes" element={<LessonNotes />} />
+        <Route path="student-targets" element={<StudentTargets />} />
+        <Route path="progress" element={<Progress />} />
+        <Route path="progress/:studentId" element={<StudentProgressDetail />} />
+        <Route path="progress-report" element={<StudentProgressReport />} />
+        <Route path="pupil-self-assessments" element={<StudentSelfAssessments />} />
+        <Route path="available-slots" element={<StudentCalendar />} />
+        <Route path="driving-test-bookings" element={<DrivingTestBookings />} />
+        <Route path="driving-tests" element={<DrivingTests />} />
+        <Route path="test-statistics" element={<TestStatistics />} />
+        <Route path="pre-paid-hours" element={<PrePaidHours />} />
+        <Route path="pre-paid-hours/:packageId" element={<PrePaidHoursDetails />} />
+        <Route path="manage-topics" element={<ManageTopics />} />
+        <Route path="admin/topics" element={<AdminProgressTopics />} />
+        <Route path="mileage-tracker" element={<MileageTracker />} />
+        <Route path="accounts" element={<Accounts />} />
+        <Route path="support" element={<Support />} />
+        <Route path="admin/support" element={<AdminSupport />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -42,37 +89,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <SessionContextProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="students" element={<Students />} />
-              <Route path="students/:studentId" element={<StudentProfile />} />
-              <Route path="schedule" element={<Schedule />} />
-              <Route path="lessons" element={<Lessons />} />
-              <Route path="lesson-notes" element={<LessonNotes />} />
-              <Route path="student-targets" element={<StudentTargets />} />
-              <Route path="progress" element={<Progress />} />
-              <Route path="progress/:studentId" element={<StudentProgressDetail />} />
-              <Route path="progress-report" element={<StudentProgressReport />} />
-              <Route path="pupil-self-assessments" element={<StudentSelfAssessments />} />
-              <Route path="available-slots" element={<StudentCalendar />} /> {/* New route */}
-              <Route path="driving-test-bookings" element={<DrivingTestBookings />} />
-              <Route path="driving-tests" element={<DrivingTests />} />
-              <Route path="test-statistics" element={<TestStatistics />} />
-              <Route path="pre-paid-hours" element={<PrePaidHours />} />
-              <Route path="pre-paid-hours/:packageId" element={<PrePaidHoursDetails />} />
-              <Route path="manage-topics" element={<ManageTopics />} />
-              <Route path="admin/topics" element={<AdminProgressTopics />} />
-              <Route path="mileage-tracker" element={<MileageTracker />} />
-              <Route path="accounts" element={<Accounts />} />
-              <Route path="support" element={<Support />} />
-              <Route path="admin/support" element={<AdminSupport />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
+          <AppContent />
         </SessionContextProvider>
       </BrowserRouter>
     </TooltipProvider>
