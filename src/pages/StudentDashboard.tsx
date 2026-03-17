@@ -23,7 +23,8 @@ import {
   Star,
   Sparkles,
   Plus,
-  RefreshCw
+  RefreshCw,
+  ClipboardCheck
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +91,7 @@ const StudentDashboard: React.FC = () => {
       // 2. Get Instructor Info
       const { data: instructorData } = await supabase
         .from("profiles")
-        .select("first_name, last_name, logo_url, min_booking_notice_hours")
+        .select("first_name, last_name, logo_url, min_booking_notice_hours, require_booking_approval")
         .eq("id", studentData.user_id)
         .single();
       setInstructor(instructorData);
@@ -160,16 +161,22 @@ const StudentDashboard: React.FC = () => {
   }, [isSessionLoading, fetchData]);
 
   const handleBookSlot = async (slot: Booking) => {
-    if (!student) return;
+    if (!student || !instructor) return;
     
     setIsBooking(slot.id);
     try {
+      const requireApproval = instructor.require_booking_approval ?? false;
+      const newStatus = requireApproval ? "pending_approval" : "scheduled";
+      const displayTitle = requireApproval 
+        ? `${student.name} - Pending Approval` 
+        : `${student.name} - Driving lesson`;
+
       const { error } = await supabase
         .from("bookings")
         .update({
           student_id: student.id,
-          status: "scheduled",
-          title: `${student.name} - Driving lesson`,
+          status: newStatus,
+          title: displayTitle,
           lesson_type: "Driving lesson"
         })
         .eq("id", slot.id);
@@ -177,15 +184,14 @@ const StudentDashboard: React.FC = () => {
       if (error) throw error;
 
       // Create in-app notification
-      // The email notification is now handled automatically by the database trigger
       await supabase.from("notifications").insert({
         user_id: student.user_id,
-        title: "New Lesson Booked!",
-        message: `${student.name} has booked the available slot on ${format(parseISO(slot.start_time), "PPP p")}.`,
+        title: requireApproval ? "New Booking Request!" : "New Lesson Booked!",
+        message: `${student.name} has ${requireApproval ? 'requested' : 'booked'} the available slot on ${format(parseISO(slot.start_time), "PPP p")}.`,
         type: "booking_claimed"
       });
 
-      showSuccess("Lesson booked successfully!");
+      showSuccess(requireApproval ? "Request sent! Waiting for instructor approval." : "Lesson booked successfully!");
       fetchData(true);
     } catch (error: any) {
       showError("Failed to book lesson: " + error.message);
@@ -346,11 +352,11 @@ const StudentDashboard: React.FC = () => {
                       </div>
                       <Button 
                         size="sm" 
-                        className="font-bold bg-blue-600 hover:bg-blue-700"
+                        className={cn("font-bold", instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700")}
                         onClick={() => handleBookSlot(slot)}
                         disabled={isBooking === slot.id}
                       >
-                        {isBooking === slot.id ? "Booking..." : <><Plus className="mr-1 h-4 w-4" /> Book</>}
+                        {isBooking === slot.id ? "Booking..." : instructor?.require_booking_approval ? <><ClipboardCheck className="mr-1 h-4 w-4" /> Request</> : <><Plus className="mr-1 h-4 w-4" /> Book</>}
                       </Button>
                     </div>
                   );
