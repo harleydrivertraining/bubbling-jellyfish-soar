@@ -22,7 +22,8 @@ import {
   ArrowRight,
   Star,
   Sparkles,
-  Plus
+  Plus,
+  RefreshCw
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ const StudentDashboard: React.FC = () => {
   const [totalCredit, setTotalCredit] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isBooking, setIsBooking] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -69,9 +71,10 @@ const StudentDashboard: React.FC = () => {
     }
   };
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!user) return;
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
 
     try {
       // 1. Get Student Record
@@ -101,13 +104,17 @@ const StudentDashboard: React.FC = () => {
       setBookings(bookingsData || []);
 
       // 4. Get Available Slots from this instructor
-      const { data: availabilityData } = await supabase
+      // We use a slightly older start time to catch slots that might have just started
+      const bufferTime = new Date(Date.now() - 5 * 60000).toISOString();
+      const { data: availabilityData, error: availError } = await supabase
         .from("bookings")
         .select("*")
         .eq("user_id", studentData.user_id)
         .eq("status", "available")
-        .gte("start_time", new Date().toISOString())
+        .gte("start_time", bufferTime)
         .order("start_time", { ascending: true });
+      
+      if (availError) console.error("Error fetching availability:", availError);
       setAvailableSlots(availabilityData || []);
 
       // 5. Get Pre-paid Hours
@@ -143,6 +150,7 @@ const StudentDashboard: React.FC = () => {
       showError("Failed to load your dashboard.");
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [user]);
 
@@ -168,7 +176,7 @@ const StudentDashboard: React.FC = () => {
       if (error) throw error;
 
       showSuccess("Lesson booked successfully!");
-      fetchData();
+      fetchData(true);
     } catch (error: any) {
       showError("Failed to book lesson: " + error.message);
     } finally {
@@ -192,6 +200,10 @@ const StudentDashboard: React.FC = () => {
           <p className="text-muted-foreground font-medium">Track your driving journey with {instructor?.first_name} {instructor?.last_name}.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => fetchData(true)} disabled={isRefreshing} className="font-bold">
+            <RefreshCw className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")} />
+            Refresh
+          </Button>
           {instructor?.logo_url && (
             <img src={instructor.logo_url} alt="Instructor Logo" className="h-12 w-auto object-contain" />
           )}
