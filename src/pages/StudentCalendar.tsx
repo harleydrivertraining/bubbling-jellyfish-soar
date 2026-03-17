@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { addHours, isBefore } from "date-fns";
+import { sendBookingNotificationEmail } from "@/utils/email";
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({
@@ -149,16 +150,21 @@ const StudentCalendar: React.FC = () => {
         type: "booking_claimed"
       });
 
-      // 2. Trigger Email Notification via Edge Function
-      // This function will check if the instructor has email notifications enabled
-      await supabase.functions.invoke('send-booking-email', {
-        body: { 
-          bookingId: selectedSlot.id,
+      // 2. Send Email Notification
+      const { data: instructor } = await supabase
+        .from("profiles")
+        .select("email, email_notifications_enabled")
+        .eq("id", studentData.user_id)
+        .single();
+
+      if (instructor?.email_notifications_enabled && instructor?.email) {
+        await sendBookingNotificationEmail({
+          to: instructor.email,
           studentName: studentData.name,
-          startTime: selectedSlot.start,
-          instructorId: studentData.user_id
-        }
-      });
+          startTime: selectedSlot.start!,
+          endTime: selectedSlot.end!
+        });
+      }
 
       showSuccess("Lesson booked successfully!");
       setSelectedSlot(null);

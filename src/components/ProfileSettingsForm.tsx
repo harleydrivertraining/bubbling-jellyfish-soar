@@ -33,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
+  email: z.string().email({ message: "Please enter a valid email address." }).optional().nullable().or(z.literal("")),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
@@ -52,13 +53,13 @@ const formSchema = z.object({
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [isGeneratingPin, setIsGeneratingPin] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
+      email: "",
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
@@ -87,6 +88,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
+          email: data.email || user.email || "",
           hourly_rate: data.hourly_rate,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
@@ -117,6 +119,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       .update({
         first_name: values.first_name,
         last_name: values.last_name,
+        email: values.email,
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
@@ -230,9 +233,27 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           />
         </div>
 
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notification Email</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="your@email.com" className="pl-10" {...field} value={field.value || ""} />
+                </div>
+              </FormControl>
+              <FormDescription>Where you will receive booking alerts.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
           <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
-            <Mail className="h-4 w-4" /> Email Notifications
+            <BellRing className="h-4 w-4" /> Email Notifications
           </h3>
           <FormField
             control={form.control}
