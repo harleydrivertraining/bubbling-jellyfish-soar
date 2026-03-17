@@ -40,7 +40,8 @@ import {
   Hand,
   KeyRound,
   UserCheck,
-  UserCircle
+  UserCircle,
+  Lock
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -100,6 +101,7 @@ interface ProgressEntry {
   topic_name: string;
   rating: number;
   comment: string | null;
+  private_notes: string | null;
   entry_date: string;
   user_id: string;
 }
@@ -164,7 +166,6 @@ const StudentProfile: React.FC = () => {
       
       const paidViaCreditIds = new Set(transactionsRes.data?.map(t => t.booking_id) || []);
       
-      // Calculate coverage for upcoming lessons
       let runningCredit = totalHours;
       const now = new Date();
       
@@ -197,12 +198,10 @@ const StudentProfile: React.FC = () => {
       
       setBookings(formattedBookings);
 
-      // Process topics
       const hiddenIds = new Set((hiddenRes.data || []).map(h => h.topic_id));
       const visibleTopics = (topicsRes.data || []).filter(t => !hiddenIds.has(t.id));
       setTopics(visibleTopics);
 
-      // Process progress entries (Instructor vs Self)
       const latestInstructorProgress: Record<string, ProgressEntry> = {};
       const studentSelfAssessments: ProgressEntry[] = [];
 
@@ -212,17 +211,16 @@ const StudentProfile: React.FC = () => {
           topic_name: (entry.progress_topics as any)?.name || "Unknown Topic",
           rating: entry.rating,
           comment: entry.comment,
+          private_notes: entry.private_notes,
           entry_date: entry.entry_date,
           user_id: entry.user_id
         };
 
-        // If user_id matches instructor, it's instructor progress
         if (entry.user_id === user.id) {
           if (!latestInstructorProgress[entry.topic_id]) {
             latestInstructorProgress[entry.topic_id] = formattedEntry;
           }
         } else if (studentData.auth_user_id && entry.user_id === studentData.auth_user_id) {
-          // If user_id matches student's auth ID, it's a self assessment
           studentSelfAssessments.push(formattedEntry);
         }
       });
@@ -322,12 +320,13 @@ const StudentProfile: React.FC = () => {
     }
   };
 
-  const saveProgressEntry = async (topicId: string, ratingOverride?: number, commentOverride?: string) => {
+  const saveProgressEntry = async (topicId: string, ratingOverride?: number) => {
     if (!user || !studentId) return;
     
-    const currentEntry = progressEntries[topicId] || { topic_id: topicId, rating: 0, comment: "", user_id: user.id, topic_name: "", entry_date: "" };
+    const currentEntry = progressEntries[topicId] || { topic_id: topicId, rating: 0, comment: "", private_notes: "", user_id: user.id, topic_name: "", entry_date: "" };
     const rating = ratingOverride !== undefined ? ratingOverride : currentEntry.rating;
-    const comment = commentOverride !== undefined ? commentOverride : currentEntry.comment;
+    const comment = currentEntry.comment;
+    const private_notes = currentEntry.private_notes;
 
     if (rating === 0) {
       showError("Please select a star rating.");
@@ -343,6 +342,7 @@ const StudentProfile: React.FC = () => {
         topic_id: topicId,
         rating: rating,
         comment: comment,
+        private_notes: private_notes,
         entry_date: new Date().toISOString()
       });
 
@@ -356,6 +356,7 @@ const StudentProfile: React.FC = () => {
           topic_name: topics.find(t => t.id === topicId)?.name || "Unknown",
           rating, 
           comment,
+          private_notes,
           entry_date: new Date().toISOString(),
           user_id: user.id
         }
@@ -369,7 +370,6 @@ const StudentProfile: React.FC = () => {
         setExpandedTopicId(null);
       }
 
-      // Check for status progression
       updateStudentStatus(updatedEntries);
     }
     setSavingTopicId(null);
@@ -379,12 +379,12 @@ const StudentProfile: React.FC = () => {
     saveProgressEntry(topicId, newRating);
   };
 
-  const handleCommentChange = (topicId: string, value: string) => {
+  const handleFieldChange = (topicId: string, field: 'comment' | 'private_notes', value: string) => {
     setProgressEntries(prev => ({
       ...prev,
       [topicId]: {
-        ...(prev[topicId] || { topic_id: topicId, topic_name: "", rating: 0, comment: "", entry_date: "", user_id: user?.id || "" }),
-        comment: value
+        ...(prev[topicId] || { topic_id: topicId, topic_name: "", rating: 0, comment: "", private_notes: "", entry_date: "", user_id: user?.id || "" }),
+        [field]: value
       }
     }));
   };
@@ -822,7 +822,7 @@ const StudentProfile: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {topics.map(topic => {
-                const entry = progressEntries[topic.id] || { rating: 0, comment: "", user_id: user?.id || "", topic_id: topic.id, topic_name: topic.name, entry_date: "" };
+                const entry = progressEntries[topic.id] || { rating: 0, comment: "", private_notes: "", user_id: user?.id || "", topic_id: topic.id, topic_name: topic.name, entry_date: "" };
                 const isSaving = savingTopicId === topic.id;
                 const isExpanded = expandedTopicId === topic.id;
 
@@ -854,10 +854,19 @@ const StudentProfile: React.FC = () => {
                       </div>
 
                       <div className="flex items-center justify-between sm:justify-end gap-2 mt-auto sm:mt-0">
-                        {entry.comment && !isExpanded && (
-                          <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground text-[10px] px-1.5 py-0">
-                            <MessageSquare className="h-3 w-3" />
-                          </Badge>
+                        {(entry.comment || entry.private_notes) && !isExpanded && (
+                          <div className="flex gap-1">
+                            {entry.comment && (
+                              <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground text-[10px] px-1.5 py-0">
+                                <MessageSquare className="h-3 w-3" />
+                              </Badge>
+                            )}
+                            {entry.private_notes && (
+                              <Badge variant="outline" className="flex items-center gap-1 text-blue-600 border-blue-200 bg-blue-50 text-[10px] px-1.5 py-0">
+                                <Lock className="h-3 w-3" />
+                              </Badge>
+                            )}
+                          </div>
                         )}
                         <Button 
                           variant="ghost" 
@@ -872,16 +881,31 @@ const StudentProfile: React.FC = () => {
 
                     {isExpanded && (
                       <CardContent className="pt-0 pb-4 px-4 animate-in slide-in-from-top-2 duration-200">
-                        <div className="space-y-3 pt-2 border-t">
-                          <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center">
-                            <MessageSquare className="mr-1 h-3 w-3" /> Instructor Notes
-                          </Label>
-                          <Textarea 
-                            placeholder="Add specific feedback or targets for this topic..." 
-                            value={entry.comment || ""} 
-                            onChange={(e) => handleCommentChange(topic.id, e.target.value)} 
-                            className="min-h-[100px] bg-muted/30" 
-                          />
+                        <div className="space-y-4 pt-2 border-t">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center">
+                              <MessageSquare className="mr-1 h-3 w-3" /> Notes for Pupil (Public)
+                            </Label>
+                            <Textarea 
+                              placeholder="Feedback the student can see..." 
+                              value={entry.comment || ""} 
+                              onChange={(e) => handleFieldChange(topic.id, 'comment', e.target.value)} 
+                              className="min-h-[80px] bg-muted/30" 
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-blue-600 flex items-center">
+                              <Lock className="mr-1 h-3 w-3" /> Instructor Notes (Private)
+                            </Label>
+                            <Textarea 
+                              placeholder="Private notes for your eyes only..." 
+                              value={entry.private_notes || ""} 
+                              onChange={(e) => handleFieldChange(topic.id, 'private_notes', e.target.value)} 
+                              className="min-h-[80px] bg-blue-50/30 border-blue-100" 
+                            />
+                          </div>
+
                           <div className="flex justify-end">
                             <Button 
                               onClick={() => saveProgressEntry(topic.id)} 
@@ -889,7 +913,7 @@ const StudentProfile: React.FC = () => {
                               size="sm"
                               className="font-bold"
                             >
-                              {isSaving ? "Saving..." : <><Save className="mr-2 h-4 w-4" /> Save Notes</>}
+                              {isSaving ? "Saving..." : <><Save className="mr-2 h-4 w-4" /> Save All Notes</>}
                             </Button>
                           </div>
                         </div>

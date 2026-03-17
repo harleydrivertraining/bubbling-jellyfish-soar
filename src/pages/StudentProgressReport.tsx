@@ -55,7 +55,6 @@ const StudentProgressReport: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. Get Student Record
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("*")
@@ -65,7 +64,6 @@ const StudentProgressReport: React.FC = () => {
       if (studentError) throw studentError;
       setStudent(studentData);
 
-      // 2. Get Topics (Visible to this instructor)
       const [topicsRes, hiddenRes] = await Promise.all([
         supabase.from("progress_topics").select("id, name, is_default").or(`user_id.eq.${studentData.user_id},is_default.eq.true`),
         supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", studentData.user_id)
@@ -75,7 +73,7 @@ const StudentProgressReport: React.FC = () => {
       const visibleTopics = (topicsRes.data || []).filter(t => !hiddenIds.has(t.id));
       setTopics(visibleTopics);
 
-      // 3. Get All Progress Entries (Instructor vs Self)
+      // Note: We explicitly do NOT select private_notes here for security
       const { data: entriesData } = await supabase
         .from("student_progress_entries")
         .select("topic_id, rating, comment, user_id")
@@ -86,7 +84,6 @@ const StudentProgressReport: React.FC = () => {
       const sEntries: Record<string, ProgressEntry> = {};
 
       entriesData?.forEach(entry => {
-        // If user_id matches student's auth_user_id, it's a self-assessment
         if (entry.user_id === user.id) {
           if (!sEntries[entry.topic_id]) {
             sEntries[entry.topic_id] = {
@@ -96,7 +93,6 @@ const StudentProgressReport: React.FC = () => {
             };
           }
         } else {
-          // Otherwise it's from the instructor
           if (!instEntries[entry.topic_id]) {
             instEntries[entry.topic_id] = {
               topic_id: entry.topic_id,
@@ -138,7 +134,7 @@ const StudentProgressReport: React.FC = () => {
     const { error } = await supabase
       .from("student_progress_entries")
       .insert({
-        user_id: user.id, // Student's own ID
+        user_id: user.id,
         student_id: student.id,
         topic_id: topicId,
         rating: rating,
