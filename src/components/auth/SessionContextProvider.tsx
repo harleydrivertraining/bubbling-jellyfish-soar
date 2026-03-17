@@ -1,24 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { startOfMonth, endOfMonth, addMonths } from "date-fns";
-
-interface Booking {
-  id: string;
-  title: string;
-  description?: string;
-  start_time: string;
-  end_time: string;
-  status: "scheduled" | "completed" | "cancelled";
-  lesson_type: string;
-  student_id: string;
-  students: {
-    name: string;
-  };
-}
 
 interface Profile {
   id: string;
@@ -33,8 +18,6 @@ interface SessionContextType {
   user: User | null;
   profile: Profile | null;
   isLoading: boolean;
-  initialBookings: Booking[] | null;
-  isLoadingInitialBookings: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -44,122 +27,91 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null);
-  const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const isInitialMount = useRef(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    
-    if (!error) setProfile(data);
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error("Error fetching profile:", error);
+        return null;
+      }
+      setProfile(data);
+      return data;
+    } catch (e) {
+      console.error("Profile fetch exception:", e);
+      return null;
+    }
   }, []);
 
-  const fetchInitialBookings = useCallback(async (userId: string, role: string) => {
-    if (isLoadingInitialBookings) return;
-    setIsLoadingInitialBookings(true);
-    const now = new Date();
-    const threeMonthsAgo = startOfMonth(addMonths(now, -3));
-    const threeMonthsFromNow = endOfMonth(addMonths(now, 3));
-
-    let query = supabase
-      .from("bookings")
-      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, students(name)")
-      .gte("start_time", threeMonthsAgo.toISOString())
-      .lte("end_time", threeMonthsFromNow.toISOString());
-
-    if (role === 'student') {
-      // For students, we need to find their student record ID first
-      const { data: studentRec } = await supabase.from("students").select("id").eq("auth_user_id", userId).single();
-      if (studentRec) {
-        query = query.eq("student_id", studentRec.id);
-      } else {
-        setInitialBookings([]);
-        setIsLoadingInitialBookings(false);
-        return;
-      }
-    } else {
-      query = query.eq("user_id", userId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error fetching initial bookings:", error);
-      setInitialBookings([]);
-    } else {
-      setInitialBookings(data || []);
-    }
-    setIsLoadingInitialBookings(false);
-  }, [isLoadingInitialBookings]);
-
   useEffect(() => {
-    const getInitialSession = async () => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        const publicRoutes = ["/login", "/signup"];
-        const isPublicRoute = publicRoutes.includes(location.pathname);
+        
+        if (!mounted) return;
 
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          const prof = await fetchProfile(initialSession.user.id);
-          if (prof) {
-            fetchInitialBookings(initialSession.user.id, prof.role);
-          }
-          if (isPublicRoute) {
+          await fetchProfile(initialSession.user.id);
+          
+          // Redirect away from login if already authenticated
+          if (location.pathname === "/login" || location.pathname === "/signup") {
             navigate("/", { replace: true });
           }
         } else {
-          if (!isPublicRoute) {
+          // Redirect to login if not authenticated and not on a public route
+          if (location.pathname !== "/login" && location.pathname !== "/signup") {
             navigate("/login", { replace: true });
           }
         }
       } catch (error) {
-        console.error("Error getting initial session:", error);
+        console.error("Auth initialization error:", error);
       } finally {
-        setIsLoading(false);
+        if (mounted) setIsLoading(false);
       }
     };
 
-    if (isInitialMount.current) {
-      getInitialSession();
-      isInitialMount.current = false;
-    }
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      const publicRoutes = ["/login", "/signup"];
-      const isPublicRoute = publicRoutes.includes(location.pathname);
+      if (!mounted) return;
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         if (currentSession?.user) {
-          const prof = await fetchProfile(currentSession.user.id);
-          if (prof) fetchInitialBookings(currentSession.user.id, prof.role);
+          await fetchProfile(currentSession.user.id);
         }
-        if (isPublicRoute) {
+        if (location.pathname === "/login" || location.pathname === "/signup") {
           navigate("/", { replace: true });
         }
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
         setProfile(null);
-        setInitialBookings(null);
-        if (!isPublicRoute) {
+        if (location.pathname !== "/login" && location.pathname !== "/signup") {
           navigate("/login", { replace: true });
         }
       }
+      
+      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, [navigate, location.pathname, fetchProfile, fetchInitialBookings]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [navigate, location.pathname, fetchProfile]);
 
   if (isLoading) {
     return (
@@ -171,7 +123,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }
 
   return (
-    <SessionContext.Provider value={{ session, user, profile, isLoading, initialBookings, isLoadingInitialBookings }}>
+    <SessionContext.Provider value={{ session, user, profile, isLoading }}>
       {children}
     </SessionContext.Provider>
   );
