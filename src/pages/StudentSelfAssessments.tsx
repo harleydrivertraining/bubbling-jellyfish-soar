@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
 import { 
@@ -15,7 +15,8 @@ import {
   Filter,
   Calendar,
   ArrowRight,
-  User
+  User,
+  RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,13 +38,9 @@ interface SelfAssessment {
   rating: number;
   comment: string | null;
   entry_date: string;
-  user_id: string; // Creator ID
-  students: {
-    name: string;
-  };
-  progress_topics: {
-    name: string;
-  };
+  user_id: string;
+  student_name: string;
+  topic_name: string;
 }
 
 const StudentSelfAssessments: React.FC = () => {
@@ -73,32 +70,39 @@ const StudentSelfAssessments: React.FC = () => {
       }
 
       const studentIds = myStudents.map(s => s.id);
+      const studentMap = new Map(myStudents.map(s => [s.id, s.name]));
 
-      // 2. Fetch all progress entries for these students
+      // 2. Get all topics (to map names)
+      const { data: topics, error: topicsError } = await supabase
+        .from("progress_topics")
+        .select("id, name")
+        .or(`user_id.eq.${user.id},is_default.eq.true`);
+      
+      if (topicsError) throw topicsError;
+      const topicMap = new Map(topics?.map(t => [t.id, t.name]));
+
+      // 3. Fetch all progress entries for these students
       // We filter for entries where user_id (creator) is NOT the instructor's ID
       const { data: entries, error: entriesError } = await supabase
         .from("student_progress_entries")
-        .select(`
-          id,
-          student_id,
-          topic_id,
-          rating,
-          comment,
-          entry_date,
-          user_id,
-          students(name),
-          progress_topics(name)
-        `)
+        .select("*")
         .in("student_id", studentIds)
         .neq("user_id", user.id) // Exclude entries made by the instructor
         .order("entry_date", { ascending: false });
 
       if (entriesError) throw entriesError;
       
-      setAssessments(entries as any || []);
+      // 4. Manually map the names to ensure they appear
+      const formatted: SelfAssessment[] = (entries || []).map(entry => ({
+        ...entry,
+        student_name: studentMap.get(entry.student_id) || "Unknown Student",
+        topic_name: topicMap.get(entry.topic_id) || "Unknown Topic"
+      }));
+
+      setAssessments(formatted);
     } catch (error: any) {
       console.error("Error fetching self-assessments:", error);
-      showError("Failed to load pupil self-assessments. Please ensure your students have recorded their own ratings.");
+      showError("Failed to load pupil self-assessments.");
     } finally {
       setIsLoading(false);
     }
@@ -112,7 +116,7 @@ const StudentSelfAssessments: React.FC = () => {
     const map = new Map();
     assessments.forEach(a => {
       if (!map.has(a.student_id)) {
-        map.set(a.student_id, a.students?.name || "Unknown Student");
+        map.set(a.student_id, a.student_name);
       }
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
@@ -120,14 +124,10 @@ const StudentSelfAssessments: React.FC = () => {
 
   const filteredAssessments = useMemo(() => {
     return assessments.filter(a => {
-      const studentName = a.students?.name || "";
-      const topicName = a.progress_topics?.name || "";
-      const comment = a.comment || "";
-
       const matchesSearch = 
-        studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        topicName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        comment.toLowerCase().includes(searchTerm.toLowerCase());
+        a.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        a.topic_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (a.comment && a.comment.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesStudent = selectedStudentId === "all" || a.student_id === selectedStudentId;
       
@@ -157,6 +157,9 @@ const StudentSelfAssessments: React.FC = () => {
           <h1 className="text-3xl font-black tracking-tight">Pupil Self-Assessments</h1>
           <p className="text-muted-foreground font-medium">See how your students rate their own progress.</p>
         </div>
+        <Button variant="outline" size="sm" onClick={fetchAssessments} className="font-bold">
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh Feed
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 bg-muted/30 p-4 rounded-xl border">
@@ -207,10 +210,10 @@ const StudentSelfAssessments: React.FC = () => {
                   <div className="min-w-0">
                     <CardTitle className="text-lg font-bold truncate flex items-center gap-2">
                       <User className="h-4 w-4 text-primary/60" />
-                      {assessment.students?.name || "Unknown Student"}
+                      {assessment.student_name}
                     </CardTitle>
                     <CardDescription className="font-bold text-primary mt-0.5">
-                      {assessment.progress_topics?.name || "Unknown Topic"}
+                      {assessment.topic_name}
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="bg-primary/5 text-[10px] font-bold uppercase">
