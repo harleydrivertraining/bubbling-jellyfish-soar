@@ -203,7 +203,7 @@ const StudentCalendar: React.FC = () => {
         <Sparkles className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-800">
           <p className="font-bold">How to book:</p>
-          <p>Click on any <span className="font-bold text-blue-600">dashed blue slot</span> to book an extra lesson. Your instructor requires <span className="font-bold">{minNoticeHours} hours</span> notice for new bookings.</p>
+          <p>Click on any <span className="font-bold text-blue-600">available slot</span> to book a lesson. Your instructor requires <span className="font-bold">{minNoticeHours} hours</span> notice for new bookings.</p>
         </div>
       </div>
 
