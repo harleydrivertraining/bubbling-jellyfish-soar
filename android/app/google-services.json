@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "44561273914",
+    "project_id": "instructor-app-6e657",
+    "storage_bucket": "instructor-app-6e657.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:44561273914:android:183d9e5a440b0ed3445103",
+        "android_client_info": {
+          "package_name": "com.hdt.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCL_9oj7nyboFlegvN8VPI8FNvlagxkRek"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
