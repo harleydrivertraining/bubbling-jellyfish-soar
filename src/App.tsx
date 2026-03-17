@@ -14,7 +14,8 @@ import LessonNotes from "./pages/LessonNotes";
 import StudentTargets from "./pages/StudentTargets";
 import Progress from "./pages/Progress";
 import StudentProgressDetail from "./pages/StudentProgressDetail";
-import StudentProgressReport from "./pages/StudentProgressReport"; // New import
+import StudentProgressReport from "./pages/StudentProgressReport";
+import StudentSelfAssessments from "./pages/StudentSelfAssessments"; // New import
 import DrivingTests from "./pages/DrivingTests";
 import DrivingTestBookings from "./pages/DrivingTestBookings";
 import PrePaidHours from "./pages/PrePaidHours";
@@ -53,7 +54,8 @@ const App = () => (
               <Route path="student-targets" element={<StudentTargets />} />
               <Route path="progress" element={<Progress />} />
               <Route path="progress/:studentId" element={<StudentProgressDetail />} />
-              <Route path="progress-report" element={<StudentProgressReport />} /> {/* New route */}
+              <Route path="progress-report" element={<StudentProgressReport />} />
+              <Route path="pupil-self-assessments" element={<StudentSelfAssessments />} /> {/* New route */}
               <Route path="driving-test-bookings" element={<DrivingTestBookings />} />
               <Route path="driving-tests" element={<DrivingTests />} />
               <Route path="test-statistics" element={<TestStatistics />} />

@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   PoundSterling,
   LogOut,
+  UserCircle
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -80,6 +81,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
   { id: "student-targets", to: "/student-targets", icon: Target, label: "Student Targets" },
   { id: "progress", to: "/progress", icon: TrendingUp, label: "Progress" },
+  { id: "self-assessments", to: "/pupil-self-assessments", icon: UserCircle, label: "Pupil Self-Assessments" },
   { id: "test-bookings", to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
   { id: "test-records", to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
   { id: "test-stats", to: "/test-statistics", icon: BarChart3, label: "Test Statistics" },
