@@ -17,10 +17,12 @@ import {
   CheckCircle2, 
   User,
   MessageSquare,
-  Target
+  Target,
+  LogOut
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface StudentData {
@@ -48,6 +50,10 @@ const StudentDashboard: React.FC = () => {
   const [progressPercentage, setProgressPercentage] = useState(0);
   const [totalCredit, setTotalCredit] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -131,13 +137,18 @@ const StudentDashboard: React.FC = () => {
   return (
     <div className="space-y-8 w-full px-4 lg:px-8 py-6 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-black tracking-tight">Hello, {student?.name.split(' ')[0]}!</h1>
           <p className="text-muted-foreground font-medium">Track your driving journey with {instructor?.first_name} {instructor?.last_name}.</p>
         </div>
-        {instructor?.logo_url && (
-          <img src={instructor.logo_url} alt="Instructor Logo" className="h-12 w-auto object-contain" />
-        )}
+        <div className="flex items-center gap-3">
+          {instructor?.logo_url && (
+            <img src={instructor.logo_url} alt="Instructor Logo" className="h-12 w-auto object-contain" />
+          )}
+          <Button variant="outline" size="sm" className="text-destructive border-destructive/20 hover:bg-destructive/5 font-bold" onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" /> Logout
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

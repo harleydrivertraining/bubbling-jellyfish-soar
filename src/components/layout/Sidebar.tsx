@@ -28,6 +28,7 @@ import {
   LifeBuoy,
   ShieldCheck,
   PoundSterling,
+  LogOut,
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -113,6 +114,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
   const { user } = useSession();
   const [isOwner, setIsOwner] = useState(false);
   const [navItems, setNavItems] = useState(DEFAULT_NAV_ITEMS);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
 
   const loadConfig = useCallback(() => {
     const saved = localStorage.getItem("sidebar_menu_config");
@@ -203,6 +208,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
           )}
         </nav>
       </ScrollArea>
+      
+      <Separator className="bg-sidebar-border" />
+      <div className="p-2">
+        <Button
+          variant="ghost"
+          className={cn(
+            "h-10 w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10",
+            isCollapsed ? "w-10 p-0 justify-center" : "px-4"
+          )}
+          onClick={handleLogout}
+        >
+          <LogOut className={cn("h-5 w-5", isCollapsed ? "" : "mr-3")} />
+          {!isCollapsed && "Logout"}
+        </Button>
+      </div>
+      
       <Separator className="bg-sidebar-border" />
       <div className="p-4 text-center text-xs text-muted-foreground">
         {!isCollapsed && "© 2025 HDT App"}
