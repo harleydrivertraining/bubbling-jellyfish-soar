@@ -340,65 +340,50 @@ const Dashboard: React.FC = () => {
     switch (id) {
       case "pending_requests":
         const hasRequests = pendingRequests && pendingRequests.length > 0;
+        if (!hasRequests) return null; // Hide completely if no requests
+
         return (
-          <Card key={id} className={cn(
-            "shadow-md overflow-hidden transition-all",
-            hasRequests ? "border-l-4 border-l-orange-500 bg-orange-50/30" : "bg-card"
-          )}>
+          <Card key={id} className="shadow-md overflow-hidden transition-all border-l-4 border-l-orange-500 bg-orange-50/30">
             <CardHeader className="pb-2">
-              <CardTitle className={cn(
-                "text-lg font-bold flex items-center gap-2",
-                hasRequests ? "text-orange-800" : "text-foreground"
-              )}>
-                <ClipboardCheck className={cn("h-5 w-5", hasRequests ? "text-orange-600" : "text-muted-foreground")} />
-                Booking Requests {hasRequests && `(${pendingRequests.length})`}
+              <CardTitle className="text-lg font-bold flex items-center gap-2 text-orange-800">
+                <ClipboardCheck className="h-5 w-5 text-orange-600" />
+                Booking Requests ({pendingRequests.length})
               </CardTitle>
-              <CardDescription className={hasRequests ? "text-orange-700/70" : ""}>
-                {hasRequests 
-                  ? "Students are waiting for you to confirm these slots." 
-                  : "No pending requests at the moment."}
+              <CardDescription className="text-orange-700/70">
+                Students are waiting for you to confirm these slots.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {hasRequests ? (
-                <div className="divide-y divide-orange-100">
-                  {pendingRequests.map((req) => (
-                    <div key={req.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
-                      <div className="min-w-0">
-                        <p className="font-bold text-orange-900">{req.students?.name || "Unknown Student"}</p>
-                        <div className="flex items-center gap-3 text-xs text-orange-800/70 mt-1 font-medium">
-                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(parseISO(req.start_time), "EEE, MMM do")}</span>
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {format(parseISO(req.start_time), "p")}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button 
-                          size="sm" 
-                          className="bg-green-600 hover:bg-green-700 font-bold h-8"
-                          onClick={() => handleApprove(req.id, req.students?.name)}
-                        >
-                          <Check className="mr-1 h-4 w-4" /> Approve
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8"
-                          onClick={() => handleReject(req.id)}
-                        >
-                          <X className="mr-1 h-4 w-4" /> Reject
-                        </Button>
+              <div className="divide-y divide-orange-100">
+                {pendingRequests.map((req) => (
+                  <div key={req.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
+                    <div className="min-w-0">
+                      <p className="font-bold text-orange-900">{req.students?.name || "Unknown Student"}</p>
+                      <div className="flex items-center gap-3 text-xs text-orange-800/70 mt-1 font-medium">
+                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(parseISO(req.start_time), "EEE, MMM do")}</span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {format(parseISO(req.start_time), "p")}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 text-center flex flex-col items-center justify-center space-y-2">
-                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                    <Inbox className="h-6 w-6 text-muted-foreground/40" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button 
+                        size="sm" 
+                        className="bg-green-600 hover:bg-green-700 font-bold h-8"
+                        onClick={() => handleApprove(req.id, req.students?.name)}
+                      >
+                        <Check className="mr-1 h-4 w-4" /> Approve
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8"
+                        onClick={() => handleReject(req.id)}
+                      >
+                        <X className="mr-1 h-4 w-4" /> Reject
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground font-medium italic">Your inbox is clear!</p>
-                </div>
-              )}
+                ))}
+              </div>
             </CardContent>
           </Card>
         );
@@ -688,19 +673,26 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {widgets.filter(w => w.visible).map((widget) => (
-            <div 
-              key={widget.id} 
-              className={cn(
-                widget.id === "quick_stats" && "lg:col-span-3",
-                widget.id === "pending_requests" && "lg:col-span-3",
-                widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
-                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "pending_requests") && "lg:col-span-1"
-              )}
-            >
-              {renderWidget(widget.id)}
-            </div>
-          ))}
+          {widgets.filter(w => w.visible).map((widget) => {
+            // Dynamic check: Only show pending_requests if there are actual requests
+            if (widget.id === "pending_requests" && (!pendingRequests || pendingRequests.length === 0)) {
+              return null;
+            }
+
+            return (
+              <div 
+                key={widget.id} 
+                className={cn(
+                  widget.id === "quick_stats" && "lg:col-span-3",
+                  widget.id === "pending_requests" && "lg:col-span-3",
+                  widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
+                  (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "pending_requests") && "lg:col-span-1"
+                )}
+              >
+                {renderWidget(widget.id)}
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex justify-center pt-8 border-t">
