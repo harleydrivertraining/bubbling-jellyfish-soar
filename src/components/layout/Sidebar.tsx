@@ -29,7 +29,8 @@ import {
   ShieldCheck,
   PoundSterling,
   LogOut,
-  UserCircle
+  UserCircle,
+  Sparkles
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -136,6 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     if (userRole === 'student') {
       items = [
         { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
+        { id: "available-slots", to: "/available-slots", icon: Sparkles, label: "Available Slots" },
         { id: "progress-report", to: "/progress-report", icon: TrendingUp, label: "Progress Report" },
         { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
         { id: "settings", to: "/settings", icon: Settings, label: "Settings" },

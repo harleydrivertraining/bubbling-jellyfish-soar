@@ -15,7 +15,8 @@ import StudentTargets from "./pages/StudentTargets";
 import Progress from "./pages/Progress";
 import StudentProgressDetail from "./pages/StudentProgressDetail";
 import StudentProgressReport from "./pages/StudentProgressReport";
-import StudentSelfAssessments from "./pages/StudentSelfAssessments"; // New import
+import StudentSelfAssessments from "./pages/StudentSelfAssessments";
+import StudentCalendar from "./pages/StudentCalendar"; // New import
 import DrivingTests from "./pages/DrivingTests";
 import DrivingTestBookings from "./pages/DrivingTestBookings";
 import PrePaidHours from "./pages/PrePaidHours";
@@ -55,7 +56,8 @@ const App = () => (
               <Route path="progress" element={<Progress />} />
               <Route path="progress/:studentId" element={<StudentProgressDetail />} />
               <Route path="progress-report" element={<StudentProgressReport />} />
-              <Route path="pupil-self-assessments" element={<StudentSelfAssessments />} /> {/* New route */}
+              <Route path="pupil-self-assessments" element={<StudentSelfAssessments />} />
+              <Route path="available-slots" element={<StudentCalendar />} /> {/* New route */}
               <Route path="driving-test-bookings" element={<DrivingTestBookings />} />
               <Route path="driving-tests" element={<DrivingTests />} />
               <Route path="test-statistics" element={<TestStatistics />} />

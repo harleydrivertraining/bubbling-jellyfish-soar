@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, CalendarDays, Menu } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Menu, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./Sidebar";
@@ -56,19 +56,19 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
           <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter">Dashboard</span>
         </Link>
 
-        {/* Calendar Link - Hidden for students */}
-        {!isStudent && (
-          <Link
-            to="/schedule"
-            className={cn(
-              "flex flex-col items-center justify-center w-full h-full transition-colors",
-              location.pathname === "/schedule" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            )}
-          >
-            <CalendarDays className="h-5 w-5" />
-            <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter">Calendar</span>
-          </Link>
-        )}
+        {/* Calendar Link */}
+        <Link
+          to={isStudent ? "/available-slots" : "/schedule"}
+          className={cn(
+            "flex flex-col items-center justify-center w-full h-full transition-colors",
+            (location.pathname === "/schedule" || location.pathname === "/available-slots") ? "text-primary" : "text-muted-foreground hover:text-primary"
+          )}
+        >
+          {isStudent ? <Sparkles className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}
+          <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter">
+            {isStudent ? "Available" : "Calendar"}
+          </span>
+        </Link>
       </div>
     </div>
   );
