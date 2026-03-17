@@ -126,11 +126,11 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         to: email,
         studentName: "Test Student (Verification)",
         startTime: new Date(),
-        endTime: addMinutes(new Date(), 60)
+        endTime: new Date(new Date().getTime() + 60 * 60000)
       });
-      showSuccess("Test email sent! Please check your inbox (and spam folder).");
-    } catch (error) {
-      showError("Failed to send test email. Check your Resend API key.");
+      showSuccess("Test email request sent! Check your Resend dashboard or inbox.");
+    } catch (error: any) {
+      showError("Failed to send test email. Check your Resend API key in .env");
     } finally {
       setIsSendingTest(false);
     }
@@ -432,10 +432,5 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     </Form>
   );
 };
-
-// Helper for test email
-function addMinutes(date: Date, minutes: number) {
-  return new Date(date.getTime() + minutes * 60000);
-}
 
 export default ProfileSettingsForm;
