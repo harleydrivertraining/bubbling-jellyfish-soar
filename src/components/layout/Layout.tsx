@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import NotificationBell from "@/components/NotificationBell";
 
 const Layout = () => {
   const isMobile = useIsMobile();
@@ -54,22 +55,28 @@ const Layout = () => {
         <div className="flex flex-col flex-1">
           {/* Header - Desktop Only */}
           {isMobile === false && (
-            <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleSidebar}
-                className="h-8 w-8"
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
-                ) : (
-                  <ChevronLeft className="h-4 w-4" />
-                )}
-              </Button>
-              <h2 className="text-lg font-semibold">
-                HDT Instructor App
-              </h2>
+            <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSidebar}
+                  className="h-8 w-8"
+                >
+                  {isCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronLeft className="h-4 w-4" />
+                  )}
+                </Button>
+                <h2 className="text-lg font-semibold">
+                  HDT Instructor App
+                </h2>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+              </div>
             </header>
           )}
           

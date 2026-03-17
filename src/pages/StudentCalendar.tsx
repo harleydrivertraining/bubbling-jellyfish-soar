@@ -52,7 +52,6 @@ const StudentCalendar: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. Get Student Record
       const { data: sData, error: sError } = await supabase
         .from("students")
         .select("*")
@@ -62,7 +61,6 @@ const StudentCalendar: React.FC = () => {
       if (sError) throw sError;
       setStudentData(sData);
 
-      // 2. Get Instructor's working hours
       const { data: instructorProfile } = await supabase
         .from("profiles")
         .select("calendar_start_hour, calendar_end_hour")
@@ -76,7 +74,6 @@ const StudentCalendar: React.FC = () => {
         });
       }
 
-      // 3. Get Bookings (Own + Available)
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
         .select("*")
@@ -121,6 +118,7 @@ const StudentCalendar: React.FC = () => {
 
     setIsBooking(true);
     try {
+      // 1. Update the booking
       const { error } = await supabase
         .from("bookings")
         .update({
@@ -132,6 +130,14 @@ const StudentCalendar: React.FC = () => {
         .eq("id", selectedSlot.id);
 
       if (error) throw error;
+
+      // 2. Send notification to instructor
+      await supabase.from("notifications").insert({
+        user_id: studentData.user_id, // Instructor's ID
+        title: "New Lesson Booked!",
+        message: `${studentData.name} has booked the available slot on ${format(selectedSlot.start!, "PPP p")}.`,
+        type: "booking_claimed"
+      });
 
       showSuccess("Lesson booked successfully!");
       setSelectedSlot(null);
