@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Mail, Send, Loader2, AlertTriangle, CalendarCheck, BellRing, MessageSquare } from "lucide-react";
+import { Mail, Send, Loader2, AlertTriangle, CalendarCheck, BellRing } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -26,9 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 const formSchema = z.object({
   email: z.string().email("Invalid email address").optional().nullable().or(z.literal("")),
   email_notifications_enabled: z.boolean().default(true),
-  sms_notifications_enabled: z.boolean().default(false),
   notif_lesson_booked: z.boolean().default(true),
-  notif_lesson_booked_sms: z.boolean().default(false),
 });
 
 const NotificationSettingsForm: React.FC = () => {
@@ -41,9 +39,7 @@ const NotificationSettingsForm: React.FC = () => {
     defaultValues: {
       email: "",
       email_notifications_enabled: true,
-      sms_notifications_enabled: false,
       notif_lesson_booked: true,
-      notif_lesson_booked_sms: false,
     },
   });
 
@@ -56,7 +52,7 @@ const NotificationSettingsForm: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("email, email_notifications_enabled, sms_notifications_enabled, notif_lesson_booked, notif_lesson_booked_sms")
+        .select("email, email_notifications_enabled, notif_lesson_booked")
         .eq("id", user.id)
         .single();
 
@@ -66,9 +62,7 @@ const NotificationSettingsForm: React.FC = () => {
         form.reset({
           email: data.email || "",
           email_notifications_enabled: data.email_notifications_enabled ?? true,
-          sms_notifications_enabled: data.sms_notifications_enabled ?? false,
           notif_lesson_booked: data.notif_lesson_booked ?? true,
-          notif_lesson_booked_sms: data.notif_lesson_booked_sms ?? false,
         });
       }
     } catch (error: any) {
@@ -126,9 +120,7 @@ const NotificationSettingsForm: React.FC = () => {
       .update({
         email: values.email,
         email_notifications_enabled: values.email_notifications_enabled,
-        sms_notifications_enabled: values.sms_notifications_enabled,
         notif_lesson_booked: values.notif_lesson_booked,
-        notif_lesson_booked_sms: values.notif_lesson_booked_sms,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -221,86 +213,33 @@ const NotificationSettingsForm: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-green-600" /> SMS Configuration
-            </CardTitle>
-            <CardDescription>Enable text message alerts for your mobile device.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <FormField
-              control={form.control}
-              name="sms_notifications_enabled"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-muted/30 p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-sm font-bold">Master SMS Switch</FormLabel>
-                    <FormDescription className="text-[10px]">Enable or disable all text alerts.</FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <p className="text-[10px] text-muted-foreground italic">
-              Note: SMS notifications require a valid phone number in your <Link to="/settings" className="text-blue-500 underline">Profile Settings</Link>.
-            </p>
-          </CardContent>
-        </Card>
-
-        {(form.watch("email_notifications_enabled") || form.watch("sms_notifications_enabled")) && (
+        {form.watch("email_notifications_enabled") && (
           <Card className="animate-in fade-in slide-in-from-top-2 duration-200">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <BellRing className="h-5 w-5 text-primary" /> Alert Preferences
               </CardTitle>
-              <CardDescription>Choose which events trigger a notification.</CardDescription>
+              <CardDescription>Choose which events trigger an email.</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4">
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase text-muted-foreground">New Lesson Bookings</h4>
-                
-                {form.watch("email_notifications_enabled") && (
-                  <FormField
-                    control={form.control}
-                    name="notif_lesson_booked"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border px-4 py-3 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <Mail className="h-4 w-4 text-blue-600" />
-                          <FormLabel className="text-sm font-medium cursor-pointer">Email Alert</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+            <CardContent className="grid grid-cols-1 gap-3">
+              <FormField
+                control={form.control}
+                name="notif_lesson_booked"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <CalendarCheck className="h-5 w-5 text-blue-600" />
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-sm font-bold cursor-pointer">New Lesson Bookings</FormLabel>
+                        <p className="text-[10px] text-muted-foreground">When a student books an available slot</p>
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
                 )}
-
-                {form.watch("sms_notifications_enabled") && (
-                  <FormField
-                    control={form.control}
-                    name="notif_lesson_booked_sms"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border px-4 py-3 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <MessageSquare className="h-4 w-4 text-green-600" />
-                          <FormLabel className="text-sm font-medium cursor-pointer">SMS Alert</FormLabel>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
+              />
             </CardContent>
           </Card>
         )}

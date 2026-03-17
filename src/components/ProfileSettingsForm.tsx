@@ -27,13 +27,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing, ClipboardCheck, Phone } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing, ClipboardCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
-  phone_number: z.string().optional().nullable(),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
@@ -59,7 +58,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     defaultValues: {
       first_name: "",
       last_name: "",
-      phone_number: "",
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
@@ -88,7 +86,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
-          phone_number: data.phone_number || "",
           hourly_rate: data.hourly_rate,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
@@ -119,7 +116,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       .update({
         first_name: values.first_name,
         last_name: values.last_name,
-        phone_number: values.phone_number,
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
@@ -232,24 +228,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             )}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="phone_number"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Your Phone Number (for SMS alerts)</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="07123 456789" className="pl-10" {...field} value={field.value || ""} />
-                </div>
-              </FormControl>
-              <FormDescription>Enter your mobile number to receive booking notifications via SMS.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
