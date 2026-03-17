@@ -30,18 +30,8 @@ const Login: React.FC = () => {
 
     setIsStudentLoading(true);
     try {
-      // 1. Find the instructor by PIN
-      const { data: instructor, error: pinError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("instructor_pin", pin)
-        .single();
-
-      if (pinError || !instructor) {
-        throw new Error("Invalid Instructor PIN.");
-      }
-
-      // 2. Attempt login using the virtual email
+      // 1. Attempt login using the virtual email first
+      // This authenticates the user so they have permission to read their instructor's data
       const virtualEmail = `${phone.replace(/\s+/g, '')}@student.hdt.app`;
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: virtualEmail,
@@ -50,20 +40,33 @@ const Login: React.FC = () => {
 
       if (authError) throw authError;
 
-      // 3. Verify this student belongs to this instructor
-      const { data: student, error: studentError } = await supabase
-        .from("students")
-        .select("id")
-        .eq("auth_user_id", authData.user.id)
-        .eq("user_id", instructor.id)
-        .single();
+      if (authData.user) {
+        // 2. Now that we are logged in, find the student record and their instructor
+        const { data: student, error: studentError } = await supabase
+          .from("students")
+          .select("user_id")
+          .eq("auth_user_id", authData.user.id)
+          .single();
 
-      if (studentError || !student) {
-        await supabase.auth.signOut();
-        throw new Error("This account is not linked to this instructor.");
+        if (studentError || !student) {
+          await supabase.auth.signOut();
+          throw new Error("Student record not found or not linked correctly.");
+        }
+
+        // 3. Verify the instructor's PIN
+        const { data: instructor, error: instructorError } = await supabase
+          .from("profiles")
+          .select("instructor_pin")
+          .eq("id", student.user_id)
+          .single();
+
+        if (instructorError || instructor?.instructor_pin !== pin) {
+          await supabase.auth.signOut();
+          throw new Error("Incorrect Instructor PIN.");
+        }
+
+        showSuccess("Welcome back!");
       }
-
-      showSuccess("Welcome back!");
     } catch (error: any) {
       console.error("Login error:", error);
       showError(error.message || "Login failed. Please check your credentials.");
