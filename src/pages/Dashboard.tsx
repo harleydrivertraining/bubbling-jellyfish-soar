@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 import OwnerDashboard from "./OwnerDashboard";
 import StudentDashboard from "./StudentDashboard";
+import { useQuery } from "@tanstack/react-query";
 
 interface Booking {
   id: string;
@@ -58,27 +59,8 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [instructorName, setInstructorName] = useState<string | null>(null);
-  const [instructorPin, setInstructorPin] = useState<string | null>(null);
-  const [totalStudents, setTotalStudents] = useState<number | null>(null);
-  const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
-  const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null);
-  const [drivingTestStats, setDrivingTestStats] = useState<DrivingTestStats | null>(null);
-  const [upcomingLessons, setUpcomingLessons] = useState<Booking[]>([]);
-  const [nextDrivingTestBookings, setNextDrivingTestBookings] = useState<Booking[]>([]);
-  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
-  const [currentHourlyRate, setCurrentHourlyRate] = useState<number | null>(null);
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
-  const [milesUntilNextServiceDashboard, setMilesUntilNextServiceDashboard] = useState<number | null>(null);
-  const [weeksUntilNextService, setWeeksUntilNextService] = useState<number | null>(null);
-  const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
-  const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
-  const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]);
-
-  const [totalBookedHoursForSelectedWeek, setTotalBookedHoursForSelectedWeek] = useState<number | null>(null);
   const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
-  
   const [showAllLessons, setShowAllLessons] = useState(false);
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [widgets, setWidgets] = useState<DashboardWidget[]>(DEFAULT_WIDGETS);
@@ -93,23 +75,204 @@ const Dashboard: React.FC = () => {
           const saved = parsed.find((p: DashboardWidget) => p.id === def.id);
           return saved ? saved : def;
         });
-        const extra = parsed.filter((p: DashboardWidget) => !DEFAULT_WIDGETS.find(def => def.id === p.id));
-        setWidgets([...merged, ...extra]);
+        setWidgets(merged);
       } catch (e) {
         console.error("Failed to parse saved widgets", e);
       }
     }
   }, []);
 
-  const saveWidgets = (newWidgets: DashboardWidget[]) => {
-    setWidgets(newWidgets);
-    localStorage.setItem("dashboard_widgets", JSON.stringify(newWidgets));
-  };
+  // Main Profile Query
+  const { data: profile, isLoading: isProfileLoading } = useQuery({
+    queryKey: ['profile', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, hourly_rate, role, instructor_pin")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
 
-  const resetWidgets = () => {
-    setWidgets(DEFAULT_WIDGETS);
-    localStorage.removeItem("dashboard_widgets");
-  };
+  // Students Count Query
+  const { data: studentsCount } = useQuery({
+    queryKey: ['students-count', user?.id],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("students")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("is_past_student", false);
+      return count || 0;
+    },
+    enabled: !!user && profile?.role === 'instructor',
+  });
+
+  // Bookings Query
+  const { data: bookingsData } = useQuery({
+    queryKey: ['dashboard-bookings', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, title, description, start_time, end_time, status, lesson_type, students(name)")
+        .eq("user_id", user!.id)
+        .eq("status", "scheduled")
+        .gte("start_time", new Date().toISOString())
+        .order("start_time", { ascending: true });
+      return data as unknown as Booking[];
+    },
+    enabled: !!user && profile?.role === 'instructor',
+  });
+
+  // Revenue Query
+  const { data: revenue } = useQuery({
+    queryKey: ['revenue', user?.id, revenueTimeframe, profile?.hourly_rate],
+    queryFn: async () => {
+      const now = new Date();
+      let startDate: Date, endDate: Date;
+      if (revenueTimeframe === "daily") { startDate = startOfDay(now); endDate = endOfDay(now); }
+      else if (revenueTimeframe === "weekly") { startDate = startOfWeek(now, { weekStartsOn: 1 }); endDate = endOfWeek(now, { weekStartsOn: 1 }); }
+      else { startDate = startOfMonth(now); endDate = endOfMonth(now); }
+
+      const { data } = await supabase
+        .from("bookings")
+        .select("start_time, end_time")
+        .eq("user_id", user!.id)
+        .eq("status", "completed")
+        .neq("lesson_type", "Personal")
+        .gte("start_time", startDate.toISOString())
+        .lte("end_time", endDate.toISOString());
+        
+      let totalMins = 0;
+      data?.forEach(b => totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)));
+      return (totalMins / 60) * (profile?.hourly_rate || 0);
+    },
+    enabled: !!user && !!profile?.hourly_rate && profile?.role === 'instructor',
+  });
+
+  // Booked Hours Query
+  const { data: bookedHours } = useQuery({
+    queryKey: ['booked-hours', user?.id, selectedWeekStartISO],
+    queryFn: async () => {
+      const weekStartDate = parseISO(selectedWeekStartISO);
+      const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
+
+      const { data } = await supabase
+        .from("bookings")
+        .select("start_time, end_time")
+        .eq("user_id", user!.id)
+        .in("status", ["scheduled", "completed"])
+        .neq("lesson_type", "Personal")
+        .gte("start_time", weekStartDate.toISOString())
+        .lte("end_time", weekEndDate.toISOString());
+
+      let totalMinutes = 0;
+      data?.forEach(booking => {
+        totalMinutes += differenceInMinutes(new Date(booking.end_time), new Date(booking.start_time));
+      });
+      return totalMinutes / 60;
+    },
+    enabled: !!user && profile?.role === 'instructor',
+  });
+
+  // Driving Test Stats Query
+  const { data: testStats } = useQuery({
+    queryKey: ['test-stats-dashboard', user?.id],
+    queryFn: async () => {
+      const twelveMonthsAgo = subYears(new Date(), 1);
+      const { data } = await supabase
+        .from("driving_tests")
+        .select("passed, driving_faults, serious_faults, examiner_action")
+        .eq("user_id", user!.id)
+        .gte("test_date", twelveMonthsAgo.toISOString());
+
+      if (!data || data.length === 0) return null;
+
+      const total = data.length;
+      return {
+        totalTests: total,
+        passRate: (data.filter(t => t.passed).length / total) * 100,
+        avgDrivingFaults: data.reduce((sum, t) => sum + t.driving_faults, 0) / total,
+        avgSeriousFaults: data.reduce((sum, t) => sum + t.serious_faults, 0) / total,
+        examinerActionPercentage: (data.filter(t => t.examiner_action).length / total) * 100,
+      };
+    },
+    enabled: !!user && profile?.role === 'instructor',
+  });
+
+  // Service Info Query
+  const { data: serviceInfo } = useQuery({
+    queryKey: ['service-info', user?.id],
+    queryFn: async () => {
+      const { data: cars } = await supabase
+        .from("cars")
+        .select("id, make, model, year, initial_mileage, service_interval_miles, acquisition_date")
+        .eq("user_id", user!.id);
+
+      if (!cars || cars.length === 0) return null;
+
+      const mileageResults = await Promise.all(cars.map(async (car) => {
+        const { data } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).maybeSingle();
+        return { carId: car.id, currentMileage: data?.current_mileage || car.initial_mileage };
+      }));
+
+      let minMiles: number | null = null;
+      let carName: string | null = null;
+      let predictedWeeks: number | null = null;
+
+      cars.forEach(car => {
+        if (car.service_interval_miles && car.service_interval_miles > 0) {
+          const currentMileage = mileageResults.find(m => m.carId === car.id)?.currentMileage || car.initial_mileage;
+          const milesUntil = ((Math.floor(currentMileage / car.service_interval_miles) + 1) * car.service_interval_miles) - currentMileage;
+          
+          const acquisitionDate = parseISO(car.acquisition_date);
+          const daysTracked = differenceInDays(new Date(), acquisitionDate);
+          const totalMilesDriven = currentMileage - car.initial_mileage;
+
+          if (minMiles === null || milesUntil < minMiles) {
+            minMiles = milesUntil;
+            carName = `${car.make} ${car.model}`;
+            if (daysTracked > 0 && totalMilesDriven > 0) {
+              predictedWeeks = milesUntil / ((totalMilesDriven / daysTracked) * 7);
+            }
+          }
+        }
+      });
+
+      return { minMiles, carName, predictedWeeks };
+    },
+    enabled: !!user && profile?.role === 'instructor',
+  });
+
+  // Pre-paid Hours Query
+  const { data: prePaidInfo } = useQuery({
+    queryKey: ['prepaid-info', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("pre_paid_hours")
+        .select("remaining_hours, students(name)")
+        .eq("user_id", user!.id);
+
+      if (!data) return null;
+
+      let total = 0;
+      const studentMap: Record<string, number> = {};
+      data.forEach(pkg => {
+        total += pkg.remaining_hours;
+        const name = pkg.students?.name || "Unknown";
+        studentMap[name] = (studentMap[name] || 0) + pkg.remaining_hours;
+      });
+
+      return {
+        total,
+        lowBalanceStudents: Object.keys(studentMap).filter(name => studentMap[name] <= 2 && studentMap[name] > 0)
+      };
+    },
+    enabled: !!user && profile?.role === 'instructor',
+  });
 
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
@@ -117,195 +280,6 @@ const Dashboard: React.FC = () => {
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
   }, []);
-
-  const fetchBookedHoursForWeek = useCallback(async (weekStartISO: string) => {
-    if (!user) return;
-
-    const weekStartDate = parseISO(weekStartISO);
-    const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
-
-    const { data: bookingsData, error } = await supabase
-      .from("bookings")
-      .select("start_time, end_time")
-      .eq("user_id", user.id)
-      .in("status", ["scheduled", "completed"])
-      .neq("lesson_type", "Personal")
-      .gte("start_time", weekStartDate.toISOString())
-      .lte("end_time", weekEndDate.toISOString());
-
-    if (error) {
-      console.error("Error fetching booked hours for week:", error);
-      setTotalBookedHoursForSelectedWeek(null);
-    } else {
-      let totalMinutes = 0;
-      bookingsData?.forEach(booking => {
-        const start = new Date(booking.start_time);
-        const end = new Date(booking.end_time);
-        totalMinutes += differenceInMinutes(end, start);
-      });
-      setTotalBookedHoursForSelectedWeek(totalMinutes / 60);
-    }
-  }, [user]);
-
-  const fetchDashboardData = useCallback(async () => {
-    if (!user) {
-      setIsLoadingDashboard(false);
-      return;
-    }
-
-    setIsLoadingDashboard(true);
-    const now = new Date();
-
-    try {
-      // First, get the profile to determine the role
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, hourly_rate, role, instructor_pin")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      if (profileData) {
-        setInstructorName(`${profileData.first_name || ""} ${profileData.last_name || ""}`.trim());
-        setInstructorPin(profileData.instructor_pin);
-        setCurrentHourlyRate(profileData.hourly_rate);
-        setUserRole(profileData.role);
-
-        // If owner or student, we stop here and let their specific dashboards handle data
-        if (profileData.role?.toLowerCase() === 'owner' || profileData.role?.toLowerCase() === 'student') {
-          setIsLoadingDashboard(false);
-          return;
-        }
-      }
-
-      // Continue fetching instructor-specific data
-      const [
-        studentsCountRes,
-        allScheduledBookingsRes,
-        historicalTestsRes,
-        carsRes,
-        prePaidHoursRes
-      ] = await Promise.all([
-        supabase.from("students").select("id", { count: "exact" }).eq("user_id", user.id).eq("is_past_student", false),
-        supabase.from("bookings").select("id, title, description, start_time, end_time, status, lesson_type, students(name)").eq("user_id", user.id).eq("status", "scheduled").gte("start_time", now.toISOString()).order("start_time", { ascending: true }),
-        supabase.from("driving_tests").select("id, student_id, test_date, passed, driving_faults, serious_faults, examiner_action, students(name)").eq("user_id", user.id).order("test_date", { ascending: false }),
-        supabase.from("cars").select("id, make, model, year, initial_mileage, service_interval_miles, acquisition_date").eq("user_id", user.id),
-        supabase.from("pre_paid_hours").select("package_hours, remaining_hours, students(name)").eq("user_id", user.id)
-      ]);
-
-      setTotalStudents(studentsCountRes.count);
-
-      const scheduledBookings = allScheduledBookingsRes.data || [];
-      setUpcomingLessons(scheduledBookings.slice(0, 20) as unknown as Booking[]);
-      
-      const testBookings = scheduledBookings.filter(b => b.lesson_type === "Driving Test");
-      setUpcomingDrivingTestBookingsCount(testBookings.length);
-      setNextDrivingTestBookings(testBookings.slice(0, 2) as unknown as Booking[]);
-
-      const twelveMonthsAgo = subYears(now, 1);
-      const recentTests = (historicalTestsRes.data || []).filter(test => isAfter(new Date(test.test_date), twelveMonthsAgo));
-      if (recentTests.length > 0) {
-        const total = recentTests.length;
-        setDrivingTestStats({
-          totalTests: total,
-          passRate: (recentTests.filter(t => t.passed).length / total) * 100,
-          avgDrivingFaults: recentTests.reduce((sum, t) => sum + t.driving_faults, 0) / total,
-          avgSeriousFaults: recentTests.reduce((sum, t) => sum + t.serious_faults, 0) / total,
-          examinerActionPercentage: (recentTests.filter(t => t.examiner_action).length / total) * 100,
-        });
-      } else {
-        setDrivingTestStats({ totalTests: 0, passRate: 0, avgDrivingFaults: 0, avgSeriousFaults: 0, examinerActionPercentage: 0 });
-      }
-
-      const hourlyRate = profileData?.hourly_rate || 0;
-      if (hourlyRate > 0) {
-        let startDate: Date, endDate: Date;
-        if (revenueTimeframe === "daily") { startDate = startOfDay(now); endDate = endOfDay(now); }
-        else if (revenueTimeframe === "weekly") { startDate = startOfWeek(now, { weekStartsOn: 1 }); endDate = endOfWeek(now, { weekStartsOn: 1 }); }
-        else { startDate = startOfMonth(now); endDate = endOfMonth(now); }
-
-        const { data: revData } = await supabase
-          .from("bookings")
-          .select("start_time, end_time")
-          .eq("user_id", user.id)
-          .eq("status", "completed")
-          .neq("lesson_type", "Personal")
-          .gte("start_time", startDate.toISOString())
-          .lte("end_time", endDate.toISOString());
-          
-        let totalMins = 0;
-        revData?.forEach(b => totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)));
-        setCurrentRevenue((totalMins / 60) * hourlyRate);
-      } else {
-        setCurrentRevenue(0);
-      }
-
-      if (carsRes.data && carsRes.data.length > 0) {
-        const mileageResults = await Promise.all(carsRes.data.map(async (car) => {
-          const { data } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).maybeSingle();
-          return { carId: car.id, currentMileage: data?.current_mileage || car.initial_mileage };
-        }));
-
-        let minMiles: number | null = null;
-        let carName: string | null = null;
-        let predictedWeeks: number | null = null;
-
-        carsRes.data.forEach(car => {
-          if (car.service_interval_miles && car.service_interval_miles > 0) {
-            const currentMileage = mileageResults.find(m => m.carId === car.id)?.currentMileage || car.initial_mileage;
-            const milesUntil = ((Math.floor(currentMileage / car.service_interval_miles) + 1) * car.service_interval_miles) - currentMileage;
-            
-            // Calculate average weekly miles for prediction
-            const acquisitionDate = parseISO(car.acquisition_date);
-            const daysTracked = differenceInDays(new Date(), acquisitionDate);
-            const totalMilesDriven = currentMileage - car.initial_mileage;
-
-            if (minMiles === null || milesUntil < minMiles) {
-              minMiles = milesUntil;
-              carName = `${car.make} ${car.model}`;
-              
-              if (daysTracked > 0 && totalMilesDriven > 0) {
-                const avgWeekly = (totalMilesDriven / daysTracked) * 7;
-                predictedWeeks = milesUntil / avgWeekly;
-              } else {
-                predictedWeeks = null;
-              }
-            }
-          }
-        });
-        setMilesUntilNextServiceDashboard(minMiles);
-        setCarNeedingService(carName);
-        setWeeksUntilNextService(predictedWeeks);
-      }
-
-      if (prePaidHoursRes.data) {
-        let remaining = 0;
-        const studentMap: { [name: string]: number } = {};
-        prePaidHoursRes.data.forEach(pkg => {
-          remaining += pkg.remaining_hours;
-          const name = pkg.students?.name || "Unknown";
-          studentMap[name] = (studentMap[name] || 0) + pkg.remaining_hours;
-        });
-        setTotalPrePaidHoursRemaining(remaining);
-        setStudentsWithLowPrePaidHours(Object.keys(studentMap).filter(name => studentMap[name] <= 2 && studentMap[name] > 0));
-      }
-
-    } catch (err: any) {
-      console.error("Dashboard fetch error:", err);
-      showError("Failed to load dashboard data: " + err.message);
-    } finally {
-      setIsLoadingDashboard(false);
-    }
-  }, [user, revenueTimeframe]);
-
-  useEffect(() => {
-    if (!isSessionLoading) fetchDashboardData();
-  }, [isSessionLoading, fetchDashboardData]);
-
-  useEffect(() => {
-    if (!isSessionLoading && user && userRole?.toLowerCase() === 'instructor') fetchBookedHoursForWeek(selectedWeekStartISO);
-  }, [isSessionLoading, user, userRole, selectedWeekStartISO, fetchBookedHoursForWeek]);
 
   const generateWeekOptions = useMemo(() => {
     const options = [];
@@ -323,10 +297,6 @@ const Dashboard: React.FC = () => {
     return options;
   }, []);
 
-  const displayedLessons = useMemo(() => {
-    return showAllLessons ? upcomingLessons : upcomingLessons.slice(0, 3);
-  }, [upcomingLessons, showAllLessons]);
-
   const renderWidget = (id: string) => {
     switch (id) {
       case "quick_stats":
@@ -338,7 +308,7 @@ const Dashboard: React.FC = () => {
                 <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-3xl sm:text-4xl font-black">{totalStudents ?? 0}</div>
+                <div className="text-3xl sm:text-4xl font-black">{studentsCount ?? 0}</div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Active learners</p>
               </CardContent>
             </Card>
@@ -348,7 +318,7 @@ const Dashboard: React.FC = () => {
                 <Car className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-3xl sm:text-4xl font-black">{upcomingDrivingTestBookingsCount ?? 0}</div>
+                <div className="text-3xl sm:text-4xl font-black">{(bookingsData || []).filter(b => b.lesson_type === "Driving Test").length}</div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
               </CardContent>
             </Card>
@@ -369,7 +339,7 @@ const Dashboard: React.FC = () => {
                 </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-3xl sm:text-4xl font-black">{(totalBookedHoursForSelectedWeek ?? 0).toFixed(1)} <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">hrs</span></div>
+                <div className="text-3xl sm:text-4xl font-black">{(bookedHours ?? 0).toFixed(1)} <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">hrs</span></div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Scheduled sessions</p>
               </CardContent>
             </Card>
@@ -391,9 +361,9 @@ const Dashboard: React.FC = () => {
                 </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                {currentHourlyRate ? (
+                {profile?.hourly_rate ? (
                   <>
-                    <div className="text-3xl sm:text-4xl font-black">£{(currentRevenue ?? 0).toFixed(2)}</div>
+                    <div className="text-3xl sm:text-4xl font-black">£{(revenue ?? 0).toFixed(2)}</div>
                     <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">From Completed Lessons</p>
                   </>
                 ) : (
@@ -404,6 +374,8 @@ const Dashboard: React.FC = () => {
           </div>
         );
       case "upcoming_lessons":
+        const upcoming = bookingsData || [];
+        const displayed = showAllLessons ? upcoming : upcoming.slice(0, 3);
         return (
           <Card key={id} className="flex flex-col overflow-hidden shadow-md border-none h-full">
             <CardHeader className="bg-primary text-primary-foreground p-4">
@@ -417,21 +389,17 @@ const Dashboard: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 bg-card">
-              {upcomingLessons.length === 0 ? (
+              {upcoming.length === 0 ? (
                 <div className="p-12 text-center">
                   <Calendar className="h-16 w-16 text-muted-foreground/20 mx-auto mb-4" />
                   <p className="text-muted-foreground font-medium">No upcoming lessons scheduled.</p>
-                  <Button asChild variant="outline" className="mt-4">
-                    <Link to="/schedule">Book a Lesson</Link>
-                  </Button>
                 </div>
               ) : (
                 <ScrollArea className="h-full">
                   <div className="divide-y divide-muted">
-                    {displayedLessons.map((booking) => {
+                    {displayed.map((booking) => {
                       const startTime = new Date(booking.start_time);
                       const isLessonToday = isToday(startTime);
-                      
                       return (
                         <div key={booking.id} className={cn(
                           "p-5 transition-all hover:bg-muted/30 flex items-start gap-5",
@@ -441,54 +409,31 @@ const Dashboard: React.FC = () => {
                             <span className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">{format(startTime, "MMM")}</span>
                             <span className="text-2xl font-black leading-none">{format(startTime, "dd")}</span>
                           </div>
-                          
                           <div className="flex-1 min-w-0 flex flex-col gap-1">
                             <div className="flex items-center justify-between">
                               <h4 className="font-bold text-lg truncate text-foreground">{booking.students?.name || "Unknown Student"}</h4>
-                              {isLessonToday && (
-                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px] font-bold h-5 px-2 shrink-0">TODAY</Badge>
-                              )}
+                              {isLessonToday && <Badge variant="default" className="bg-blue-600 text-[10px] font-bold h-5 px-2 shrink-0">TODAY</Badge>}
                             </div>
-                            
                             <div className="flex items-center text-sm text-muted-foreground">
                               <Clock className="mr-2 h-4 w-4 text-primary/60 shrink-0" />
                               <span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
                             </div>
-                            
                             <div className="flex items-center text-sm text-muted-foreground">
                               <BookOpen className="mr-2 h-4 w-4 text-primary/60 shrink-0" />
                               <span className="capitalize font-medium">{booking.lesson_type}</span>
                             </div>
-                            
-                            {booking.description && (
-                              <p className="mt-3 text-xs text-muted-foreground italic line-clamp-2 bg-muted/50 p-2 rounded-md border-l-2 border-primary/30">
-                                "{booking.description}"
-                              </p>
-                            )}
                           </div>
-                          
                           <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors shrink-0" asChild>
-                            <Link to="/schedule">
-                              <ArrowRight className="h-5 w-5" />
-                            </Link>
+                            <Link to="/schedule"><ArrowRight className="h-5 w-5" /></Link>
                           </Button>
                         </div>
                       );
                     })}
                   </div>
-                  {upcomingLessons.length > 3 && (
+                  {upcoming.length > 3 && (
                     <div className="p-4 text-center border-t bg-muted/5">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setShowAllLessons(!showAllLessons)}
-                        className="text-primary font-bold hover:bg-primary/5 w-full py-6"
-                      >
-                        {showAllLessons ? (
-                          <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
-                        ) : (
-                          <>View More ({upcomingLessons.length - 3} more) <ChevronDown className="ml-2 h-4 w-4" /></>
-                        )}
+                      <Button variant="ghost" size="sm" onClick={() => setShowAllLessons(!showAllLessons)} className="text-primary font-bold w-full py-6">
+                        {showAllLessons ? <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></> : <>View More ({upcoming.length - 3} more) <ChevronDown className="ml-2 h-4 w-4" /></>}
                       </Button>
                     </div>
                   )}
@@ -509,56 +454,34 @@ const Dashboard: React.FC = () => {
                 <Link to="/test-statistics">Full Stats <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </div>
-            {drivingTestStats && drivingTestStats.totalTests > 0 ? (
+            {testStats ? (
               <div className="grid gap-3 grid-cols-2">
-                <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
-                  drivingTestStats.passRate <= 55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
-                )}>
-                  <TrendingUp className="h-5 w-5 opacity-60" />
-                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Pass Rate</p>
-                  <p className="text-2xl font-black">{drivingTestStats.passRate.toFixed(1)}%</p>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.passRate <= 55 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
+                  <TrendingUp className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Pass Rate</p><p className="text-2xl font-black">{testStats.passRate.toFixed(1)}%</p>
                 </div>
-                <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
-                  drivingTestStats.avgDrivingFaults >= 6 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
-                )}>
-                  <Car className="h-5 w-5 opacity-60" />
-                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg D.F.</p>
-                  <p className="text-2xl font-black">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.avgDrivingFaults >= 6 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
+                  <Car className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg D.F.</p><p className="text-2xl font-black">{testStats.avgDrivingFaults.toFixed(1)}</p>
                 </div>
-                <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
-                  drivingTestStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
-                )}>
-                  <ShieldAlert className="h-5 w-5 opacity-60" />
-                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg S.F.</p>
-                  <p className="text-2xl font-black">{drivingTestStats.avgSeriousFaults.toFixed(1)}</p>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
+                  <ShieldAlert className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg S.F.</p><p className="text-2xl font-black">{testStats.avgSeriousFaults.toFixed(1)}</p>
                 </div>
-                <div className={cn(
-                  "p-4 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all",
-                  drivingTestStats.examinerActionPercentage >= 10 ? "bg-orange-50 border-orange-100 text-orange-900" : "bg-green-50 border-green-100 text-green-900"
-                )}>
-                  <Hand className="h-5 w-5 opacity-60" />
-                  <p className="text-xs font-bold uppercase tracking-wider opacity-70">Ex. Act.</p>
-                  <p className="text-2xl font-black">{drivingTestStats.examinerActionPercentage.toFixed(1)}%</p>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.examinerActionPercentage >= 10 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
+                  <Hand className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Ex. Act.</p><p className="text-2xl font-black">{testStats.examinerActionPercentage.toFixed(1)}%</p>
                 </div>
               </div>
             ) : <p className="text-sm text-muted-foreground text-center py-4">No test data available.</p>}
           </Card>
         );
       case "next_tests":
+        const nextTests = (bookingsData || []).filter(b => b.lesson_type === "Driving Test").slice(0, 2);
         return (
           <Card key={id} className="p-6 shadow-sm h-full">
-            <CardTitle className="text-lg font-bold mb-4 flex items-center">
-              <GraduationCap className="mr-2 h-5 w-5 text-primary" />
-              Next Driving Tests
-            </CardTitle>
-            {nextDrivingTestBookings.length === 0 ? (
+            <CardTitle className="text-lg font-bold mb-4 flex items-center"><GraduationCap className="mr-2 h-5 w-5 text-primary" />Next Driving Tests</CardTitle>
+            {nextTests.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">No upcoming tests scheduled.</p>
             ) : (
               <div className="space-y-3">
-                {nextDrivingTestBookings.map((booking) => (
+                {nextTests.map((booking) => (
                   <div key={booking.id} className="p-3 rounded-lg bg-muted/40 border border-muted flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="font-bold text-sm truncate">{booking.students?.name || "Unknown Student"}</p>
@@ -567,9 +490,7 @@ const Dashboard: React.FC = () => {
                         <span>{format(new Date(booking.start_time), "MMM dd")} at {format(new Date(booking.start_time), "p")}</span>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                      <Link to="/driving-test-bookings"><ArrowRight className="h-4 w-4" /></Link>
-                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild><Link to="/driving-test-bookings"><ArrowRight className="h-4 w-4" /></Link></Button>
                   </div>
                 ))}
               </div>
@@ -578,26 +499,17 @@ const Dashboard: React.FC = () => {
         );
       case "service_info":
         return (
-          <Card key={id} className={cn("shadow-sm h-full", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50 border-orange-200" : "")}>
+          <Card key={id} className={cn("shadow-sm h-full", serviceInfo?.minMiles !== null && serviceInfo!.minMiles < 1000 ? "bg-orange-50 border-orange-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-bold">Vehicle Service</CardTitle>
-              <Gauge className={cn("h-4 w-4", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "text-orange-600" : "text-muted-foreground")} />
+              <Gauge className={cn("h-4 w-4", serviceInfo?.minMiles !== null && serviceInfo!.minMiles < 1000 ? "text-orange-600" : "text-muted-foreground")} />
             </CardHeader>
             <CardContent>
-              {milesUntilNextServiceDashboard !== null ? (
+              {serviceInfo ? (
                 <>
-                  <div className="text-2xl font-black">{milesUntilNextServiceDashboard.toFixed(0)} <span className="text-xs font-bold text-muted-foreground uppercase">miles</span></div>
-                  {carNeedingService && <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tight">{carNeedingService}</p>}
-                  
-                  {weeksUntilNextService !== null && (
-                    <p className="text-xs font-bold text-primary mt-2">
-                      Due in approx. <span className="text-lg">{Math.ceil(weeksUntilNextService)}</span> weeks
-                    </p>
-                  )}
-
-                  {milesUntilNextServiceDashboard < 1000 && (
-                    <Badge variant="outline" className="mt-2 bg-white text-orange-700 border-orange-200 text-[10px] font-bold">SERVICE SOON</Badge>
-                  )}
+                  <div className="text-2xl font-black">{serviceInfo.minMiles?.toFixed(0)} <span className="text-xs font-bold text-muted-foreground uppercase">miles</span></div>
+                  {serviceInfo.carName && <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tight">{serviceInfo.carName}</p>}
+                  {serviceInfo.predictedWeeks !== null && <p className="text-xs font-bold text-primary mt-2">Due in approx. <span className="text-lg">{Math.ceil(serviceInfo.predictedWeeks)}</span> weeks</p>}
                 </>
               ) : <p className="text-xs text-muted-foreground">No car data available.</p>}
             </CardContent>
@@ -605,19 +517,19 @@ const Dashboard: React.FC = () => {
         );
       case "prepaid_info":
         return (
-          <Card key={id} className={cn("shadow-sm h-full", totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "bg-red-50 border-red-200" : "")}>
+          <Card key={id} className={cn("shadow-sm h-full", prePaidInfo?.total !== null && prePaidInfo!.total <= 2 ? "bg-red-50 border-red-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-bold">Pre-Paid Hours</CardTitle>
-              <Hourglass className={cn("h-4 w-4", totalPrePaidHoursRemaining !== null && totalPrePaidHoursRemaining <= 2 ? "text-red-600" : "text-muted-foreground")} />
+              <Hourglass className={cn("h-4 w-4", prePaidInfo?.total !== null && prePaidInfo!.total <= 2 ? "text-red-600" : "text-muted-foreground")} />
             </CardHeader>
             <CardContent>
-              {totalPrePaidHoursRemaining !== null ? (
+              {prePaidInfo ? (
                 <>
-                  <div className="text-2xl font-black">{totalPrePaidHoursRemaining.toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
-                  {studentsWithLowPrePaidHours.length > 0 && (
+                  <div className="text-2xl font-black">{prePaidInfo.total.toFixed(1)} <span className="text-xs font-bold text-muted-foreground uppercase">hrs</span></div>
+                  {prePaidInfo.lowBalanceStudents.length > 0 && (
                     <div className="mt-2 space-y-1">
                       <p className="text-[10px] font-bold text-red-700 uppercase">Low Balance:</p>
-                      <p className="text-[10px] text-red-600 truncate">{studentsWithLowPrePaidHours.join(", ")}</p>
+                      <p className="text-[10px] text-red-600 truncate">{prePaidInfo.lowBalanceStudents.join(", ")}</p>
                     </div>
                   )}
                 </>
@@ -630,41 +542,30 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  if (isSessionLoading || isLoadingDashboard) {
+  if (isSessionLoading || isProfileLoading) {
     return (
       <div className="space-y-6 p-6">
         <Skeleton className="h-10 w-64" />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
         </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2"><Skeleton className="h-[500px] w-full" /></div>
-          <div className="space-y-6"><Skeleton className="h-[240px] w-full" /><Skeleton className="h-[240px] w-full" /></div>
-        </div>
       </div>
     );
   }
 
-  // Render Owner Dashboard if user is an owner
-  if (userRole?.toLowerCase() === 'owner') {
-    return <OwnerDashboard />;
-  }
-
-  // Render Student Dashboard if user is a student
-  if (userRole?.toLowerCase() === 'student') {
-    return <StudentDashboard />;
-  }
+  if (profile?.role?.toLowerCase() === 'owner') return <OwnerDashboard />;
+  if (profile?.role?.toLowerCase() === 'student') return <StudentDashboard />;
 
   return (
     <React.Fragment>
       <div className="space-y-8 w-full px-4 lg:px-8 py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorName || "Instructor"}</h1>
-            {instructorPin && (
+            <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {profile?.first_name || "Instructor"}</h1>
+            {profile?.instructor_pin && (
               <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
                 <Shield className="h-3.5 w-3.5" />
-                <span>Your Student PIN: <span className="font-mono tracking-widest">{instructorPin}</span></span>
+                <span>Your Student PIN: <span className="font-mono tracking-widest">{profile.instructor_pin}</span></span>
               </div>
             )}
           </div>
@@ -696,8 +597,14 @@ const Dashboard: React.FC = () => {
         isOpen={isCustomizerOpen}
         onClose={() => setIsCustomizerOpen(false)}
         widgets={widgets}
-        onUpdateWidgets={saveWidgets}
-        onReset={resetWidgets}
+        onUpdateWidgets={(newWidgets) => {
+          setWidgets(newWidgets);
+          localStorage.setItem("dashboard_widgets", JSON.stringify(newWidgets));
+        }}
+        onReset={() => {
+          setWidgets(DEFAULT_WIDGETS);
+          localStorage.removeItem("dashboard_widgets");
+        }}
       />
     </React.Fragment>
   );

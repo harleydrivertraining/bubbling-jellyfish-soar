@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import React, { useState, useMemo } from "react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, ChevronRight, Hourglass, CalendarDays, UserX } from "lucide-react";
+import { PlusCircle, ChevronRight, Hourglass, CalendarDays } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddStudentForm from "@/components/AddStudentForm";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Student {
   id: string;
@@ -39,46 +40,38 @@ interface Student {
 const Students: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const navigate = useNavigate();
-  const [students, setStudents] = useState<Student[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [showPastStudents, setShowPastStudents] = useState<string>("current");
 
-  const fetchStudents = useCallback(async () => {
-    if (!user) {
-      setIsLoading(false);
-      return;
-    }
+  const { data: students = [], isLoading } = useQuery({
+    queryKey: ['students-list', user?.id],
+    queryFn: async () => {
+      const now = new Date().toISOString();
+      
+      const [studentsRes, hoursRes, bookingsRes] = await Promise.all([
+        supabase
+          .from("students")
+          .select("id, name, status, is_past_student")
+          .eq("user_id", user!.id)
+          .order("name", { ascending: true }),
+        supabase
+          .from("pre_paid_hours")
+          .select("student_id, remaining_hours")
+          .eq("user_id", user!.id),
+        supabase
+          .from("bookings")
+          .select("student_id, start_time, title")
+          .eq("user_id", user!.id)
+          .eq("status", "scheduled")
+          .gt("start_time", now)
+          .order("start_time", { ascending: true })
+      ]);
 
-    setIsLoading(true);
-    const now = new Date().toISOString();
-    
-    const [studentsRes, hoursRes, bookingsRes] = await Promise.all([
-      supabase
-        .from("students")
-        .select("id, name, status, is_past_student")
-        .eq("user_id", user.id)
-        .order("name", { ascending: true }),
-      supabase
-        .from("pre_paid_hours")
-        .select("student_id, remaining_hours")
-        .eq("user_id", user.id),
-      supabase
-        .from("bookings")
-        .select("student_id, start_time, title")
-        .eq("user_id", user.id)
-        .eq("status", "scheduled")
-        .gt("start_time", now)
-        .order("start_time", { ascending: true })
-    ]);
+      if (studentsRes.error) throw studentsRes.error;
 
-    if (studentsRes.error) {
-      console.error("Error fetching students:", studentsRes.error);
-      showError("Failed to load students: " + studentsRes.error.message);
-      setStudents([]);
-    } else {
       const hoursMap: Record<string, number> = {};
       hoursRes.data?.forEach(pkg => {
         hoursMap[pkg.student_id] = (hoursMap[pkg.student_id] || 0) + (pkg.remaining_hours || 0);
@@ -94,22 +87,14 @@ const Students: React.FC = () => {
         }
       });
 
-      const formattedStudents: Student[] = (studentsRes.data || []).map((student: any) => ({
+      return (studentsRes.data || []).map((student: any) => ({
         ...student,
         total_prepaid_hours: hoursMap[student.id] || 0,
         next_booking: nextBookingMap[student.id] || null
-      }));
-      
-      setStudents(formattedStudents);
-    }
-    setIsLoading(false);
-  }, [user]);
-
-  useEffect(() => {
-    if (!isSessionLoading) {
-      fetchStudents();
-    }
-  }, [user, isSessionLoading, fetchStudents]);
+      })) as Student[];
+    },
+    enabled: !!user,
+  });
 
   const handleViewProfile = (studentId: string) => {
     navigate(`/students/${studentId}`);
@@ -269,7 +254,7 @@ const Students: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Add New Student</DialogTitle>
           </DialogHeader>
-          <AddStudentForm onStudentAdded={() => { fetchStudents(); setIsAddDialogOpen(false); }} onClose={() => setIsAddDialogOpen(false)} />
+          <AddStudentForm onStudentAdded={() => { queryClient.invalidateQueries({ queryKey: ['students-list'] }); setIsAddDialogOpen(false); }} onClose={() => setIsAddDialogOpen(false)} />
         </DialogContent>
       </Dialog>
     </div>
