@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -72,25 +72,6 @@ interface SidebarProps {
   onLinkClick?: () => void;
 }
 
-const ICON_MAP: Record<string, any> = {
-  dashboard: LayoutDashboard,
-  students: Users,
-  schedule: CalendarDays,
-  lessons: BookOpen,
-  "lesson-notes": NotebookText,
-  "student-targets": Target,
-  progress: TrendingUp,
-  "test-bookings": Car,
-  "test-records": ClipboardCheck,
-  "test-stats": BarChart3,
-  "pre-paid": Hourglass,
-  mileage: Gauge,
-  accounts: PoundSterling,
-  topics: ListChecks,
-  support: LifeBuoy,
-  settings: Settings,
-};
-
 const DEFAULT_NAV_ITEMS = [
   { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { id: "students", to: "/students", icon: Users, label: "Students" },
@@ -112,11 +93,20 @@ const DEFAULT_NAV_ITEMS = [
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
   const { user } = useSession();
+  const navigate = useNavigate();
   const [isOwner, setIsOwner] = useState(false);
   const [navItems, setNavItems] = useState(DEFAULT_NAV_ITEMS);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+      // Force navigation to login and clear state
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback redirect
+      window.location.href = "/login";
+    }
   };
 
   const loadConfig = useCallback(() => {
@@ -132,9 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
           })
           .filter(Boolean);
         
-        // Ensure new items that aren't in the saved config yet are still shown at the end
         const missingItems = DEFAULT_NAV_ITEMS.filter(d => !parsed.find((p: any) => p.id === d.id));
-        
         setNavItems([...visibleItems, ...missingItems]);
       } catch (e) {
         console.error("Failed to parse menu config", e);

@@ -24,6 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface StudentData {
   id: string;
@@ -44,6 +45,7 @@ interface Booking {
 
 const StudentDashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
+  const navigate = useNavigate();
   const [student, setStudent] = useState<StudentData | null>(null);
   const [instructor, setInstructor] = useState<any>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -52,7 +54,13 @@ const StudentDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout error:", error);
+      window.location.href = "/login";
+    }
   };
 
   const fetchData = useCallback(async () => {
