@@ -4,21 +4,28 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Database, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { startOfMonth, endOfMonth, addMonths } from "date-fns";
 
-interface Profile {
+interface Booking {
   id: string;
-  role: string;
-  first_name?: string;
-  last_name?: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  status: "scheduled" | "completed" | "cancelled";
+  lesson_type: string;
+  student_id: string;
+  students: {
+    name: string;
+  };
 }
 
 interface SessionContextType {
   session: Session | null;
   user: User | null;
-  profile: Profile | null;
   isLoading: boolean;
+  initialBookings: Booking[] | null;
+  isLoadingInitialBookings: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -26,143 +33,105 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isConfigured, setIsConfigured] = useState(true);
-  
+  const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null);
+  const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const mounted = useRef(true);
+  const isInitialMount = useRef(true);
 
-  // Check if Supabase is actually configured
-  useEffect(() => {
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    if (!url || url.includes("placeholder") || !key || key.includes("placeholder")) {
-      setIsConfigured(false);
-      setIsLoading(false);
-    }
-  }, []);
+  const fetchInitialBookings = useCallback(async (userId: string) => {
+    if (isLoadingInitialBookings) return;
+    setIsLoadingInitialBookings(true);
+    const now = new Date();
+    const threeMonthsAgo = startOfMonth(addMonths(now, -3));
+    const threeMonthsFromNow = endOfMonth(addMonths(now, 3));
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
-      
-      if (mounted.current) {
-        if (error) console.warn("Profile fetch error:", error.message);
-        setProfile(data || null);
-      }
-    } catch (e) {
-      console.error("Profile fetch failed:", e);
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, students(name)")
+      .eq("user_id", userId)
+      .gte("start_time", threeMonthsAgo.toISOString())
+      .lte("end_time", threeMonthsFromNow.toISOString());
+
+    if (error) {
+      console.error("Error fetching initial bookings:", error);
+      setInitialBookings([]);
+    } else {
+      setInitialBookings(data || []);
     }
-  }, []);
+    setIsLoadingInitialBookings(false);
+  }, [isLoadingInitialBookings]);
 
   useEffect(() => {
-    mounted.current = true;
-    
-    // Safety valve: Force loading to false after 3 seconds
-    const timer = setTimeout(() => {
-      if (mounted.current && isLoading) {
-        setIsLoading(false);
-      }
-    }, 3000);
+    // Initial session check - do this immediately
+    const getInitialSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const publicRoutes = ["/login", "/signup"];
+        const isPublicRoute = publicRoutes.includes(location.pathname);
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      if (mounted.current) {
-        setSession(initialSession);
-        setUser(initialSession?.user ?? null);
-        if (initialSession?.user) {
-          fetchProfile(initialSession.user.id);
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
+          fetchInitialBookings(initialSession.user.id);
+          if (isPublicRoute) {
+            navigate("/", { replace: true });
+          }
+        } else {
+          if (!isPublicRoute) {
+            navigate("/login", { replace: true });
+          }
         }
+      } catch (error) {
+        console.error("Error getting initial session:", error);
+      } finally {
         setIsLoading(false);
-        clearTimeout(timer);
       }
-    }).catch(() => {
-      if (mounted.current) setIsLoading(false);
-    });
+    };
 
-    // Listen for changes
+    if (isInitialMount.current) {
+      getInitialSession();
+      isInitialMount.current = false;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (mounted.current) {
+      const publicRoutes = ["/login", "/signup"];
+      const isPublicRoute = publicRoutes.includes(location.pathname);
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
-        
         if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
-        } else {
-          setProfile(null);
+          fetchInitialBookings(currentSession.user.id);
         }
-        
-        setIsLoading(false);
-        clearTimeout(timer);
+        if (isPublicRoute) {
+          navigate("/", { replace: true });
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        setInitialBookings(null);
+        if (!isPublicRoute) {
+          navigate("/login", { replace: true });
+        }
       }
     });
 
-    return () => {
-      mounted.current = false;
-      subscription.unsubscribe();
-      clearTimeout(timer);
-    };
-  }, [fetchProfile]);
+    return () => subscription.unsubscribe();
+  }, [navigate, location.pathname, fetchInitialBookings]);
 
-  // Navigation logic
-  useEffect(() => {
-    if (isLoading || !isConfigured) return;
-
-    const publicRoutes = ["/login", "/signup"];
-    const isPublicRoute = publicRoutes.includes(location.pathname);
-
-    if (!session && !isPublicRoute) {
-      navigate("/login", { replace: true });
-    } else if (session && isPublicRoute) {
-      navigate("/", { replace: true });
-    }
-  }, [session, isLoading, isConfigured, location.pathname, navigate]);
-
-  if (!isConfigured) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
-        <div className="h-16 w-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mb-6">
-          <Database className="h-8 w-8" />
-        </div>
-        <h1 className="text-2xl font-bold mb-2">Database Not Connected</h1>
-        <p className="text-muted-foreground max-w-md mb-8">
-          To use this application, you need to connect your Supabase project. 
-          Please click the <strong>"Add Supabase"</strong> button in the chat interface.
-        </p>
-        <Button onClick={() => window.location.reload()} variant="outline">
-          Check Connection Again
-        </Button>
-      </div>
-    );
-  }
-
-  const isPublicRoute = ["/login", "/signup"].includes(location.pathname);
-
-  if (isLoading && !isPublicRoute) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
-        <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
-        <p className="text-muted-foreground font-medium mb-6">Loading your workspace...</p>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => setIsLoading(false)}
-          className="text-xs text-muted-foreground hover:text-primary"
-        >
-          Taking too long? Click here to force load.
-        </Button>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-muted-foreground font-medium animate-pulse">Securing session...</p>
       </div>
     );
   }
 
   return (
-    <SessionContext.Provider value={{ session, user, profile, isLoading }}>
+    <SessionContext.Provider value={{ session, user, isLoading, initialBookings, isLoadingInitialBookings }}>
       {children}
     </SessionContext.Provider>
   );
