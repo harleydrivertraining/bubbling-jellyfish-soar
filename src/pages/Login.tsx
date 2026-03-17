@@ -23,25 +23,34 @@ const Login: React.FC = () => {
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || !password || !pin) {
+    
+    // Clean the phone number to match the format used during registration
+    const cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+    
+    if (!cleanPhone || !password || !pin) {
       showError("Please fill in all fields.");
       return;
     }
 
     setIsStudentLoading(true);
     try {
-      // 1. Attempt login using the virtual email first
-      // This authenticates the user so they have permission to read their instructor's data
-      const virtualEmail = `${phone.replace(/\s+/g, '')}@student.hdt.app`;
+      // 1. Attempt login using the virtual email
+      const virtualEmail = `${cleanPhone}@student.hdt.app`;
+      
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: virtualEmail,
         password: password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message.includes("Email not confirmed")) {
+          throw new Error("Account pending confirmation. Please ask your instructor to disable 'Email Confirmation' in Supabase settings.");
+        }
+        throw authError;
+      }
 
       if (authData.user) {
-        // 2. Now that we are logged in, find the student record and their instructor
+        // 2. Find the student record
         const { data: student, error: studentError } = await supabase
           .from("students")
           .select("user_id")
@@ -50,7 +59,7 @@ const Login: React.FC = () => {
 
         if (studentError || !student) {
           await supabase.auth.signOut();
-          throw new Error("Student record not found or not linked correctly.");
+          throw new Error("Student record not found. Please contact your instructor.");
         }
 
         // 3. Verify the instructor's PIN
