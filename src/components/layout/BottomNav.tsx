@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./Sidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
+import NotificationBell from "@/components/NotificationBell";
 
 interface BottomNavProps {
   logoUrl: string | null;
@@ -44,7 +45,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
           </SheetContent>
         </Sheet>
 
-        {/* Dashboard Link (Middle) */}
+        {/* Dashboard Link */}
         <Link
           to="/"
           className={cn(
@@ -69,6 +70,12 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
             {isStudent ? "Available" : "Calendar"}
           </span>
         </Link>
+
+        {/* Notifications Bell */}
+        <div className="flex flex-col items-center justify-center w-full h-full">
+          <NotificationBell />
+          <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter text-muted-foreground">Alerts</span>
+        </div>
       </div>
     </div>
   );
