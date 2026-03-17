@@ -180,7 +180,9 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             render={({ field }) => (
               <FormItem className="flex-1">
                 <FormLabel>Logo URL</FormLabel>
-                <FormControl><Input placeholder="https://example.com/logo.png" {...field} value={field.value || ""} /></FormControl>
+                <FormControl>
+                  <Input placeholder="https://example.com/logo.png" {...field} value={field.value || ""} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -221,8 +223,10 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             name="first_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>First Name</Label>
-                <FormControl><Input placeholder="John" {...field} value={field.value || ""} /></FormControl>
+                <FormLabel>First Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="John" {...field} value={field.value || ""} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -233,7 +237,9 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Last Name</FormLabel>
-                <FormControl><Input placeholder="Doe" {...field} value={field.value || ""} /></FormControl>
+                <FormControl>
+                  <Input placeholder="Doe" {...field} value={field.value || ""} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -267,7 +273,11 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
               <FormItem>
                 <FormLabel>Default Lesson Duration</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select default" /></SelectTrigger></FormControl>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select default" />
+                    </SelectTrigger>
+                  </FormControl>
                   <SelectContent>
                     <SelectItem value="60">1 hour</SelectItem>
                     <SelectItem value="90">1.5 hours</SelectItem>
@@ -318,7 +328,11 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
                 <FormItem>
                   <FormLabel>Start Hour</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || "9"}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
                       {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
                     </SelectContent>
@@ -333,7 +347,11 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
                 <FormItem>
                   <FormLabel>End Hour</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || "18"}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
                       {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
                     </SelectContent>
