@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
+import { showError } from "@/utils/toast";
 
 interface Notification {
   id: string;
@@ -72,7 +73,6 @@ const NotificationBell: React.FC = () => {
         if (payload.eventType === 'INSERT') {
           const newNotif = payload.new as Notification;
           setNotifications(prev => {
-            // Avoid duplicates if optimistic update already added it
             if (prev.some(n => n.id === newNotif.id)) return prev;
             return [newNotif, ...prev];
           });
@@ -117,39 +117,80 @@ const NotificationBell: React.FC = () => {
   }, [user, fetchNotifications]);
 
   const markAsRead = async (id: string) => {
-    // Optimistic update for immediate UI feedback
+    if (!user) return;
+    
+    // Optimistic update
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     
-    await supabase
+    const { error } = await supabase
       .from("notifications")
       .update({ read: true })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Mark as read failed:", error);
+      fetchNotifications(); // Revert on error
+    }
   };
 
   const markAllAsRead = async () => {
+    if (!user) return;
+
     // Optimistic update
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     
-    await supabase
+    const { error } = await supabase
       .from("notifications")
       .update({ read: true })
-      .eq("user_id", user?.id)
+      .eq("user_id", user.id)
       .eq("read", false);
+
+    if (error) {
+      console.error("Mark all as read failed:", error);
+      fetchNotifications(); // Revert on error
+    }
   };
 
   const deleteNotification = async (id: string) => {
+    if (!user) return;
+
     // Optimistic update: remove from UI immediately
     setNotifications(prev => prev.filter(n => n.id !== id));
     
     const { error } = await supabase
       .from("notifications")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user.id); // Explicitly include user_id for RLS
       
     if (error) {
       console.error("Delete failed:", error);
-      // Re-fetch if delete failed to restore UI state
+      showError("Failed to delete notification from server.");
+      fetchNotifications(); // Restore UI state if server delete failed
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    if (!user) return;
+
+    const confirmDelete = window.confirm("Are you sure you want to clear all notifications?");
+    if (!confirmDelete) return;
+
+    // Optimistic update
+    setNotifications([]);
+    
+    const { error } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Delete all failed:", error);
+      showError("Failed to clear notifications.");
       fetchNotifications();
+    } else {
+      toast.success("All notifications cleared.");
     }
   };
 
@@ -168,11 +209,18 @@ const NotificationBell: React.FC = () => {
       <PopoverContent className="w-80 p-0 mb-2" align="end" side="top">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-bold text-sm">Notifications</h3>
-          {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" className="text-[10px] h-7 font-bold uppercase" onClick={markAllAsRead}>
-              Mark all read
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" className="text-[10px] h-7 font-bold uppercase" onClick={markAllAsRead}>
+                Mark all read
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button variant="ghost" size="sm" className="text-[10px] h-7 font-bold uppercase text-destructive hover:text-destructive" onClick={deleteAllNotifications}>
+                Clear All
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="h-[350px]">
           {notifications.length === 0 ? (
