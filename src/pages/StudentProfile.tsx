@@ -39,7 +39,8 @@ import {
   AlertTriangle,
   Hand,
   KeyRound,
-  UserCheck
+  UserCheck,
+  UserCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -100,6 +101,7 @@ interface ProgressEntry {
   rating: number;
   comment: string | null;
   entry_date: string;
+  user_id: string;
 }
 
 interface DrivingTest {
@@ -123,6 +125,7 @@ const StudentProfile: React.FC = () => {
   const [drivingTests, setDrivingTests] = useState<DrivingTest[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [progressEntries, setProgressEntries] = useState<Record<string, ProgressEntry>>({});
+  const [selfAssessments, setSelfAssessments] = useState<ProgressEntry[]>([]);
   const [totalPrepaidHours, setTotalPrepaidHours] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -152,7 +155,8 @@ const StudentProfile: React.FC = () => {
       ]);
 
       if (studentRes.error) throw studentRes.error;
-      setStudent(studentRes.data);
+      const studentData = studentRes.data;
+      setStudent(studentData);
       setDrivingTests(testsRes.data || []);
       
       const totalHours = hoursRes.data?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
@@ -198,20 +202,33 @@ const StudentProfile: React.FC = () => {
       const visibleTopics = (topicsRes.data || []).filter(t => !hiddenIds.has(t.id));
       setTopics(visibleTopics);
 
-      // Process progress entries
-      const latestProgress: Record<string, ProgressEntry> = {};
+      // Process progress entries (Instructor vs Self)
+      const latestInstructorProgress: Record<string, ProgressEntry> = {};
+      const studentSelfAssessments: ProgressEntry[] = [];
+
       progressRes.data?.forEach(entry => {
-        if (!latestProgress[entry.topic_id]) {
-          latestProgress[entry.topic_id] = {
-            topic_id: entry.topic_id,
-            topic_name: (entry.progress_topics as any)?.name || "Unknown Topic",
-            rating: entry.rating,
-            comment: entry.comment,
-            entry_date: entry.entry_date
-          };
+        const formattedEntry = {
+          topic_id: entry.topic_id,
+          topic_name: (entry.progress_topics as any)?.name || "Unknown Topic",
+          rating: entry.rating,
+          comment: entry.comment,
+          entry_date: entry.entry_date,
+          user_id: entry.user_id
+        };
+
+        // If user_id matches instructor, it's instructor progress
+        if (entry.user_id === user.id) {
+          if (!latestInstructorProgress[entry.topic_id]) {
+            latestInstructorProgress[entry.topic_id] = formattedEntry;
+          }
+        } else if (studentData.auth_user_id && entry.user_id === studentData.auth_user_id) {
+          // If user_id matches student's auth ID, it's a self assessment
+          studentSelfAssessments.push(formattedEntry);
         }
       });
-      setProgressEntries(latestProgress);
+      
+      setProgressEntries(latestInstructorProgress);
+      setSelfAssessments(studentSelfAssessments);
 
     } catch (error: any) {
       console.error("Error fetching student data:", error);
@@ -308,7 +325,7 @@ const StudentProfile: React.FC = () => {
   const saveProgressEntry = async (topicId: string, ratingOverride?: number, commentOverride?: string) => {
     if (!user || !studentId) return;
     
-    const currentEntry = progressEntries[topicId] || { topic_id: topicId, rating: 0, comment: "" };
+    const currentEntry = progressEntries[topicId] || { topic_id: topicId, rating: 0, comment: "", user_id: user.id, topic_name: "", entry_date: "" };
     const rating = ratingOverride !== undefined ? ratingOverride : currentEntry.rating;
     const comment = commentOverride !== undefined ? commentOverride : currentEntry.comment;
 
@@ -339,7 +356,8 @@ const StudentProfile: React.FC = () => {
           topic_name: topics.find(t => t.id === topicId)?.name || "Unknown",
           rating, 
           comment,
-          entry_date: new Date().toISOString()
+          entry_date: new Date().toISOString(),
+          user_id: user.id
         }
       };
       setProgressEntries(updatedEntries);
@@ -365,7 +383,7 @@ const StudentProfile: React.FC = () => {
     setProgressEntries(prev => ({
       ...prev,
       [topicId]: {
-        ...(prev[topicId] || { topic_id: topicId, topic_name: "", rating: 0, comment: "", entry_date: "" }),
+        ...(prev[topicId] || { topic_id: topicId, topic_name: "", rating: 0, comment: "", entry_date: "", user_id: user?.id || "" }),
         comment: value
       }
     }));
@@ -515,10 +533,11 @@ const StudentProfile: React.FC = () => {
       </div>
 
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12">
+        <TabsList className="grid w-full grid-cols-4 h-12">
           <TabsTrigger value="summary" className="font-bold">Summary</TabsTrigger>
           <TabsTrigger value="lessons" className="font-bold">Lessons</TabsTrigger>
           <TabsTrigger value="progress" className="font-bold">Progress</TabsTrigger>
+          <TabsTrigger value="self" className="font-bold">Self Assessment</TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary" className="mt-6 space-y-6">
@@ -803,7 +822,7 @@ const StudentProfile: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {topics.map(topic => {
-                const entry = progressEntries[topic.id] || { rating: 0, comment: "" };
+                const entry = progressEntries[topic.id] || { rating: 0, comment: "", user_id: user?.id || "", topic_id: topic.id, topic_name: topic.name, entry_date: "" };
                 const isSaving = savingTopicId === topic.id;
                 const isExpanded = expandedTopicId === topic.id;
 
@@ -879,6 +898,66 @@ const StudentProfile: React.FC = () => {
                   </Card>
                 );
               })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="self" className="mt-6 space-y-6">
+          <div className="bg-primary/5 border border-primary/10 p-4 rounded-xl">
+            <div className="flex items-center gap-3 mb-2">
+              <UserCircle className="h-5 w-5 text-primary" />
+              <h3 className="font-bold text-primary">Pupil Self-Assessments</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Review how {student.name} rates their own skills and confidence. These entries are created by the student through their own dashboard.
+            </p>
+          </div>
+
+          {selfAssessments.length === 0 ? (
+            <Card className="p-12 text-center">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                <GraduationCap className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-muted-foreground font-medium">No self-assessments submitted by this student yet.</p>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {selfAssessments.map((assessment, index) => (
+                <Card key={`${assessment.topic_id}-${index}`} className="flex flex-col border-l-4 border-l-primary bg-primary/5">
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg font-bold">{assessment.topic_name}</CardTitle>
+                      <Badge variant="default" className="text-[10px] font-bold uppercase">Pupil Rating</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star 
+                          key={i} 
+                          className={cn(
+                            "h-4 w-4", 
+                            i < assessment.rating ? "fill-yellow-400 text-yellow-400" : "text-muted/30"
+                          )} 
+                        />
+                      ))}
+                      <span className="text-xs font-bold text-muted-foreground ml-2">{assessment.rating}/5</span>
+                    </div>
+
+                    {assessment.comment && (
+                      <div className="bg-background/80 p-3 rounded-lg border border-primary/10 italic text-sm relative">
+                        <MessageSquare className="h-3 w-3 text-primary/40 absolute -top-1.5 -left-1.5 bg-background rounded-full" />
+                        "{assessment.comment}"
+                      </div>
+                    )}
+
+                    <div className="flex items-center text-[10px] font-bold text-muted-foreground uppercase pt-2 border-t border-primary/10">
+                      <CalendarDays className="mr-1 h-3 w-3" />
+                      Submitted {format(parseISO(assessment.entry_date), "MMM d, yyyy")}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </TabsContent>
