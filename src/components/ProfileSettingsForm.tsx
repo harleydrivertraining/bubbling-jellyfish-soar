@@ -26,7 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, RefreshCw } from "lucide-react";
+import { User as UserIcon, Clock, Shield, RefreshCw, BellRing } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -41,6 +41,10 @@ const formSchema = z.object({
   calendar_start_hour: z.string().optional().nullable(),
   calendar_end_hour: z.string().optional().nullable(),
   instructor_pin: z.string().optional().nullable(),
+  min_booking_notice_hours: z.preprocess(
+    (val) => (val === "" ? 48 : Number(val)),
+    z.number().min(0, { message: "Notice period cannot be negative." })
+  ),
 });
 
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
@@ -59,6 +63,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       calendar_start_hour: "9",
       calendar_end_hour: "18",
       instructor_pin: "",
+      min_booking_notice_hours: 48,
     },
   });
 
@@ -73,14 +78,13 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour, instructor_pin, role")
+        .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour, instructor_pin, role, min_booking_notice_hours")
         .eq("id", user.id)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        // Auto-generate PIN if missing for instructors
         if (data.role === 'instructor' && !data.instructor_pin) {
           setIsGeneratingPin(true);
           const newPin = await generateUniquePin();
@@ -104,11 +108,12 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           calendar_start_hour: data.calendar_start_hour?.toString() || "9",
           calendar_end_hour: data.calendar_end_hour?.toString() || "18",
           instructor_pin: data.instructor_pin || "",
+          min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
         });
       }
     } catch (error: any) {
       console.error("Error fetching profile:", error);
-      showError("Failed to load profile. Please ensure the 'instructor_pin' column exists in your database.");
+      showError("Failed to load profile.");
     } finally {
       setIsLoadingProfile(false);
     }
@@ -131,6 +136,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         default_lesson_duration: values.default_lesson_duration,
         calendar_start_hour: values.calendar_start_hour ? parseInt(values.calendar_start_hour) : 9,
         calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
+        min_booking_notice_hours: values.min_booking_notice_hours,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -215,7 +221,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             name="first_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>First Name</FormLabel>
+                <FormLabel>First Name</Label>
                 <FormControl><Input placeholder="John" {...field} value={field.value || ""} /></FormControl>
                 <FormMessage />
               </FormItem>
@@ -268,6 +274,32 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
                     <SelectItem value="120">2 hours</SelectItem>
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
+          <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
+            <BellRing className="h-4 w-4" /> Booking Restrictions
+          </h3>
+          <FormField
+            control={form.control}
+            name="min_booking_notice_hours"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Minimum Booking Notice (Hours)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Students cannot book available slots that start sooner than this many hours from now. (Default: 48)
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

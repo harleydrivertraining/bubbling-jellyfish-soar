@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, parseISO, differenceInMinutes } from "date-fns";
+import { format, isAfter, parseISO, differenceInMinutes, addHours } from "date-fns";
 import { 
   GraduationCap, 
   CalendarDays, 
@@ -90,10 +90,12 @@ const StudentDashboard: React.FC = () => {
       // 2. Get Instructor Info
       const { data: instructorData } = await supabase
         .from("profiles")
-        .select("first_name, last_name, logo_url")
+        .select("first_name, last_name, logo_url, min_booking_notice_hours")
         .eq("id", studentData.user_id)
         .single();
       setInstructor(instructorData);
+
+      const noticeHours = instructorData?.min_booking_notice_hours ?? 48;
 
       // 3. Get Bookings
       const { data: bookingsData } = await supabase
@@ -104,14 +106,14 @@ const StudentDashboard: React.FC = () => {
       setBookings(bookingsData || []);
 
       // 4. Get Available Slots from this instructor
-      // We use a slightly older start time to catch slots that might have just started
-      const bufferTime = new Date(Date.now() - 5 * 60000).toISOString();
+      // Filter by notice period
+      const minBookingTime = addHours(new Date(), noticeHours).toISOString();
       const { data: availabilityData, error: availError } = await supabase
         .from("bookings")
         .select("*")
         .eq("user_id", studentData.user_id)
         .eq("status", "available")
-        .gte("start_time", bufferTime)
+        .gte("start_time", minBookingTime)
         .order("start_time", { ascending: true });
       
       if (availError) console.error("Error fetching availability:", availError);

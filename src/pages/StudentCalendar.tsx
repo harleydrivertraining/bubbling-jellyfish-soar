@@ -12,11 +12,12 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Sparkles, CalendarDays, Clock, Check, Info } from "lucide-react";
+import { ArrowLeft, Sparkles, CalendarDays, Clock, Check, Info, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { addHours, isBefore } from "date-fns";
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({
@@ -43,6 +44,7 @@ const StudentCalendar: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [studentData, setStudentData] = useState<any>(null);
   const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
+  const [minNoticeHours, setMinNoticeHours] = useState(48);
   
   const [selectedSlot, setSelectedSlot] = useState<BigCalendarEvent | null>(null);
   const [isBooking, setIsBooking] = useState(false);
@@ -63,7 +65,7 @@ const StudentCalendar: React.FC = () => {
 
       const { data: instructorProfile } = await supabase
         .from("profiles")
-        .select("calendar_start_hour, calendar_end_hour")
+        .select("calendar_start_hour, calendar_end_hour, min_booking_notice_hours")
         .eq("id", sData.user_id)
         .single();
       
@@ -72,6 +74,7 @@ const StudentCalendar: React.FC = () => {
           start: instructorProfile.calendar_start_hour ?? 9,
           end: instructorProfile.calendar_end_hour ?? 18
         });
+        setMinNoticeHours(instructorProfile.min_booking_notice_hours ?? 48);
       }
 
       const { data: bookingsData, error: bError } = await supabase
@@ -109,6 +112,14 @@ const StudentCalendar: React.FC = () => {
 
   const handleSelectEvent = (event: BigCalendarEvent) => {
     if (event.resource?.status === 'available') {
+      const now = new Date();
+      const minBookingTime = addHours(now, minNoticeHours);
+      
+      if (isBefore(event.start!, minBookingTime)) {
+        showError(`This slot is too soon. Your instructor requires at least ${minNoticeHours} hours notice.`);
+        return;
+      }
+      
       setSelectedSlot(event);
     }
   };
@@ -118,7 +129,6 @@ const StudentCalendar: React.FC = () => {
 
     setIsBooking(true);
     try {
-      // 1. Update the booking
       const { error } = await supabase
         .from("bookings")
         .update({
@@ -131,9 +141,8 @@ const StudentCalendar: React.FC = () => {
 
       if (error) throw error;
 
-      // 2. Send notification to instructor
       await supabase.from("notifications").insert({
-        user_id: studentData.user_id, // Instructor's ID
+        user_id: studentData.user_id,
         title: "New Lesson Booked!",
         message: `${studentData.name} has booked the available slot on ${format(selectedSlot.start!, "PPP p")}.`,
         type: "booking_claimed"
@@ -154,7 +163,15 @@ const StudentCalendar: React.FC = () => {
     let className = "rounded-md border-none shadow-sm ";
     
     if (status === 'available') {
-      className += "bg-blue-500/20 border-2 border-dashed border-blue-500 text-blue-700 font-bold";
+      const now = new Date();
+      const minBookingTime = addHours(now, minNoticeHours);
+      const isTooSoon = isBefore(event.start!, minBookingTime);
+      
+      if (isTooSoon) {
+        className += "bg-muted border-2 border-dashed border-muted-foreground/30 text-muted-foreground opacity-50 cursor-not-allowed";
+      } else {
+        className += "bg-blue-500/20 border-2 border-dashed border-blue-500 text-blue-700 font-bold";
+      }
     } else if (status === 'completed') {
       className += "bg-green-600 text-white opacity-80";
     } else if (status === 'cancelled') {
@@ -185,7 +202,7 @@ const StudentCalendar: React.FC = () => {
         <Sparkles className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-800">
           <p className="font-bold">How to book:</p>
-          <p>Click on any <span className="font-bold text-blue-600">dashed blue slot</span> to book an extra lesson. Your existing lessons are shown in solid colors.</p>
+          <p>Click on any <span className="font-bold text-blue-600">dashed blue slot</span> to book an extra lesson. Your instructor requires <span className="font-bold">{minNoticeHours} hours</span> notice for new bookings.</p>
         </div>
       </div>
 
