@@ -132,8 +132,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
 
     // Filter for students
     if (userRole === 'student') {
-      const studentAllowedIds = ['dashboard', 'support', 'settings'];
-      items = items.filter(item => studentAllowedIds.includes(item.id));
+      items = [
+        { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
+        { id: "progress-report", to: "/progress-report", icon: TrendingUp, label: "Progress Report" },
+        { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
+        { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
+      ];
     }
 
     setNavItems(items);

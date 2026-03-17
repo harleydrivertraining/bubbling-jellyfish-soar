@@ -18,13 +18,14 @@ import {
   User,
   MessageSquare,
   Target,
-  LogOut
+  LogOut,
+  ArrowRight
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 interface StudentData {
   id: string;
@@ -171,7 +172,10 @@ const StudentDashboard: React.FC = () => {
               <div className="text-3xl font-black text-blue-700">{progressPercentage}%</div>
               <Badge variant="outline" className="bg-blue-50">{student?.status}</Badge>
             </div>
-            <Progress value={progressPercentage} className="h-2" />
+            <Progress value={progressPercentage} className="h-2 mb-4" />
+            <Button asChild variant="outline" size="sm" className="w-full font-bold">
+              <Link to="/progress-report">View Full Report <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            </Button>
           </CardContent>
         </Card>
 

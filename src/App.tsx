@@ -14,6 +14,7 @@ import LessonNotes from "./pages/LessonNotes";
 import StudentTargets from "./pages/StudentTargets";
 import Progress from "./pages/Progress";
 import StudentProgressDetail from "./pages/StudentProgressDetail";
+import StudentProgressReport from "./pages/StudentProgressReport"; // New import
 import DrivingTests from "./pages/DrivingTests";
 import DrivingTestBookings from "./pages/DrivingTestBookings";
 import PrePaidHours from "./pages/PrePaidHours";
@@ -24,7 +25,7 @@ import MileageTracker from "./pages/MileageTracker";
 import TestStatistics from "./pages/TestStatistics";
 import Support from "./pages/Support";
 import AdminSupport from "./pages/AdminSupport";
-import Accounts from "./pages/Accounts"; // New import
+import Accounts from "./pages/Accounts";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="student-targets" element={<StudentTargets />} />
               <Route path="progress" element={<Progress />} />
               <Route path="progress/:studentId" element={<StudentProgressDetail />} />
+              <Route path="progress-report" element={<StudentProgressReport />} /> {/* New route */}
               <Route path="driving-test-bookings" element={<DrivingTestBookings />} />
               <Route path="driving-tests" element={<DrivingTests />} />
               <Route path="test-statistics" element={<TestStatistics />} />
@@ -60,7 +62,7 @@ const App = () => (
               <Route path="manage-topics" element={<ManageTopics />} />
               <Route path="admin/topics" element={<AdminProgressTopics />} />
               <Route path="mileage-tracker" element={<MileageTracker />} />
-              <Route path="accounts" element={<Accounts />} /> {/* New route */}
+              <Route path="accounts" element={<Accounts />} />
               <Route path="support" element={<Support />} />
               <Route path="admin/support" element={<AdminSupport />} />
               <Route path="settings" element={<Settings />} />
