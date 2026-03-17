@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -67,7 +67,6 @@ const Dashboard: React.FC = () => {
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
   const [milesUntilNextServiceDashboard, setMilesUntilNextServiceDashboard] = useState<number | null>(null);
-  const [weeksUntilNextService, setWeeksUntilNextService] = useState<number | null>(null);
   const [carNeedingService, setCarNeedingService] = useState<string | null>(null);
   const [totalPrePaidHoursRemaining, setTotalPrePaidHoursRemaining] = useState<number | null>(null);
   const [studentsWithLowPrePaidHours, setStudentsWithLowPrePaidHours] = useState<string[]>([]);
@@ -75,7 +74,6 @@ const Dashboard: React.FC = () => {
   const [totalBookedHoursForSelectedWeek, setTotalBookedHoursForSelectedWeek] = useState<number | null>(null);
   const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
   
-  const [showAllLessons, setShowAllLessons] = useState(false);
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [widgets, setWidgets] = useState<DashboardWidget[]>(DEFAULT_WIDGETS);
 
@@ -144,7 +142,6 @@ const Dashboard: React.FC = () => {
     const now = new Date();
 
     try {
-      // Use profile from session context if available
       if (profile) {
         setInstructorName(`${profile.first_name || ""} ${profile.last_name || ""}`.trim());
       }
@@ -207,7 +204,7 @@ const Dashboard: React.FC = () => {
       }
 
       if (carsRes.data && carsRes.data.length > 0) {
-        const car = carsRes.data[0]; // Just check the first car for the dashboard summary
+        const car = carsRes.data[0];
         if (car.service_interval_miles) {
           const { data: mileageData } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).maybeSingle();
           const currentMileage = mileageData?.current_mileage || car.initial_mileage;
@@ -244,22 +241,6 @@ const Dashboard: React.FC = () => {
     if (!isSessionLoading && user) fetchBookedHoursForWeek(selectedWeekStartISO);
   }, [isSessionLoading, user, selectedWeekStartISO, fetchBookedHoursForWeek]);
 
-  const generateWeekOptions = useMemo(() => {
-    const options = [];
-    const now = new Date();
-    for (let i = 2; i >= 1; i--) {
-      const start = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
-      options.push({ label: `${format(start, "MMM dd")} - ${format(endOfWeek(start, { weekStartsOn: 1 }), "MMM dd")}`, value: start.toISOString() });
-    }
-    const currentStart = startOfWeek(now, { weekStartsOn: 1 });
-    options.push({ label: "Current Week", value: currentStart.toISOString() });
-    for (let i = 1; i <= 2; i++) {
-      const start = startOfWeek(addWeeks(now, i), { weekStartsOn: 1 });
-      options.push({ label: `${format(start, "MMM dd")} - ${format(endOfWeek(start, { weekStartsOn: 1 }), "MMM dd")}`, value: start.toISOString() });
-    }
-    return options;
-  }, []);
-
   if (isSessionLoading || isLoadingDashboard) {
     return (
       <div className="space-y-6 p-6">
@@ -286,9 +267,9 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {widgets.filter(w => w.visible).map((widget) => (
-          <div key={widget.id} className={cn(widget.id === "quick_stats" && "lg:col-span-3", widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2")}>
+          <React.Fragment key={widget.id}>
             {widget.id === "quick_stats" && (
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <div className="lg:col-span-3 grid gap-3 grid-cols-2 lg:grid-cols-4">
                 <Card className="border-l-4 border-l-blue-500 shadow-sm">
                   <CardHeader className="pb-1 p-3"><CardTitle className="text-sm font-bold text-muted-foreground">Students</CardTitle></CardHeader>
                   <CardContent className="p-3 pt-0"><div className="text-3xl font-black">{totalStudents ?? 0}</div></CardContent>
@@ -307,13 +288,14 @@ const Dashboard: React.FC = () => {
                 </Card>
               </div>
             )}
+            
             {widget.id === "upcoming_lessons" && (
-              <Card className="h-full shadow-md border-none overflow-hidden">
+              <Card className="lg:col-span-1 lg:row-span-2 shadow-md border-none overflow-hidden">
                 <CardHeader className="bg-primary text-primary-foreground p-4"><CardTitle className="text-xl font-bold">Upcoming Lessons</CardTitle></CardHeader>
                 <CardContent className="p-0">
                   {upcomingLessons.length === 0 ? <div className="p-12 text-center text-muted-foreground">No lessons scheduled.</div> : (
                     <div className="divide-y">
-                      {upcomingLessons.slice(0, 5).map(b => (
+                      {upcomingLessons.slice(0, 8).map(b => (
                         <div key={b.id} className="p-4 flex items-center justify-between hover:bg-muted/30">
                           <div className="min-w-0">
                             <p className="font-bold truncate">{b.students?.name || "Unknown"}</p>
@@ -327,8 +309,104 @@ const Dashboard: React.FC = () => {
                 </CardContent>
               </Card>
             )}
-            {/* Add other widget renders here as needed */}
-          </div>
+
+            {widget.id === "test_stats" && drivingTestStats && (
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ClipboardCheck className="h-5 w-5 text-primary" />
+                    Test Performance (12m)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Pass Rate</p>
+                    <p className="text-2xl font-black text-green-600">{drivingTestStats.passRate.toFixed(1)}%</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Avg. Faults</p>
+                    <p className="text-2xl font-black">{drivingTestStats.avgDrivingFaults.toFixed(1)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {widget.id === "next_tests" && (
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Car className="h-5 w-5 text-purple-600" />
+                    Next Driving Tests
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {nextDrivingTestBookings.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground italic">No upcoming tests.</p>
+                  ) : (
+                    <div className="divide-y">
+                      {nextDrivingTestBookings.map(b => (
+                        <div key={b.id} className="p-3 flex items-center justify-between">
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm truncate">{b.students?.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{format(new Date(b.start_time), "MMM dd, p")}</p>
+                          </div>
+                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-[10px]">TEST</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {widget.id === "service_info" && (
+              <Card className={cn("shadow-sm", milesUntilNextServiceDashboard !== null && milesUntilNextServiceDashboard < 1000 ? "bg-orange-50 border-orange-200" : "")}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Gauge className="h-5 w-5 text-blue-600" />
+                    Vehicle Service
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {milesUntilNextServiceDashboard !== null ? (
+                    <div className="space-y-1">
+                      <p className="text-2xl font-black">{milesUntilNextServiceDashboard.toFixed(0)} <span className="text-sm font-bold text-muted-foreground">miles left</span></p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{carNeedingService}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No service data tracked.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {widget.id === "prepaid_info" && (
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Hourglass className="h-5 w-5 text-green-600" />
+                    Pre-Paid Hours
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Total Credit Balance</p>
+                    <p className="text-2xl font-black text-primary">{totalPrePaidHoursRemaining?.toFixed(1) || 0}h</p>
+                  </div>
+                  {studentsWithLowPrePaidHours.length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-[10px] font-bold uppercase text-orange-600 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" /> Low Credit ({studentsWithLowPrePaidHours.length})
+                      </p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {studentsWithLowPrePaidHours.join(", ")}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </React.Fragment>
         ))}
       </div>
 

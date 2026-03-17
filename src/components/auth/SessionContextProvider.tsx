@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { AlertCircle, Database } from "lucide-react";
+import { AlertCircle, Database, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Profile {
@@ -64,10 +64,13 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     mounted.current = true;
     
-    // Safety valve: Force loading to false after 3 seconds
+    // Safety valve: Force loading to false after 4 seconds
     const timer = setTimeout(() => {
-      if (mounted.current) setIsLoading(false);
-    }, 3000);
+      if (mounted.current && isLoading) {
+        console.log("Safety timeout reached, forcing load state to false");
+        setIsLoading(false);
+      }
+    }, 4000);
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
@@ -144,9 +147,17 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
   if (isLoading && !isPublicRoute) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-muted-foreground font-medium">Loading your workspace...</p>
+        <p className="text-muted-foreground font-medium mb-6">Loading your workspace...</p>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => setIsLoading(false)}
+          className="text-xs text-muted-foreground hover:text-primary"
+        >
+          Taking too long? Click here to force load.
+        </Button>
       </div>
     );
   }
