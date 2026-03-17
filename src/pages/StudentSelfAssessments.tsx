@@ -37,6 +37,7 @@ interface SelfAssessment {
   rating: number;
   comment: string | null;
   entry_date: string;
+  user_id: string; // Creator ID
   students: {
     name: string;
   };
@@ -57,9 +58,25 @@ const StudentSelfAssessments: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Fetch entries where user_id is NOT the instructor's ID
-      // This identifies them as student self-assessments
-      const { data, error } = await supabase
+      // 1. Get all students belonging to this instructor
+      const { data: myStudents, error: studentsError } = await supabase
+        .from("students")
+        .select("id, name")
+        .eq("user_id", user.id);
+
+      if (studentsError) throw studentsError;
+      
+      if (!myStudents || myStudents.length === 0) {
+        setAssessments([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const studentIds = myStudents.map(s => s.id);
+
+      // 2. Fetch all progress entries for these students
+      // We filter for entries where user_id (creator) is NOT the instructor's ID
+      const { data: entries, error: entriesError } = await supabase
         .from("student_progress_entries")
         .select(`
           id,
@@ -68,18 +85,20 @@ const StudentSelfAssessments: React.FC = () => {
           rating,
           comment,
           entry_date,
-          students!inner(name, user_id),
+          user_id,
+          students(name),
           progress_topics(name)
         `)
-        .eq("students.user_id", user.id) // Only for this instructor's students
-        .neq("user_id", user.id) // Exclude instructor's own entries
+        .in("student_id", studentIds)
+        .neq("user_id", user.id) // Exclude entries made by the instructor
         .order("entry_date", { ascending: false });
 
-      if (error) throw error;
-      setAssessments(data as any || []);
+      if (entriesError) throw entriesError;
+      
+      setAssessments(entries as any || []);
     } catch (error: any) {
       console.error("Error fetching self-assessments:", error);
-      showError("Failed to load pupil self-assessments.");
+      showError("Failed to load pupil self-assessments. Please ensure your students have recorded their own ratings.");
     } finally {
       setIsLoading(false);
     }
@@ -93,7 +112,7 @@ const StudentSelfAssessments: React.FC = () => {
     const map = new Map();
     assessments.forEach(a => {
       if (!map.has(a.student_id)) {
-        map.set(a.student_id, a.students.name);
+        map.set(a.student_id, a.students?.name || "Unknown Student");
       }
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
@@ -101,10 +120,14 @@ const StudentSelfAssessments: React.FC = () => {
 
   const filteredAssessments = useMemo(() => {
     return assessments.filter(a => {
+      const studentName = a.students?.name || "";
+      const topicName = a.progress_topics?.name || "";
+      const comment = a.comment || "";
+
       const matchesSearch = 
-        a.students.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.progress_topics.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (a.comment && a.comment.toLowerCase().includes(searchTerm.toLowerCase()));
+        studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        topicName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        comment.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesStudent = selectedStudentId === "all" || a.student_id === selectedStudentId;
       
@@ -169,7 +192,11 @@ const StudentSelfAssessments: React.FC = () => {
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
             <UserCircle className="h-6 w-6 text-muted-foreground" />
           </div>
-          <p className="text-muted-foreground font-medium">No self-assessments found matching your filters.</p>
+          <p className="text-muted-foreground font-medium">
+            {assessments.length === 0 
+              ? "No pupil self-assessments found yet. Encourage your students to use the 'Self Assessment' tab in their progress report!" 
+              : "No self-assessments found matching your filters."}
+          </p>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -180,10 +207,10 @@ const StudentSelfAssessments: React.FC = () => {
                   <div className="min-w-0">
                     <CardTitle className="text-lg font-bold truncate flex items-center gap-2">
                       <User className="h-4 w-4 text-primary/60" />
-                      {assessment.students.name}
+                      {assessment.students?.name || "Unknown Student"}
                     </CardTitle>
                     <CardDescription className="font-bold text-primary mt-0.5">
-                      {assessment.progress_topics.name}
+                      {assessment.progress_topics?.name || "Unknown Topic"}
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="bg-primary/5 text-[10px] font-bold uppercase">
