@@ -95,22 +95,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
   const { user } = useSession();
   const navigate = useNavigate();
   const [isOwner, setIsOwner] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [navItems, setNavItems] = useState(DEFAULT_NAV_ITEMS);
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      // Force navigation to login and clear state
       navigate("/login", { replace: true });
     } catch (error) {
       console.error("Logout error:", error);
-      // Fallback redirect
       window.location.href = "/login";
     }
   };
 
   const loadConfig = useCallback(() => {
+    let items = [...DEFAULT_NAV_ITEMS];
     const saved = localStorage.getItem("sidebar_menu_config");
+    
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -123,15 +124,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
           .filter(Boolean);
         
         const missingItems = DEFAULT_NAV_ITEMS.filter(d => !parsed.find((p: any) => p.id === d.id));
-        setNavItems([...visibleItems, ...missingItems]);
+        items = [...visibleItems, ...missingItems];
       } catch (e) {
         console.error("Failed to parse menu config", e);
-        setNavItems(DEFAULT_NAV_ITEMS);
       }
-    } else {
-      setNavItems(DEFAULT_NAV_ITEMS);
     }
-  }, []);
+
+    // Filter for students
+    if (userRole === 'student') {
+      const studentAllowedIds = ['dashboard', 'support', 'settings'];
+      items = items.filter(item => studentAllowedIds.includes(item.id));
+    }
+
+    setNavItems(items);
+  }, [userRole]);
 
   useEffect(() => {
     loadConfig();
@@ -143,7 +149,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     const checkRole = async () => {
       if (!user) return;
       const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-      setIsOwner(data?.role === 'owner');
+      const role = data?.role?.toLowerCase() || null;
+      setUserRole(role);
+      setIsOwner(role === 'owner');
     };
     checkRole();
   }, [user]);
