@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -41,7 +41,7 @@ interface Booking {
 type RevenueTimeframe = "daily" | "weekly" | "monthly";
 
 const DEFAULT_WIDGETS: DashboardWidget[] = [
-  { id: "pending_requests", label: "Pending Booking Requests", visible: true },
+  { id: "pending_requests", label: "Booking Requests", visible: true },
   { id: "quick_stats", label: "Quick Stats Row", visible: true },
   { id: "upcoming_lessons", label: "Upcoming Lessons List", visible: true },
   { id: "test_stats", label: "Test Performance (12m)", visible: true },
@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, hourly_rate, role, instructor_pin")
+        .select("first_name, last_name, hourly_rate, role, instructor_pin, require_booking_approval")
         .eq("id", user!.id)
         .single();
       if (error) throw error;
@@ -339,47 +339,66 @@ const Dashboard: React.FC = () => {
   const renderWidget = (id: string) => {
     switch (id) {
       case "pending_requests":
-        if (!pendingRequests || pendingRequests.length === 0) return null;
+        const hasRequests = pendingRequests && pendingRequests.length > 0;
         return (
-          <Card key={id} className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-md overflow-hidden">
+          <Card key={id} className={cn(
+            "shadow-md overflow-hidden transition-all",
+            hasRequests ? "border-l-4 border-l-orange-500 bg-orange-50/30" : "bg-card"
+          )}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-bold flex items-center gap-2 text-orange-800">
-                <ClipboardCheck className="h-5 w-5" />
-                Pending Booking Requests ({pendingRequests.length})
+              <CardTitle className={cn(
+                "text-lg font-bold flex items-center gap-2",
+                hasRequests ? "text-orange-800" : "text-foreground"
+              )}>
+                <ClipboardCheck className={cn("h-5 w-5", hasRequests ? "text-orange-600" : "text-muted-foreground")} />
+                Booking Requests {hasRequests && `(${pendingRequests.length})`}
               </CardTitle>
-              <CardDescription className="text-orange-700/70">Students are waiting for you to confirm these slots.</CardDescription>
+              <CardDescription className={hasRequests ? "text-orange-700/70" : ""}>
+                {hasRequests 
+                  ? "Students are waiting for you to confirm these slots." 
+                  : "No pending requests at the moment."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-orange-100">
-                {pendingRequests.map((req) => (
-                  <div key={req.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
-                    <div className="min-w-0">
-                      <p className="font-bold text-orange-900">{req.students?.name || "Unknown Student"}</p>
-                      <div className="flex items-center gap-3 text-xs text-orange-800/70 mt-1 font-medium">
-                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(parseISO(req.start_time), "EEE, MMM do")}</span>
-                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {format(parseISO(req.start_time), "p")}</span>
+              {hasRequests ? (
+                <div className="divide-y divide-orange-100">
+                  {pendingRequests.map((req) => (
+                    <div key={req.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
+                      <div className="min-w-0">
+                        <p className="font-bold text-orange-900">{req.students?.name || "Unknown Student"}</p>
+                        <div className="flex items-center gap-3 text-xs text-orange-800/70 mt-1 font-medium">
+                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(parseISO(req.start_time), "EEE, MMM do")}</span>
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {format(parseISO(req.start_time), "p")}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button 
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700 font-bold h-8"
+                          onClick={() => handleApprove(req.id, req.students?.name)}
+                        >
+                          <Check className="mr-1 h-4 w-4" /> Approve
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8"
+                          onClick={() => handleReject(req.id)}
+                        >
+                          <X className="mr-1 h-4 w-4" /> Reject
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button 
-                        size="sm" 
-                        className="bg-green-600 hover:bg-green-700 font-bold h-8"
-                        onClick={() => handleApprove(req.id, req.students?.name)}
-                      >
-                        <Check className="mr-1 h-4 w-4" /> Approve
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8"
-                        onClick={() => handleReject(req.id)}
-                      >
-                        <X className="mr-1 h-4 w-4" /> Reject
-                      </Button>
-                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center flex flex-col items-center justify-center space-y-2">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                    <Inbox className="h-6 w-6 text-muted-foreground/40" />
                   </div>
-                ))}
-              </div>
+                  <p className="text-sm text-muted-foreground font-medium italic">Your inbox is clear!</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
