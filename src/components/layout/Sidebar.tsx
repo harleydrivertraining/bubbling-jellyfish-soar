@@ -91,25 +91,38 @@ const DEFAULT_NAV_ITEMS = [
   { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
 ];
 
+const STUDENT_NAV_ITEMS = [
+  { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { id: "schedule", to: "/schedule", icon: CalendarDays, label: "My Schedule" },
+  { id: "lessons", to: "/lessons", icon: BookOpen, label: "My Lessons" },
+  { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "My Notes" },
+  { id: "student-targets", to: "/student-targets", icon: Target, label: "My Targets" },
+  { id: "progress", to: "/progress", icon: TrendingUp, label: "My Progress" },
+  { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
+  { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
+];
+
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
-  const { user } = useSession();
+  const { user, profile } = useSession();
   const navigate = useNavigate();
-  const [isOwner, setIsOwner] = useState(false);
   const [navItems, setNavItems] = useState(DEFAULT_NAV_ITEMS);
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      // Force navigation to login and clear state
       navigate("/login", { replace: true });
     } catch (error) {
       console.error("Logout error:", error);
-      // Fallback redirect
       window.location.href = "/login";
     }
   };
 
   const loadConfig = useCallback(() => {
+    if (profile?.role === 'student') {
+      setNavItems(STUDENT_NAV_ITEMS);
+      return;
+    }
+
     const saved = localStorage.getItem("sidebar_menu_config");
     if (saved) {
       try {
@@ -131,22 +144,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     } else {
       setNavItems(DEFAULT_NAV_ITEMS);
     }
-  }, []);
+  }, [profile?.role]);
 
   useEffect(() => {
     loadConfig();
     window.addEventListener("sidebar-config-updated", loadConfig);
     return () => window.removeEventListener("sidebar-config-updated", loadConfig);
   }, [loadConfig]);
-
-  useEffect(() => {
-    const checkRole = async () => {
-      if (!user) return;
-      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-      setIsOwner(data?.role === 'owner');
-    };
-    checkRole();
-  }, [user]);
 
   return (
     <div
@@ -184,7 +188,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
             />
           ))}
           
-          {isOwner && (
+          {profile?.role === 'owner' && (
             <>
               <Separator className="my-2 bg-sidebar-border" />
               <div className={cn("px-4 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest", isCollapsed && "hidden")}>

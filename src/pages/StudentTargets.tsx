@@ -20,10 +20,10 @@ import { User, CalendarDays, Target } from "lucide-react";
 
 interface StudentTargetNote {
   id: string;
-  title: string; // Keeping title for potential search/context, though not displayed on card
+  title: string;
   description?: string;
   targets_for_next_session?: string;
-  start_time: string; // ISO string
+  start_time: string;
   students: {
     name: string;
   };
@@ -34,21 +34,20 @@ interface Student {
   name: string;
 }
 
-// Helper function to check if a string has meaningful content
 const hasContent = (text: string | null | undefined) => {
   return text != null && text.trim().length > 0;
 };
 
 const StudentTargets: React.FC = () => {
-  const { user, isLoading: isSessionLoading } = useSession();
+  const { user, profile, isLoading: isSessionLoading } = useSession();
   const [allStudentTargets, setAllStudentTargets] = useState<StudentTargetNote[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedStudentId, setSelectedStudentId] = useState<string>("all"); // "all" for all students
+  const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
 
   const fetchStudents = useCallback(async () => {
-    if (!user) return;
+    if (!user || profile?.role === 'student') return;
     const { data, error } = await supabase
       .from("students")
       .select("id, name")
@@ -56,12 +55,11 @@ const StudentTargets: React.FC = () => {
 
     if (error) {
       console.error("Error fetching students:", error);
-      showError("Failed to load students for filter: " + error.message);
       setStudents([]);
     } else {
       setStudents(data || []);
     }
-  }, [user]);
+  }, [user, profile?.role]);
 
   const fetchStudentTargets = useCallback(async (studentId: string | null) => {
     if (!user) {
@@ -72,40 +70,45 @@ const StudentTargets: React.FC = () => {
     setIsLoading(true);
     let query = supabase
       .from("bookings")
-      .select("id, title, description, targets_for_next_session, start_time, students(name)")
-      .eq("user_id", user.id);
+      .select("id, title, description, targets_for_next_session, start_time, students(name)");
 
-    if (studentId && studentId !== "all") {
-      query = query.eq("student_id", studentId);
+    if (profile?.role === 'student') {
+      const { data: studentRec } = await supabase.from("students").select("id").eq("auth_user_id", user.id).single();
+      if (studentRec) {
+        query = query.eq("student_id", studentRec.id);
+      } else {
+        setAllStudentTargets([]);
+        setIsLoading(false);
+        return;
+      }
+    } else {
+      query = query.eq("user_id", user.id);
+      if (studentId && studentId !== "all") {
+        query = query.eq("student_id", studentId);
+      }
     }
 
-    const { data, error } = await query.order("start_time", { ascending: false }); // Most recent first
+    const { data, error } = await query.order("start_time", { ascending: false });
 
     if (error) {
       console.error("Error fetching student targets:", error);
-      showError("Failed to load student targets: " + error.message);
+      showError("Failed to load targets.");
       setAllStudentTargets([]);
     } else {
-      // Client-side filter to ensure only bookings with actual targets are shown
       const filteredData = (data || []).filter(
         (booking) => hasContent(booking.targets_for_next_session)
       );
-      setAllStudentTargets(filteredData);
+      setAllStudentTargets(filteredData as any);
     }
     setIsLoading(false);
-  }, [user]);
+  }, [user, profile?.role]);
 
   useEffect(() => {
     if (!isSessionLoading) {
       fetchStudents();
-    }
-  }, [isSessionLoading, fetchStudents]);
-
-  useEffect(() => {
-    if (!isSessionLoading && user) {
       fetchStudentTargets(selectedStudentId);
     }
-  }, [isSessionLoading, user, selectedStudentId, fetchStudentTargets]);
+  }, [isSessionLoading, fetchStudents, fetchStudentTargets, selectedStudentId]);
 
   const filteredStudentTargets = useMemo(() => {
     let currentTargets = [...allStudentTargets];
@@ -124,45 +127,34 @@ const StudentTargets: React.FC = () => {
   }, [allStudentTargets, searchTerm]);
 
   if (isSessionLoading || isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-48" />
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-10 w-[180px]" />
-          <Skeleton className="h-10 w-64" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
-          <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent className="space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent></Card>
-        </div>
-      </div>
-    );
+    return <div className="space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-64 w-full" /></div>;
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Student Targets</h1>
+      <h1 className="text-3xl font-bold">{profile?.role === 'student' ? 'My Targets' : 'Student Targets'}</h1>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="student-filter">Filter by Student:</Label>
-          <Select onValueChange={setSelectedStudentId} defaultValue={selectedStudentId}>
-            <SelectTrigger id="student-filter" className="w-[180px]">
-              <SelectValue placeholder="Select a student" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Students</SelectItem>
-              {students.map((student) => (
-                <SelectItem key={student.id} value={student.id}>
-                  {student.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {profile?.role !== 'student' && (
+          <div className="flex items-center gap-2">
+            <Label htmlFor="student-filter">Filter by Student:</Label>
+            <Select onValueChange={setSelectedStudentId} defaultValue={selectedStudentId}>
+              <SelectTrigger id="student-filter" className="w-[180px]">
+                <SelectValue placeholder="Select a student" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Students</SelectItem>
+                {students.map((student) => (
+                  <SelectItem key={student.id} value={student.id}>
+                    {student.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <Input
-          placeholder="Search targets by student or content..."
+          placeholder="Search targets..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm sm:ml-auto"
@@ -170,11 +162,7 @@ const StudentTargets: React.FC = () => {
       </div>
 
       {filteredStudentTargets.length === 0 ? (
-        <p className="text-muted-foreground">
-          {allStudentTargets.length === 0
-            ? "No student targets found yet. Add targets to your lessons!"
-            : "No student targets match your current filters or search term."}
-        </p>
+        <p className="text-muted-foreground">No targets found.</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStudentTargets.map((targetNote) => (
@@ -190,18 +178,13 @@ const StudentTargets: React.FC = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-1 space-y-3 text-sm">
-                {hasContent(targetNote.targets_for_next_session) && (
-                  <div>
-                    <h3 className="font-semibold mb-1 flex items-center">
-                      <Target className="mr-2 h-4 w-4 text-muted-foreground" />
-                      Targets for Next Session:
-                    </h3>
-                    <p className="text-muted-foreground">{targetNote.targets_for_next_session}</p>
-                  </div>
-                )}
-                {!hasContent(targetNote.targets_for_next_session) && (
-                  <p className="text-muted-foreground italic">No specific targets recorded for this lesson.</p>
-                )}
+                <div>
+                  <h3 className="font-semibold mb-1 flex items-center">
+                    <Target className="mr-2 h-4 w-4 text-muted-foreground" />
+                    Targets for Next Session:
+                  </h3>
+                  <p className="text-muted-foreground">{targetNote.targets_for_next_session}</p>
+                </div>
               </CardContent>
             </Card>
           ))}

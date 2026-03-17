@@ -20,9 +20,18 @@ interface Booking {
   };
 }
 
+interface Profile {
+  id: string;
+  role: string;
+  first_name?: string;
+  last_name?: string;
+  instructor_pin?: string;
+}
+
 interface SessionContextType {
   session: Session | null;
   user: User | null;
+  profile: Profile | null;
   isLoading: boolean;
   initialBookings: Booking[] | null;
   isLoadingInitialBookings: boolean;
@@ -33,6 +42,7 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null);
   const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(false);
@@ -40,19 +50,45 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const location = useLocation();
   const isInitialMount = useRef(true);
 
-  const fetchInitialBookings = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    
+    if (!error) setProfile(data);
+    return data;
+  }, []);
+
+  const fetchInitialBookings = useCallback(async (userId: string, role: string) => {
     if (isLoadingInitialBookings) return;
     setIsLoadingInitialBookings(true);
     const now = new Date();
     const threeMonthsAgo = startOfMonth(addMonths(now, -3));
     const threeMonthsFromNow = endOfMonth(addMonths(now, 3));
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("bookings")
       .select("id, title, description, start_time, end_time, student_id, status, lesson_type, students(name)")
-      .eq("user_id", userId)
       .gte("start_time", threeMonthsAgo.toISOString())
       .lte("end_time", threeMonthsFromNow.toISOString());
+
+    if (role === 'student') {
+      // For students, we need to find their student record ID first
+      const { data: studentRec } = await supabase.from("students").select("id").eq("auth_user_id", userId).single();
+      if (studentRec) {
+        query = query.eq("student_id", studentRec.id);
+      } else {
+        setInitialBookings([]);
+        setIsLoadingInitialBookings(false);
+        return;
+      }
+    } else {
+      query = query.eq("user_id", userId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching initial bookings:", error);
@@ -64,7 +100,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }, [isLoadingInitialBookings]);
 
   useEffect(() => {
-    // Initial session check - do this immediately
     const getInitialSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
@@ -74,7 +109,10 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          fetchInitialBookings(initialSession.user.id);
+          const prof = await fetchProfile(initialSession.user.id);
+          if (prof) {
+            fetchInitialBookings(initialSession.user.id, prof.role);
+          }
           if (isPublicRoute) {
             navigate("/", { replace: true });
           }
@@ -103,7 +141,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         if (currentSession?.user) {
-          fetchInitialBookings(currentSession.user.id);
+          const prof = await fetchProfile(currentSession.user.id);
+          if (prof) fetchInitialBookings(currentSession.user.id, prof.role);
         }
         if (isPublicRoute) {
           navigate("/", { replace: true });
@@ -111,6 +150,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
+        setProfile(null);
         setInitialBookings(null);
         if (!isPublicRoute) {
           navigate("/login", { replace: true });
@@ -119,7 +159,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, location.pathname, fetchInitialBookings]);
+  }, [navigate, location.pathname, fetchProfile, fetchInitialBookings]);
 
   if (isLoading) {
     return (
@@ -131,7 +171,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }
 
   return (
-    <SessionContext.Provider value={{ session, user, isLoading, initialBookings, isLoadingInitialBookings }}>
+    <SessionContext.Provider value={{ session, user, profile, isLoading, initialBookings, isLoadingInitialBookings }}>
       {children}
     </SessionContext.Provider>
   );
