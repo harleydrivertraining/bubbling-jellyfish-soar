@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Bell, Check, Trash2, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,8 +30,13 @@ interface Notification {
 const NotificationBell: React.FC = () => {
   const { user } = useSession();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
+
+  // Derived state for unread count ensures it's always in sync with the notifications list
+  const unreadCount = useMemo(() => 
+    notifications.filter(n => !n.read).length, 
+    [notifications]
+  );
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -44,7 +49,6 @@ const NotificationBell: React.FC = () => {
 
     if (!error && data) {
       setNotifications(data);
-      setUnreadCount(data.filter(n => !n.read).length);
     }
   }, [user]);
 
@@ -57,7 +61,6 @@ const NotificationBell: React.FC = () => {
       LocalNotifications.requestPermissions();
     }
 
-    // Subscribe to ALL changes (INSERT, UPDATE, DELETE) for this user's notifications
     const channel = supabase
       .channel(`notifications-sync-${user.id}`)
       .on('postgres_changes', { 
@@ -68,8 +71,11 @@ const NotificationBell: React.FC = () => {
       }, async (payload) => {
         if (payload.eventType === 'INSERT') {
           const newNotif = payload.new as Notification;
-          setNotifications(prev => [newNotif, ...prev]);
-          setUnreadCount(prev => prev + 1);
+          setNotifications(prev => {
+            // Avoid duplicates if optimistic update already added it
+            if (prev.some(n => n.id === newNotif.id)) return prev;
+            return [newNotif, ...prev];
+          });
           
           toast(newNotif.title, {
             description: newNotif.message,
@@ -98,18 +104,9 @@ const NotificationBell: React.FC = () => {
         } else if (payload.eventType === 'UPDATE') {
           const updatedNotif = payload.new as Notification;
           setNotifications(prev => prev.map(n => n.id === updatedNotif.id ? updatedNotif : n));
-          // Recalculate unread count based on the new state
-          setNotifications(current => {
-            setUnreadCount(current.filter(n => !n.read).length);
-            return current;
-          });
         } else if (payload.eventType === 'DELETE') {
           const deletedId = payload.old.id;
-          setNotifications(prev => {
-            const filtered = prev.filter(n => n.id !== deletedId);
-            setUnreadCount(filtered.filter(n => !n.read).length);
-            return filtered;
-          });
+          setNotifications(prev => prev.filter(n => n.id !== deletedId));
         }
       })
       .subscribe();
@@ -120,28 +117,40 @@ const NotificationBell: React.FC = () => {
   }, [user, fetchNotifications]);
 
   const markAsRead = async (id: string) => {
+    // Optimistic update for immediate UI feedback
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    
     await supabase
       .from("notifications")
       .update({ read: true })
       .eq("id", id);
-    // Local state is updated via the real-time subscription
   };
 
   const markAllAsRead = async () => {
+    // Optimistic update
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    
     await supabase
       .from("notifications")
       .update({ read: true })
       .eq("user_id", user?.id)
       .eq("read", false);
-    // Local state is updated via the real-time subscription
   };
 
   const deleteNotification = async (id: string) => {
-    await supabase
+    // Optimistic update: remove from UI immediately
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    
+    const { error } = await supabase
       .from("notifications")
       .delete()
       .eq("id", id);
-    // Local state is updated via the real-time subscription
+      
+    if (error) {
+      console.error("Delete failed:", error);
+      // Re-fetch if delete failed to restore UI state
+      fetchNotifications();
+    }
   };
 
   return (
