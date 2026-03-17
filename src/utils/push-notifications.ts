@@ -7,49 +7,58 @@ import { supabase } from '@/integrations/supabase/client';
 export const initializePushNotifications = async (userId: string) => {
   // Push notifications only work on native platforms (iOS/Android)
   if (!Capacitor.isNativePlatform()) {
-    console.log('Push notifications are only available on native platforms.');
     return;
   }
 
-  // 1. Request permission
-  let permStatus = await PushNotifications.checkPermissions();
+  try {
+    // 1. Check current permission status
+    let permStatus = await PushNotifications.checkPermissions();
 
-  if (permStatus.receive === 'prompt') {
-    permStatus = await PushNotifications.requestPermissions();
-  }
-
-  if (permStatus.receive !== 'granted') {
-    console.warn('User denied push notification permissions.');
-    return;
-  }
-
-  // 2. Register with Apple/Google to get a token
-  await PushNotifications.register();
-
-  // 3. Listen for successful registration and save the token to Supabase
-  PushNotifications.addListener('registration', async (token) => {
-    console.log('Push registration success, token: ' + token.value);
-    
-    const { error } = await supabase
-      .from('user_push_tokens')
-      .upsert({
-        user_id: userId,
-        token: token.value,
-        platform: Capacitor.getPlatform()
-      }, { onConflict: 'user_id, token' });
-
-    if (error) {
-      console.error('Error saving push token to database:', error);
+    if (permStatus.receive === 'prompt') {
+      permStatus = await PushNotifications.requestPermissions();
     }
-  });
 
-  // 4. Handle errors
-  PushNotifications.addListener('registrationError', (error) => {
-    console.error('Error on push registration: ' + JSON.stringify(error));
-  });
+    if (permStatus.receive !== 'granted') {
+      console.warn('User denied push notification permissions.');
+      return;
+    }
 
-  // 5. Handle incoming notifications while the app is open
-  PushNotifications.addListener('pushNotificationReceived', (notification) => {
-    console.log('Push received: ' + JSON.stringify(notification));
-  });
+    // 2. Add listeners BEFORE registering to catch the token
+    // We wrap these in try-catch to prevent native errors from bubbling up
+    
+    await PushNotifications.addListener('registration', async (token) => {
+      console.log('Push registration success');
+      
+      try {
+        const { error } = await supabase
+          .from('user_push_tokens')
+          .upsert({
+            user_id: userId,
+            token: token.value,
+            platform: Capacitor.getPlatform()
+          }, { onConflict: 'user_id, token' });
+
+        if (error) console.error('Error saving push token:', error);
+      } catch (e) {
+        console.error('Supabase error during token save:', e);
+      }
+    });
+
+    await PushNotifications.addListener('registrationError', (error) => {
+      console.error('Push registration error:', JSON.stringify(error));
+    });
+
+    // 3. Register with a small delay to ensure the native bridge is fully ready
+    // This helps prevent boot-time crashes
+    setTimeout(async () => {
+      try {
+        await PushNotifications.register();
+      } catch (e) {
+        console.error('Native registration call failed:', e);
+      }
+    }, 1000);
+
+  } catch (globalError) {
+    console.error('Global push notification init error:', globalError);
+  }
 };
