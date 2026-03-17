@@ -24,7 +24,8 @@ import {
   Sparkles,
   Plus,
   RefreshCw,
-  ClipboardCheck
+  ClipboardCheck,
+  AlertCircle
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -204,6 +205,10 @@ const StudentDashboard: React.FC = () => {
     return bookings.find(b => b.status === 'scheduled' && isAfter(parseISO(b.start_time), new Date()));
   }, [bookings]);
 
+  const pendingRequests = useMemo(() => {
+    return bookings.filter(b => b.status === 'pending_approval' && isAfter(parseISO(b.start_time), new Date()));
+  }, [bookings]);
+
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6 p-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div></div>;
   }
@@ -228,6 +233,38 @@ const StudentDashboard: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {pendingRequests.length > 0 && (
+        <Card className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-orange-800">
+              <ClipboardCheck className="h-5 w-5 text-orange-600" />
+              Pending Approval ({pendingRequests.length})
+            </CardTitle>
+            <CardDescription className="text-orange-700/70">
+              Your instructor needs to confirm these lesson requests.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-orange-100">
+              {pendingRequests.map((req) => (
+                <div key={req.id} className="p-4 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="font-bold text-sm text-orange-900">{format(parseISO(req.start_time), "EEEE, MMM do")}</p>
+                    <p className="text-xs text-orange-800/70 flex items-center gap-2">
+                      <Clock className="h-3 w-3" />
+                      {format(parseISO(req.start_time), "p")}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="bg-white text-orange-600 border-orange-200 font-bold uppercase text-[10px]">
+                    Waiting...
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-l-4 border-l-blue-500 shadow-sm">

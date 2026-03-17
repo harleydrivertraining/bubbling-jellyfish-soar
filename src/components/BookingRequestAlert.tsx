@@ -37,7 +37,7 @@ const BookingRequestAlert: React.FC = () => {
 
       const { data } = await supabase
         .from("bookings")
-        .select("id, title, start_time, end_time, students(name)")
+        .select("id, title, start_time, end_time, student_id, students(name)")
         .eq("user_id", user!.id)
         .eq("status", "pending_approval")
         .order("start_time", { ascending: true });
@@ -48,7 +48,7 @@ const BookingRequestAlert: React.FC = () => {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const handleApprove = async (id: string, studentName: string) => {
+  const handleApprove = async (id: string, studentName: string, studentId: string) => {
     setProcessingId(id);
     const { error } = await supabase
       .from("bookings")
@@ -58,6 +58,16 @@ const BookingRequestAlert: React.FC = () => {
     if (error) {
       showError("Failed to approve.");
     } else {
+      // Notify student of approval
+      if (studentId) {
+        await supabase.from("notifications").insert({
+          user_id: studentId,
+          title: "Booking Approved!",
+          message: `Your lesson on ${format(parseISO(requests.find(r => r.id === id).start_time), "PPP")} has been confirmed.`,
+          type: "booking_confirmed"
+        });
+      }
+
       showSuccess("Booking approved!");
       queryClient.invalidateQueries({ queryKey: ['pending-requests-global'] });
       queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
@@ -66,8 +76,20 @@ const BookingRequestAlert: React.FC = () => {
     setProcessingId(null);
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = async (id: string, studentId: string, startTime: string) => {
     setProcessingId(id);
+    
+    // 1. Notify student first while we still have the link
+    if (studentId) {
+      await supabase.from("notifications").insert({
+        user_id: studentId,
+        title: "Booking Request Declined",
+        message: `Your request for the slot on ${format(parseISO(startTime), "PPP")} was not approved. The slot is now available for others to book.`,
+        type: "booking_rejected"
+      });
+    }
+
+    // 2. Reset the slot
     const { error } = await supabase
       .from("bookings")
       .update({ status: "available", student_id: null, title: "Available Slot" })
@@ -137,7 +159,7 @@ const BookingRequestAlert: React.FC = () => {
                   <div className="flex items-center gap-3 pt-2">
                     <Button 
                       className="flex-1 bg-green-600 hover:bg-green-700 font-black h-11"
-                      onClick={() => handleApprove(req.id, req.students?.name)}
+                      onClick={() => handleApprove(req.id, req.students?.name, req.student_id)}
                       disabled={processingId === req.id}
                     >
                       {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-2 h-5 w-5" /> Approve</>}
@@ -145,7 +167,7 @@ const BookingRequestAlert: React.FC = () => {
                     <Button 
                       variant="outline" 
                       className="flex-1 border-red-200 text-red-700 hover:bg-red-50 font-black h-11"
-                      onClick={() => handleReject(req.id)}
+                      onClick={() => handleReject(req.id, req.student_id, req.start_time)}
                       disabled={processingId === req.id}
                     >
                       {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><X className="mr-2 h-5 w-5" /> Deny</>}
