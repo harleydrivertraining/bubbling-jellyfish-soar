@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -28,49 +28,71 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const mounted = useRef(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", userId)
         .maybeSingle();
       
-      if (data) setProfile(data);
+      if (mounted.current) {
+        if (error) console.warn("Profile fetch error:", error.message);
+        setProfile(data || null);
+      }
     } catch (e) {
-      console.warn("Profile fetch skipped");
+      console.error("Profile fetch failed:", e);
     }
   }, []);
 
   useEffect(() => {
-    // Safety timeout: never stay in "loading" state for more than 3 seconds
+    mounted.current = true;
+    
+    // Safety valve: Force loading to false after 5 seconds no matter what
     const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 3000);
+      if (mounted.current) setIsLoading(false);
+    }, 5000);
 
-    // Single source of truth for auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      
-      if (currentSession?.user) {
-        await fetchProfile(currentSession.user.id);
-      } else {
-        setProfile(null);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (mounted.current) {
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        if (initialSession?.user) {
+          fetchProfile(initialSession.user.id);
+        }
+        setIsLoading(false);
+        clearTimeout(timer);
       }
-      
-      setIsLoading(false);
-      clearTimeout(timer);
+    });
+
+    // Listen for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (mounted.current) {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user.id);
+        } else {
+          setProfile(null);
+        }
+        
+        setIsLoading(false);
+        clearTimeout(timer);
+      }
     });
 
     return () => {
+      mounted.current = false;
       subscription.unsubscribe();
       clearTimeout(timer);
     };
   }, [fetchProfile]);
 
-  // Handle protected route redirects
+  // Navigation logic
   useEffect(() => {
     if (isLoading) return;
 
@@ -86,12 +108,11 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
   const isPublicRoute = ["/login", "/signup"].includes(location.pathname);
 
-  // Only show the spinner if we are actually loading AND not on a login/signup page
   if (isLoading && !isPublicRoute) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-muted-foreground font-medium">Connecting...</p>
+        <p className="text-muted-foreground font-medium">Loading your workspace...</p>
       </div>
     );
   }
