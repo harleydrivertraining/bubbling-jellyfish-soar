@@ -11,7 +11,7 @@ declare
   instructor_email text;
   student_name text;
   -- IMPORTANT: Replace the string below with your actual Resend API Key
-  resend_api_key text := 'YOUR_RESEND_API_KEY_HERE'; 
+  resend_api_key text := 're_Ba7SxYXj_967iieeP97NbXdnZwGe55kpL'; 
 begin
   -- Only proceed if the status changed from 'available' to 'scheduled'
   -- and a student has been assigned
