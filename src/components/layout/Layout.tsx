@@ -12,6 +12,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/components/NotificationBell";
+import BookingRequestAlert from "@/components/BookingRequestAlert";
 
 const Layout = () => {
   const isMobile = useIsMobile();
@@ -74,10 +75,18 @@ const Layout = () => {
                 </h2>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4">
+                <BookingRequestAlert />
                 <NotificationBell />
               </div>
             </header>
+          )}
+
+          {/* Mobile Top Alert Bar */}
+          {isMobile === true && (
+            <div className="sticky top-0 z-[40] flex justify-center p-2 bg-background/80 backdrop-blur-sm border-b">
+              <BookingRequestAlert />
+            </div>
           )}
           
           <main className={cn(
