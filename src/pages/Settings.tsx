@@ -3,9 +3,10 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutList, UserCog, ShieldCheck } from "lucide-react";
+import { LogOut, LayoutList, UserCog, ShieldCheck, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import ProfileSettingsForm from "@/components/ProfileSettingsForm";
+import NotificationSettingsForm from "@/components/NotificationSettingsForm";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
 import MenuCustomizer from "@/components/MenuCustomizer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,9 +21,12 @@ const Settings: React.FC = () => {
       <h1 className="text-3xl font-black tracking-tight">Settings</h1>
       
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12">
+        <TabsList className="grid w-full grid-cols-4 h-12">
           <TabsTrigger value="profile" className="font-bold flex items-center gap-2">
             <UserCog className="h-4 w-4" /> Profile
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="font-bold flex items-center gap-2">
+            <Bell className="h-4 w-4" /> Notifications
           </TabsTrigger>
           <TabsTrigger value="menu" className="font-bold flex items-center gap-2">
             <LayoutList className="h-4 w-4" /> Menu
@@ -42,6 +46,10 @@ const Settings: React.FC = () => {
               <ProfileSettingsForm />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="mt-6">
+          <NotificationSettingsForm />
         </TabsContent>
 
         <TabsContent value="menu" className="mt-6">

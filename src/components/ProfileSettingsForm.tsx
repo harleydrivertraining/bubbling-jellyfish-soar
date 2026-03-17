@@ -26,18 +26,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing, Mail, Send, Loader2, AlertTriangle, CalendarCheck, Hourglass, TrendingUp } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
-  email: z.string().email("Invalid email address").optional().nullable().or(z.literal("")),
-  email_notifications_enabled: z.boolean().default(true),
-  notif_lesson_booked: z.boolean().default(true),
-  notif_low_prepaid: z.boolean().default(true),
-  notif_student_progress: z.boolean().default(true),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
@@ -56,18 +50,12 @@ const formSchema = z.object({
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [isTestingEmail, setIsTestingEmail] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
-      email: "",
-      email_notifications_enabled: true,
-      notif_lesson_booked: true,
-      notif_low_prepaid: true,
-      notif_student_progress: true,
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
@@ -77,8 +65,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       min_booking_notice_hours: 48,
     },
   });
-
-  const { isDirty } = form.formState;
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
@@ -97,11 +83,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
-          email: data.email || "",
-          email_notifications_enabled: data.email_notifications_enabled ?? true,
-          notif_lesson_booked: data.notif_lesson_booked ?? true,
-          notif_low_prepaid: data.notif_low_prepaid ?? true,
-          notif_student_progress: data.notif_student_progress ?? true,
           hourly_rate: data.hourly_rate,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
@@ -123,41 +104,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     fetchProfile();
   }, [fetchProfile]);
 
-  const handleTestEmail = async () => {
-    if (!user) return;
-    
-    if (isDirty) {
-      showError("You have unsaved changes. Please click 'Save All Changes' before sending a test email.");
-      return;
-    }
-
-    const currentEmail = form.getValues("email");
-    if (!currentEmail) {
-      showError("Please enter and save an email address first.");
-      return;
-    }
-
-    setIsTestingEmail(true);
-    try {
-      const { data, error } = await supabase.rpc('send_test_email', { 
-        target_user_id: user.id 
-      });
-
-      if (error) throw new Error(error.message);
-
-      if (data?.error) {
-        showError("Database Error: " + data.error);
-      } else {
-        showSuccess("Test email sent! Please check your inbox.");
-      }
-    } catch (err: any) {
-      console.error("Test email error:", err);
-      showError("Failed to trigger test email: " + err.message);
-    } finally {
-      setIsTestingEmail(false);
-    }
-  };
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
 
@@ -166,11 +112,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       .update({
         first_name: values.first_name,
         last_name: values.last_name,
-        email: values.email,
-        email_notifications_enabled: values.email_notifications_enabled,
-        notif_lesson_booked: values.notif_lesson_booked,
-        notif_low_prepaid: values.notif_low_prepaid,
-        notif_student_progress: values.notif_student_progress,
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
@@ -252,129 +193,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
               </FormItem>
             )}
           />
-        </div>
-
-        <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
-          <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
-            <Mail className="h-4 w-4" /> Email Notifications
-          </h3>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notification Email Address</FormLabel>
-                  <FormControl>
-                    <Input placeholder="your@email.com" {...field} value={field.value || ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="email_notifications_enabled"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-xs">Master Email Switch</FormLabel>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {form.watch("email_notifications_enabled") && (
-            <div className="grid grid-cols-1 gap-3 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Notify me when:</p>
-              
-              <FormField
-                control={form.control}
-                name="notif_lesson_booked"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background px-3 py-2 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <CalendarCheck className="h-4 w-4 text-blue-600" />
-                      <FormLabel className="text-xs cursor-pointer">A student books a free slot</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notif_low_prepaid"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background px-3 py-2 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <Hourglass className="h-4 w-4 text-orange-600" />
-                      <FormLabel className="text-xs cursor-pointer">A student has low credit (≤ 2h)</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notif_student_progress"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background px-3 py-2 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                      <FormLabel className="text-xs cursor-pointer">A student updates their progress</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-          )}
-
-          <div className="flex flex-col gap-3 pt-4 border-t">
-            <div className="flex items-center gap-3">
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                className="font-bold border-blue-200 text-blue-700 hover:bg-blue-100"
-                onClick={handleTestEmail}
-                disabled={isTestingEmail}
-              >
-                {isTestingEmail ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
-                ) : (
-                  <><Send className="mr-2 h-4 w-4" /> Send Test Email</>
-                )}
-              </Button>
-              <p className="text-[10px] text-muted-foreground italic">
-                Verifies your Resend setup by sending a message to the email above.
-              </p>
-            </div>
-            
-            {isDirty && (
-              <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
-                <AlertTriangle className="h-3 w-3" />
-                <span>You have unsaved changes. Click "Save All Changes" before testing.</span>
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -519,7 +337,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           </div>
         </div>
 
-        <Button type="submit" className="w-full font-bold">Save All Changes</Button>
+        <Button type="submit" className="w-full font-bold">Save Profile Changes</Button>
       </form>
     </Form>
   );
