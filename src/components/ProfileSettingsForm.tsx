@@ -134,16 +134,20 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         target_user_id: user.id 
       });
 
-      if (error) throw error;
+      if (error) {
+        // If the RPC itself fails (e.g. function not found)
+        throw new Error(error.message);
+      }
 
       if (data?.error) {
-        showError(data.error);
+        // If the function runs but returns an error (e.g. Resend API error)
+        showError("Database Error: " + data.error);
       } else {
         showSuccess("Test email sent! Please check your inbox (and spam folder).");
       }
     } catch (err: any) {
       console.error("Test email error:", err);
-      showError("Failed to trigger test email. Ensure you have run the SQL fix in Supabase.");
+      showError("Failed to trigger test email: " + err.message);
     } finally {
       setIsTestingEmail(false);
     }
