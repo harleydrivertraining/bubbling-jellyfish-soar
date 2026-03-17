@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -12,7 +12,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, RefreshCw } from "lucide-react";
+import { User as UserIcon, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -40,13 +39,11 @@ const formSchema = z.object({
   default_lesson_duration: z.enum(["60", "90", "120"]).optional().nullable(),
   calendar_start_hour: z.string().optional().nullable(),
   calendar_end_hour: z.string().optional().nullable(),
-  instructor_pin: z.string().optional().nullable(),
 });
 
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [isGeneratingPin, setIsGeneratingPin] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,65 +55,38 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       default_lesson_duration: "60",
       calendar_start_hour: "9",
       calendar_end_hour: "18",
-      instructor_pin: "",
     },
   });
 
-  const generateUniquePin = async () => {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-  };
-
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = async () => {
     if (!user) return;
     setIsLoadingProfile(true);
-    
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour, instructor_pin, role")
-        .eq("id", user.id)
-        .single();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour")
+      .eq("id", user.id)
+      .single();
 
-      if (error) throw error;
-
-      if (data) {
-        // Auto-generate PIN if missing for instructors
-        if (data.role === 'instructor' && !data.instructor_pin) {
-          setIsGeneratingPin(true);
-          const newPin = await generateUniquePin();
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({ instructor_pin: newPin })
-            .eq("id", user.id);
-          
-          if (!updateError) {
-            data.instructor_pin = newPin;
-          }
-          setIsGeneratingPin(false);
-        }
-
-        form.reset({
-          first_name: data.first_name || "",
-          last_name: data.last_name || "",
-          hourly_rate: data.hourly_rate,
-          logo_url: data.logo_url || "",
-          default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
-          calendar_start_hour: data.calendar_start_hour?.toString() || "9",
-          calendar_end_hour: data.calendar_end_hour?.toString() || "18",
-          instructor_pin: data.instructor_pin || "",
-        });
-      }
-    } catch (error: any) {
+    if (error) {
       console.error("Error fetching profile:", error);
-      showError("Failed to load profile. Please ensure the 'instructor_pin' column exists in your database.");
-    } finally {
-      setIsLoadingProfile(false);
+      showError("Failed to load profile: " + error.message);
+    } else if (data) {
+      form.reset({
+        first_name: data.first_name || "",
+        last_name: data.last_name || "",
+        hourly_rate: data.hourly_rate,
+        logo_url: data.logo_url || "",
+        default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
+        calendar_start_hour: data.calendar_start_hour?.toString() || "9",
+        calendar_end_hour: data.calendar_end_hour?.toString() || "18",
+      });
     }
-  }, [user, form]);
+    setIsLoadingProfile(false);
+  };
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    if (user) fetchProfile();
+  }, [user]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
@@ -150,14 +120,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
   }));
 
   if (isLoadingProfile) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-20 w-20 rounded-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-    );
+    return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>;
   }
 
   return (
@@ -175,34 +138,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
               <FormItem className="flex-1">
                 <FormLabel>Logo URL</FormLabel>
                 <FormControl><Input placeholder="https://example.com/logo.png" {...field} value={field.value || ""} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="p-4 border rounded-xl bg-primary/5 space-y-4">
-          <h3 className="text-sm font-bold uppercase text-primary flex items-center gap-2">
-            <Shield className="h-4 w-4" /> Assigned Instructor PIN
-          </h3>
-          <FormField
-            control={form.control}
-            name="instructor_pin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Your Unique 4-Digit PIN</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Input 
-                      {...field} 
-                      value={isGeneratingPin ? "Generating..." : (field.value || "")} 
-                      readOnly 
-                      className="font-mono text-lg tracking-widest bg-muted cursor-not-allowed"
-                    />
-                    {isGeneratingPin && <RefreshCw className="absolute right-3 top-2.5 h-5 w-5 animate-spin text-muted-foreground" />}
-                  </div>
-                </FormControl>
-                <FormDescription>This PIN is automatically assigned and unique to you. Give this to your students so they can link their account to you.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}

@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, CheckCircle, XCircle, AlertTriangle, Hand, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -22,7 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 import OwnerDashboard from "./OwnerDashboard";
-import StudentDashboard from "./StudentDashboard";
 
 interface Booking {
   id: string;
@@ -60,7 +59,6 @@ const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [instructorName, setInstructorName] = useState<string | null>(null);
-  const [instructorPin, setInstructorPin] = useState<string | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
   const [upcomingDrivingTestBookingsCount, setUpcomingDrivingTestBookingsCount] = useState<number | null>(null);
@@ -160,7 +158,7 @@ const Dashboard: React.FC = () => {
       // First, get the profile to determine the role
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("first_name, last_name, hourly_rate, role, instructor_pin")
+        .select("first_name, last_name, hourly_rate, role")
         .eq("id", user.id)
         .single();
 
@@ -168,12 +166,11 @@ const Dashboard: React.FC = () => {
 
       if (profileData) {
         setInstructorName(`${profileData.first_name || ""} ${profileData.last_name || ""}`.trim());
-        setInstructorPin(profileData.instructor_pin);
         setCurrentHourlyRate(profileData.hourly_rate);
         setUserRole(profileData.role);
 
-        // If owner or student, we stop here and let their specific dashboards handle data
-        if (profileData.role?.toLowerCase() === 'owner' || profileData.role?.toLowerCase() === 'student') {
+        // If owner, we stop here and let OwnerDashboard handle its own data
+        if (profileData.role?.toLowerCase() === 'owner') {
           setIsLoadingDashboard(false);
           return;
         }
@@ -304,7 +301,7 @@ const Dashboard: React.FC = () => {
   }, [isSessionLoading, fetchDashboardData]);
 
   useEffect(() => {
-    if (!isSessionLoading && user && userRole?.toLowerCase() === 'instructor') fetchBookedHoursForWeek(selectedWeekStartISO);
+    if (!isSessionLoading && user && userRole?.toLowerCase() !== 'owner') fetchBookedHoursForWeek(selectedWeekStartISO);
   }, [isSessionLoading, user, userRole, selectedWeekStartISO, fetchBookedHoursForWeek]);
 
   const generateWeekOptions = useMemo(() => {
@@ -650,23 +647,12 @@ const Dashboard: React.FC = () => {
     return <OwnerDashboard />;
   }
 
-  // Render Student Dashboard if user is a student
-  if (userRole?.toLowerCase() === 'student') {
-    return <StudentDashboard />;
-  }
-
   return (
     <React.Fragment>
       <div className="space-y-8 w-full px-4 lg:px-8 py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
+          <div>
             <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorName || "Instructor"}</h1>
-            {instructorPin && (
-              <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
-                <Shield className="h-3.5 w-3.5" />
-                <span>Your Student PIN: <span className="font-mono tracking-widest">{instructorPin}</span></span>
-              </div>
-            )}
           </div>
         </div>
 

@@ -4,20 +4,28 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
+import { startOfMonth, endOfMonth, addMonths } from "date-fns";
 
-interface Profile {
+interface Booking {
   id: string;
-  role: string;
-  first_name?: string;
-  last_name?: string;
-  instructor_pin?: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  status: "scheduled" | "completed" | "cancelled";
+  lesson_type: string;
+  student_id: string;
+  students: {
+    name: string;
+  };
 }
 
 interface SessionContextType {
   session: Session | null;
   user: User | null;
-  profile: Profile | null;
   isLoading: boolean;
+  initialBookings: Booking[] | null;
+  isLoadingInitialBookings: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -25,97 +33,93 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null);
+  const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const isInitialized = useRef(false);
+  const isInitialMount = useRef(true);
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
-      
-      if (error) {
-        console.error("Error fetching profile:", error);
-        return null;
-      }
-      setProfile(data);
-      return data;
-    } catch (e) {
-      console.error("Profile fetch exception:", e);
-      return null;
+  const fetchInitialBookings = useCallback(async (userId: string) => {
+    if (isLoadingInitialBookings) return;
+    setIsLoadingInitialBookings(true);
+    const now = new Date();
+    const threeMonthsAgo = startOfMonth(addMonths(now, -3));
+    const threeMonthsFromNow = endOfMonth(addMonths(now, 3));
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, students(name)")
+      .eq("user_id", userId)
+      .gte("start_time", threeMonthsAgo.toISOString())
+      .lte("end_time", threeMonthsFromNow.toISOString());
+
+    if (error) {
+      console.error("Error fetching initial bookings:", error);
+      setInitialBookings([]);
+    } else {
+      setInitialBookings(data || []);
     }
-  }, []);
+    setIsLoadingInitialBookings(false);
+  }, [isLoadingInitialBookings]);
 
   useEffect(() => {
-    if (isInitialized.current) return;
-    isInitialized.current = true;
-
-    // Safety timeout: If auth doesn't respond in 5 seconds, stop loading
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        console.warn("Auth initialization timed out. Proceeding...");
-        setIsLoading(false);
-      }
-    }, 5000);
-
-    const initialize = async () => {
+    // Initial session check - do this immediately
+    const getInitialSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        
+        const publicRoutes = ["/login", "/signup"];
+        const isPublicRoute = publicRoutes.includes(location.pathname);
+
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          await fetchProfile(initialSession.user.id);
+          fetchInitialBookings(initialSession.user.id);
+          if (isPublicRoute) {
+            navigate("/", { replace: true });
+          }
+        } else {
+          if (!isPublicRoute) {
+            navigate("/login", { replace: true });
+          }
         }
       } catch (error) {
-        console.error("Auth initialization error:", error);
+        console.error("Error getting initial session:", error);
       } finally {
-        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     };
 
-    initialize();
+    if (isInitialMount.current) {
+      getInitialSession();
+      isInitialMount.current = false;
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      
+      const publicRoutes = ["/login", "/signup"];
+      const isPublicRoute = publicRoutes.includes(location.pathname);
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
         if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
+          fetchInitialBookings(currentSession.user.id);
+        }
+        if (isPublicRoute) {
+          navigate("/", { replace: true });
         }
       } else if (event === 'SIGNED_OUT') {
-        setProfile(null);
+        setSession(null);
+        setUser(null);
+        setInitialBookings(null);
+        if (!isPublicRoute) {
+          navigate("/login", { replace: true });
+        }
       }
-      
-      setIsLoading(false);
     });
 
-    return () => {
-      clearTimeout(timeoutId);
-      subscription.unsubscribe();
-    };
-  }, [fetchProfile]);
-
-  // Handle redirects
-  useEffect(() => {
-    if (isLoading) return;
-
-    const publicRoutes = ["/login", "/signup"];
-    const isPublicRoute = publicRoutes.includes(location.pathname);
-
-    if (!session && !isPublicRoute) {
-      navigate("/login", { replace: true });
-    } else if (session && isPublicRoute) {
-      navigate("/", { replace: true });
-    }
-  }, [session, isLoading, location.pathname, navigate]);
+    return () => subscription.unsubscribe();
+  }, [navigate, location.pathname, fetchInitialBookings]);
 
   if (isLoading) {
     return (
@@ -127,7 +131,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }
 
   return (
-    <SessionContext.Provider value={{ session, user, profile, isLoading }}>
+    <SessionContext.Provider value={{ session, user, isLoading, initialBookings, isLoadingInitialBookings }}>
       {children}
     </SessionContext.Provider>
   );

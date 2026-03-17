@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,7 +28,6 @@ import {
   LifeBuoy,
   ShieldCheck,
   PoundSterling,
-  LogOut,
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -72,85 +71,37 @@ interface SidebarProps {
   onLinkClick?: () => void;
 }
 
-const DEFAULT_NAV_ITEMS = [
-  { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { id: "students", to: "/students", icon: Users, label: "Students" },
-  { id: "schedule", to: "/schedule", icon: CalendarDays, label: "Schedule" },
-  { id: "lessons", to: "/lessons", icon: BookOpen, label: "Lessons" },
-  { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
-  { id: "student-targets", to: "/student-targets", icon: Target, label: "Student Targets" },
-  { id: "progress", to: "/progress", icon: TrendingUp, label: "Progress" },
-  { id: "test-bookings", to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
-  { id: "test-records", to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
-  { id: "test-stats", to: "/test-statistics", icon: BarChart3, label: "Test Statistics" },
-  { id: "pre-paid", to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
-  { id: "mileage", to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
-  { id: "accounts", to: "/accounts", icon: PoundSterling, label: "Accounts" },
-  { id: "topics", to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
-  { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
-  { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
-];
-
-const STUDENT_NAV_ITEMS = [
-  { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { id: "schedule", to: "/schedule", icon: CalendarDays, label: "My Schedule" },
-  { id: "lessons", to: "/lessons", icon: BookOpen, label: "My Lessons" },
-  { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "My Notes" },
-  { id: "student-targets", to: "/student-targets", icon: Target, label: "My Targets" },
-  { id: "progress", to: "/progress", icon: TrendingUp, label: "My Progress" },
-  { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
-  { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
-];
-
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
-  const { user, profile } = useSession();
-  const navigate = useNavigate();
-  const [navItems, setNavItems] = useState(DEFAULT_NAV_ITEMS);
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      navigate("/login", { replace: true });
-    } catch (error) {
-      console.error("Logout error:", error);
-      window.location.href = "/login";
-    }
-  };
-
-  const loadConfig = useCallback(() => {
-    if (profile?.role === 'student') {
-      setNavItems(STUDENT_NAV_ITEMS);
-      return;
-    }
-
-    const saved = localStorage.getItem("sidebar_menu_config");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const visibleItems = parsed
-          .filter((p: any) => p.visible)
-          .map((p: any) => {
-            const original = DEFAULT_NAV_ITEMS.find(d => d.id === p.id);
-            return original ? { ...original } : null;
-          })
-          .filter(Boolean);
-        
-        const missingItems = DEFAULT_NAV_ITEMS.filter(d => !parsed.find((p: any) => p.id === d.id));
-        setNavItems([...visibleItems, ...missingItems]);
-      } catch (e) {
-        console.error("Failed to parse menu config", e);
-        setNavItems(DEFAULT_NAV_ITEMS);
-      }
-    } else {
-      setNavItems(DEFAULT_NAV_ITEMS);
-    }
-  }, [profile?.role]);
+  const { user } = useSession();
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
-    loadConfig();
-    window.addEventListener("sidebar-config-updated", loadConfig);
-    return () => window.removeEventListener("sidebar-config-updated", loadConfig);
-  }, [loadConfig]);
+    const checkRole = async () => {
+      if (!user) return;
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      setIsOwner(data?.role === 'owner');
+    };
+    checkRole();
+  }, [user]);
+
+  const navItems = [
+    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/students", icon: Users, label: "Students" },
+    { to: "/schedule", icon: CalendarDays, label: "Schedule" },
+    { to: "/lessons", icon: BookOpen, label: "Lessons" },
+    { to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
+    { to: "/student-targets", icon: Target, label: "Student Targets" },
+    { to: "/progress", icon: TrendingUp, label: "Progress" },
+    { to: "/driving-test-bookings", icon: Car, label: "Test Bookings" },
+    { to: "/driving-tests", icon: ClipboardCheck, label: "Test Records" },
+    { to: "/test-statistics", icon: BarChart3, label: "Test Statistics" },
+    { to: "/pre-paid-hours", icon: Hourglass, label: "Pre-Paid Hours" },
+    { to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
+    { to: "/accounts", icon: PoundSterling, label: "Accounts" },
+    { to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
+    { to: "/support", icon: LifeBuoy, label: "Support" },
+    { to: "/settings", icon: Settings, label: "Settings" },
+  ];
 
   return (
     <div
@@ -179,7 +130,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
         <nav className="grid items-start gap-2 px-2">
           {navItems.map((item) => (
             <NavLink
-              key={item.id}
+              key={item.to}
               to={item.to}
               icon={item.icon}
               label={item.label}
@@ -188,7 +139,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
             />
           ))}
           
-          {profile?.role === 'owner' && (
+          {isOwner && (
             <>
               <Separator className="my-2 bg-sidebar-border" />
               <div className={cn("px-4 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest", isCollapsed && "hidden")}>
@@ -200,22 +151,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
           )}
         </nav>
       </ScrollArea>
-      
-      <Separator className="bg-sidebar-border" />
-      <div className="p-2">
-        <Button
-          variant="ghost"
-          className={cn(
-            "h-10 w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10",
-            isCollapsed ? "w-10 p-0 justify-center" : "px-4"
-          )}
-          onClick={handleLogout}
-        >
-          <LogOut className={cn("h-5 w-5", isCollapsed ? "" : "mr-3")} />
-          {!isCollapsed && "Logout"}
-        </Button>
-      </div>
-      
       <Separator className="bg-sidebar-border" />
       <div className="p-4 text-center text-xs text-muted-foreground">
         {!isCollapsed && "© 2025 HDT App"}
