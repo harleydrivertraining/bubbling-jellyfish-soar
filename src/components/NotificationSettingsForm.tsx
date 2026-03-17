@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Mail, Send, Loader2, AlertTriangle, CalendarCheck, Hourglass, TrendingUp, BellRing } from "lucide-react";
+import { Mail, Send, Loader2, AlertTriangle, CalendarCheck, BellRing } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -27,8 +27,6 @@ const formSchema = z.object({
   email: z.string().email("Invalid email address").optional().nullable().or(z.literal("")),
   email_notifications_enabled: z.boolean().default(true),
   notif_lesson_booked: z.boolean().default(true),
-  notif_low_prepaid: z.boolean().default(true),
-  notif_student_progress: z.boolean().default(true),
 });
 
 const NotificationSettingsForm: React.FC = () => {
@@ -42,8 +40,6 @@ const NotificationSettingsForm: React.FC = () => {
       email: "",
       email_notifications_enabled: true,
       notif_lesson_booked: true,
-      notif_low_prepaid: true,
-      notif_student_progress: true,
     },
   });
 
@@ -56,7 +52,7 @@ const NotificationSettingsForm: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("email, email_notifications_enabled, notif_lesson_booked, notif_low_prepaid, notif_student_progress")
+        .select("email, email_notifications_enabled, notif_lesson_booked")
         .eq("id", user.id)
         .single();
 
@@ -67,8 +63,6 @@ const NotificationSettingsForm: React.FC = () => {
           email: data.email || "",
           email_notifications_enabled: data.email_notifications_enabled ?? true,
           notif_lesson_booked: data.notif_lesson_booked ?? true,
-          notif_low_prepaid: data.notif_low_prepaid ?? true,
-          notif_student_progress: data.notif_student_progress ?? true,
         });
       }
     } catch (error: any) {
@@ -127,8 +121,6 @@ const NotificationSettingsForm: React.FC = () => {
         email: values.email,
         email_notifications_enabled: values.email_notifications_enabled,
         notif_lesson_booked: values.notif_lesson_booked,
-        notif_low_prepaid: values.notif_low_prepaid,
-        notif_student_progress: values.notif_student_progress,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -240,44 +232,6 @@ const NotificationSettingsForm: React.FC = () => {
                       <div className="space-y-0.5">
                         <FormLabel className="text-sm font-bold cursor-pointer">New Lesson Bookings</FormLabel>
                         <p className="text-[10px] text-muted-foreground">When a student books an available slot</p>
-                      </div>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notif_low_prepaid"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border px-4 py-3 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <Hourglass className="h-5 w-5 text-orange-600" />
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-sm font-bold cursor-pointer">Low Credit Alerts</FormLabel>
-                        <p className="text-[10px] text-muted-foreground">When a student has ≤ 2 hours remaining</p>
-                      </div>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notif_student_progress"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border px-4 py-3 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <TrendingUp className="h-5 w-5 text-green-600" />
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-sm font-bold cursor-pointer">Pupil Self-Assessments</FormLabel>
-                        <p className="text-[10px] text-muted-foreground">When a student updates their own progress</p>
                       </div>
                     </div>
                     <FormControl>
