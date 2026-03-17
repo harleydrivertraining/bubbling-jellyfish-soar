@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
+import { AlertCircle, Database } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Profile {
   id: string;
@@ -26,9 +28,21 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConfigured, setIsConfigured] = useState(true);
+  
   const navigate = useNavigate();
   const location = useLocation();
   const mounted = useRef(true);
+
+  // Check if Supabase is actually configured
+  useEffect(() => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || url.includes("placeholder") || !key || key.includes("placeholder")) {
+      setIsConfigured(false);
+      setIsLoading(false);
+    }
+  }, []);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -50,10 +64,10 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     mounted.current = true;
     
-    // Safety valve: Force loading to false after 5 seconds no matter what
+    // Safety valve: Force loading to false after 3 seconds
     const timer = setTimeout(() => {
       if (mounted.current) setIsLoading(false);
-    }, 5000);
+    }, 3000);
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
@@ -66,6 +80,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         setIsLoading(false);
         clearTimeout(timer);
       }
+    }).catch(() => {
+      if (mounted.current) setIsLoading(false);
     });
 
     // Listen for changes
@@ -94,7 +110,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Navigation logic
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || !isConfigured) return;
 
     const publicRoutes = ["/login", "/signup"];
     const isPublicRoute = publicRoutes.includes(location.pathname);
@@ -104,7 +120,25 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     } else if (session && isPublicRoute) {
       navigate("/", { replace: true });
     }
-  }, [session, isLoading, location.pathname, navigate]);
+  }, [session, isLoading, isConfigured, location.pathname, navigate]);
+
+  if (!isConfigured) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
+        <div className="h-16 w-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mb-6">
+          <Database className="h-8 w-8" />
+        </div>
+        <h1 className="text-2xl font-bold mb-2">Database Not Connected</h1>
+        <p className="text-muted-foreground max-w-md mb-8">
+          To use this application, you need to connect your Supabase project. 
+          Please click the <strong>"Add Supabase"</strong> button in the chat interface.
+        </p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          Check Connection Again
+        </Button>
+      </div>
+    );
+  }
 
   const isPublicRoute = ["/login", "/signup"].includes(location.pathname);
 
