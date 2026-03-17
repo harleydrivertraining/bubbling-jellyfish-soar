@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Plus, ArrowLeft, Clock, Bell } from "lucide-react";
+import { MessageSquare, Plus, ArrowLeft, Clock, Bell, Info, LifeBuoy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
@@ -13,6 +13,7 @@ import SupportMessageForm from "@/components/SupportMessageForm";
 import SupportConversation from "@/components/SupportConversation";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface SupportMessage {
   id: string;
@@ -23,6 +24,7 @@ interface SupportMessage {
   profiles: {
     first_name: string;
     last_name: string;
+    role: string;
   };
   has_owner_reply?: boolean;
 }
@@ -32,6 +34,7 @@ const Support: React.FC = () => {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<SupportMessage | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
 
@@ -46,17 +49,17 @@ const Support: React.FC = () => {
       .single();
     
     setIsOwner(profile?.role === 'owner');
+    setUserRole(profile?.role || null);
 
     const { data: msgs, error } = await supabase
       .from("support_messages")
-      .select("*, profiles(first_name, last_name)")
+      .select("*, profiles(first_name, last_name, role)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
       showError("Failed to load messages: " + error.message);
     } else if (msgs) {
-      // For each message, check if there's a reply from the owner
       const messagesWithReplyStatus = await Promise.all(msgs.map(async (msg) => {
         const { data: replies } = await supabase
           .from("support_replies")
@@ -80,10 +83,15 @@ const Support: React.FC = () => {
     return <div className="space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-64 w-full" /></div>;
   }
 
+  const isStudent = userRole === 'student';
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Support</h1>
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold">App Support</h1>
+          <p className="text-muted-foreground">Technical assistance for the HDT Instructor App.</p>
+        </div>
         <div className="flex gap-2">
           {isOwner && (
             <Button asChild variant="outline">
@@ -98,6 +106,16 @@ const Support: React.FC = () => {
         </div>
       </div>
 
+      <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="font-bold">Technical Support Only</AlertTitle>
+        <AlertDescription className="text-sm">
+          {isStudent 
+            ? "This form sends a message to the app developers for technical issues. For lesson bookings, cancellations, or driving questions, please contact your instructor directly."
+            : "Use this form to report bugs or request technical help from the app development team."}
+        </AlertDescription>
+      </Alert>
+
       {(showNewForm || selectedMessage) && (
         <Button variant="ghost" onClick={() => { setShowNewForm(false); setSelectedMessage(null); }} className="mb-2">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to List
@@ -109,7 +127,9 @@ const Support: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>New Support Request</CardTitle>
-              <CardDescription>Describe your issue and we'll get back to you as soon as possible.</CardDescription>
+              <CardDescription>
+                Describe the technical issue you're experiencing with the app.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <SupportMessageForm onSuccess={() => { setShowNewForm(false); fetchMessages(); }} />
@@ -139,10 +159,10 @@ const Support: React.FC = () => {
             <CardContent>
               {messages.length === 0 ? (
                 <div className="text-center py-12">
-                  <MessageSquare className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
-                  <p className="text-muted-foreground">No support requests yet.</p>
+                  <LifeBuoy className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No technical support requests yet.</p>
                   <Button variant="outline" className="mt-4" onClick={() => setShowNewForm(true)}>
-                    Create your first request
+                    Create a request
                   </Button>
                 </div>
               ) : (
