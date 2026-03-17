@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -29,6 +29,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const isInitialized = useRef(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -50,8 +51,18 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, []);
 
-  // Initial session check - only runs ONCE on mount
   useEffect(() => {
+    if (isInitialized.current) return;
+    isInitialized.current = true;
+
+    // Safety timeout: If auth doesn't respond in 5 seconds, stop loading
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn("Auth initialization timed out. Proceeding...");
+        setIsLoading(false);
+      }
+    }, 5000);
+
     const initialize = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
@@ -64,33 +75,35 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       } catch (error) {
         console.error("Auth initialization error:", error);
       } finally {
+        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     };
 
     initialize();
-  }, [fetchProfile]);
 
-  // Handle auth state changes (login/logout)
-  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
         if (currentSession?.user) {
           await fetchProfile(currentSession.user.id);
         }
       } else if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUser(null);
         setProfile(null);
       }
+      
+      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
-  // Handle redirects based on auth state
+  // Handle redirects
   useEffect(() => {
     if (isLoading) return;
 
