@@ -493,11 +493,12 @@ const Dashboard: React.FC = () => {
           </Card>
         );
       case "service_info":
+        const isServiceWarning = serviceInfo && serviceInfo.minMiles !== null && serviceInfo.minMiles < 1000;
         return (
-          <Card key={id} className={cn("shadow-sm h-full", serviceInfo?.minMiles !== null && serviceInfo!.minMiles < 1000 ? "bg-orange-50 border-orange-200" : "")}>
+          <Card key={id} className={cn("shadow-sm h-full", isServiceWarning ? "bg-orange-50 border-orange-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-bold">Vehicle Service</CardTitle>
-              <Gauge className={cn("h-4 w-4", serviceInfo?.minMiles !== null && serviceInfo!.minMiles < 1000 ? "text-orange-600" : "text-muted-foreground")} />
+              <Gauge className={cn("h-4 w-4", isServiceWarning ? "text-orange-600" : "text-muted-foreground")} />
             </CardHeader>
             <CardContent>
               {serviceInfo ? (
@@ -511,11 +512,12 @@ const Dashboard: React.FC = () => {
           </Card>
         );
       case "prepaid_info":
+        const isPrepaidWarning = prePaidInfo && prePaidInfo.total !== null && prePaidInfo.total <= 2;
         return (
-          <Card key={id} className={cn("shadow-sm h-full", prePaidInfo?.total !== null && prePaidInfo!.total <= 2 ? "bg-red-50 border-red-200" : "")}>
+          <Card key={id} className={cn("shadow-sm h-full", isPrepaidWarning ? "bg-red-50 border-red-200" : "")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-bold">Pre-Paid Hours</CardTitle>
-              <Hourglass className={cn("h-4 w-4", prePaidInfo?.total !== null && prePaidInfo!.total <= 2 ? "text-red-600" : "text-muted-foreground")} />
+              <Hourglass className={cn("h-4 w-4", isPrepaidWarning ? "text-red-600" : "text-muted-foreground")} />
             </CardHeader>
             <CardContent>
               {prePaidInfo ? (
