@@ -19,7 +19,8 @@ import {
   MessageSquare,
   Target,
   LogOut,
-  ArrowRight
+  ArrowRight,
+  Star
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -167,15 +168,23 @@ const StudentDashboard: React.FC = () => {
               <TrendingUp className="h-3 w-3 text-blue-600" /> Course Progress
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between mb-2">
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
               <div className="text-3xl font-black text-blue-700">{progressPercentage}%</div>
               <Badge variant="outline" className="bg-blue-50">{student?.status}</Badge>
             </div>
-            <Progress value={progressPercentage} className="h-2 mb-4" />
-            <Button asChild variant="outline" size="sm" className="w-full font-bold">
-              <Link to="/progress-report">View Full Report <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
+            <Progress value={progressPercentage} className="h-2" />
+            
+            <div className="grid grid-cols-1 gap-2 pt-2">
+              <Button asChild variant="default" className="w-full font-bold bg-blue-600 hover:bg-blue-700">
+                <Link to="/progress-report?tab=self">
+                  <Star className="mr-2 h-4 w-4" /> Self Assess Skills
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="w-full font-bold">
+                <Link to="/progress-report">View Full Report <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

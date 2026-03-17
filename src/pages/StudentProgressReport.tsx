@@ -22,7 +22,7 @@ import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StarRatingInput from "@/components/StarRatingInput";
@@ -42,6 +42,9 @@ interface ProgressEntry {
 
 const StudentProgressReport: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get("tab") === "self" ? "self" : "instructor";
+  
   const [student, setStudent] = useState<any>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [instructorEntries, setInstructorEntries] = useState<Record<string, ProgressEntry>>({});
@@ -73,7 +76,6 @@ const StudentProgressReport: React.FC = () => {
       const visibleTopics = (topicsRes.data || []).filter(t => !hiddenIds.has(t.id));
       setTopics(visibleTopics);
 
-      // Note: We explicitly do NOT select private_notes here for security
       const { data: entriesData } = await supabase
         .from("student_progress_entries")
         .select("topic_id, rating, comment, user_id")
@@ -243,7 +245,7 @@ const StudentProgressReport: React.FC = () => {
         </Card>
       </div>
 
-      <Tabs defaultValue="instructor" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 h-12">
           <TabsTrigger value="instructor" className="font-bold flex items-center gap-2">
             <ShieldCheck className="h-4 w-4" /> Instructor's Report
