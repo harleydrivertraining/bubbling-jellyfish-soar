@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { AlertCircle, Database, RefreshCw } from "lucide-react";
+import { Database, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Profile {
@@ -64,13 +64,12 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     mounted.current = true;
     
-    // Safety valve: Force loading to false after 4 seconds
+    // Safety valve: Force loading to false after 3 seconds
     const timer = setTimeout(() => {
       if (mounted.current && isLoading) {
-        console.log("Safety timeout reached, forcing load state to false");
         setIsLoading(false);
       }
-    }, 4000);
+    }, 3000);
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
@@ -148,7 +147,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   if (isLoading && !isPublicRoute) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
         <p className="text-muted-foreground font-medium mb-6">Loading your workspace...</p>
         <Button 
           variant="ghost" 
