@@ -27,8 +27,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, RefreshCw, BellRing, Mail } from "lucide-react";
+import { User as UserIcon, Clock, Shield, RefreshCw, BellRing, Mail, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { sendBookingNotificationEmail } from "@/utils/email";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
@@ -53,6 +54,7 @@ const formSchema = z.object({
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -110,6 +112,29 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  const handleSendTestEmail = async () => {
+    const email = form.getValues("email");
+    if (!email) {
+      showError("Please enter and save an email address first.");
+      return;
+    }
+
+    setIsSendingTest(true);
+    try {
+      await sendBookingNotificationEmail({
+        to: email,
+        studentName: "Test Student (Verification)",
+        startTime: new Date(),
+        endTime: addMinutes(new Date(), 60)
+      });
+      showSuccess("Test email sent! Please check your inbox (and spam folder).");
+    } catch (error) {
+      showError("Failed to send test email. Check your Resend API key.");
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
@@ -252,9 +277,21 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         />
 
         <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
-          <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
-            <BellRing className="h-4 w-4" /> Email Notifications
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
+              <BellRing className="h-4 w-4" /> Email Notifications
+            </h3>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              className="h-8 text-[10px] font-bold uppercase border-blue-200 text-blue-700 hover:bg-blue-100"
+              onClick={handleSendTestEmail}
+              disabled={isSendingTest}
+            >
+              {isSendingTest ? "Sending..." : <><Send className="mr-1.5 h-3 w-3" /> Send Test Email</>}
+            </Button>
+          </div>
           <FormField
             control={form.control}
             name="email_notifications_enabled"
@@ -395,5 +432,10 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     </Form>
   );
 };
+
+// Helper for test email
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60000);
+}
 
 export default ProfileSettingsForm;
