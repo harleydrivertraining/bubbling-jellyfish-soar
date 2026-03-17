@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -36,14 +36,6 @@ interface Booking {
   students: {
     name: string;
   };
-}
-
-interface DrivingTestStats {
-  totalTests: number;
-  passRate: number;
-  avgDrivingFaults: number;
-  avgSeriousFaults: number;
-  examinerActionPercentage: number;
 }
 
 type RevenueTimeframe = "daily" | "weekly" | "monthly";
@@ -83,7 +75,7 @@ const Dashboard: React.FC = () => {
   }, []);
 
   // Main Profile Query
-  const { data: profile, isLoading: isProfileLoading } = useQuery({
+  const { data: profile, isLoading: isProfileLoading, isError: isProfileError } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -97,6 +89,9 @@ const Dashboard: React.FC = () => {
     enabled: !!user,
   });
 
+  const userRole = profile?.role?.toLowerCase();
+  const isInstructor = userRole === 'instructor';
+
   // Students Count Query
   const { data: studentsCount } = useQuery({
     queryKey: ['students-count', user?.id],
@@ -108,7 +103,7 @@ const Dashboard: React.FC = () => {
         .eq("is_past_student", false);
       return count || 0;
     },
-    enabled: !!user && profile?.role === 'instructor',
+    enabled: !!user && isInstructor,
   });
 
   // Bookings Query
@@ -122,9 +117,9 @@ const Dashboard: React.FC = () => {
         .eq("status", "scheduled")
         .gte("start_time", new Date().toISOString())
         .order("start_time", { ascending: true });
-      return data as unknown as Booking[];
+      return (data || []) as unknown as Booking[];
     },
-    enabled: !!user && profile?.role === 'instructor',
+    enabled: !!user && isInstructor,
   });
 
   // Revenue Query
@@ -150,7 +145,7 @@ const Dashboard: React.FC = () => {
       data?.forEach(b => totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)));
       return (totalMins / 60) * (profile?.hourly_rate || 0);
     },
-    enabled: !!user && !!profile?.hourly_rate && profile?.role === 'instructor',
+    enabled: !!user && isInstructor,
   });
 
   // Booked Hours Query
@@ -175,7 +170,7 @@ const Dashboard: React.FC = () => {
       });
       return totalMinutes / 60;
     },
-    enabled: !!user && profile?.role === 'instructor',
+    enabled: !!user && isInstructor,
   });
 
   // Driving Test Stats Query
@@ -200,7 +195,7 @@ const Dashboard: React.FC = () => {
         examinerActionPercentage: (data.filter(t => t.examiner_action).length / total) * 100,
       };
     },
-    enabled: !!user && profile?.role === 'instructor',
+    enabled: !!user && isInstructor,
   });
 
   // Service Info Query
@@ -244,7 +239,7 @@ const Dashboard: React.FC = () => {
 
       return { minMiles, carName, predictedWeeks };
     },
-    enabled: !!user && profile?.role === 'instructor',
+    enabled: !!user && isInstructor,
   });
 
   // Pre-paid Hours Query
@@ -271,7 +266,7 @@ const Dashboard: React.FC = () => {
         lowBalanceStudents: Object.keys(studentMap).filter(name => studentMap[name] <= 2 && studentMap[name] > 0)
       };
     },
-    enabled: !!user && profile?.role === 'instructor',
+    enabled: !!user && isInstructor,
   });
 
   const getGreeting = useCallback(() => {
@@ -553,8 +548,19 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  if (profile?.role?.toLowerCase() === 'owner') return <OwnerDashboard />;
-  if (profile?.role?.toLowerCase() === 'student') return <StudentDashboard />;
+  if (isProfileError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <h2 className="text-xl font-bold">Failed to load profile</h2>
+        <p className="text-muted-foreground">There was an error retrieving your account details.</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  if (userRole === 'owner') return <OwnerDashboard />;
+  if (userRole === 'student') return <StudentDashboard />;
 
   return (
     <React.Fragment>
