@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { KeyRound, UserCheck, ShieldAlert } from "lucide-react";
+import { KeyRound, UserCheck } from "lucide-react";
 
 const formSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -46,15 +46,16 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!studentPhone) {
-      showError("Student must have a phone number to enable login.");
+    const cleanPhone = studentPhone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+    
+    if (!cleanPhone) {
+      showError("Student must have a valid phone number to enable login.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // We use a virtual email for students: phone@student.hdt.app
-      const virtualEmail = `${studentPhone.replace(/\s+/g, '')}@student.hdt.app`;
+      const virtualEmail = `${cleanPhone}@student.hdt.app`;
       
       // 1. Create the Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -63,8 +64,7 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
         options: {
           data: {
             role: 'student',
-            first_name: studentName.split(' ')[0],
-            last_name: studentName.split(' ').slice(1).join(' '),
+            display_name: studentName,
           }
         }
       });
@@ -73,19 +73,23 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
 
       if (authData.user) {
         // 2. Link the student record to the auth user
+        // We use the current instructor's session to perform this update
         const { error: updateError } = await supabase
           .from("students")
           .update({ auth_user_id: authData.user.id })
           .eq("id", studentId);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error("Link error:", updateError);
+          throw new Error("Auth account created, but failed to link to student record. Please check RLS policies.");
+        }
 
         showSuccess(`Login enabled for ${studentName}!`);
         onSuccess();
       }
     } catch (error: any) {
       console.error("Error enabling student login:", error);
-      showError("Failed to enable login: " + error.message);
+      showError(error.message || "Failed to enable login.");
     } finally {
       setIsSubmitting(false);
     }
@@ -100,8 +104,8 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
             Login Credentials
           </div>
           <div className="text-xs text-blue-700 space-y-1">
-            <p><strong>Username:</strong> {studentPhone}</p>
-            <p><strong>Instructor PIN:</strong> (Your 4-digit PIN)</p>
+            <p><strong>Username (Phone):</strong> {studentPhone}</p>
+            <p><strong>Virtual Email:</strong> {studentPhone.replace(/\s+/g, '')}@student.hdt.app</p>
           </div>
         </div>
 
