@@ -57,41 +57,59 @@ const NotificationBell: React.FC = () => {
       LocalNotifications.requestPermissions();
     }
 
+    // Subscribe to ALL changes (INSERT, UPDATE, DELETE) for this user's notifications
     const channel = supabase
-      .channel(`notifications-${user.id}`)
+      .channel(`notifications-sync-${user.id}`)
       .on('postgres_changes', { 
-        event: 'INSERT', 
+        event: '*', 
         schema: 'public', 
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
       }, async (payload) => {
-        const newNotif = payload.new as Notification;
-        setNotifications(prev => [newNotif, ...prev]);
-        setUnreadCount(prev => prev + 1);
-        
-        toast(newNotif.title, {
-          description: newNotif.message,
-          icon: <Sparkles className="h-4 w-4 text-blue-500" />,
-        });
+        if (payload.eventType === 'INSERT') {
+          const newNotif = payload.new as Notification;
+          setNotifications(prev => [newNotif, ...prev]);
+          setUnreadCount(prev => prev + 1);
+          
+          toast(newNotif.title, {
+            description: newNotif.message,
+            icon: <Sparkles className="h-4 w-4 text-blue-500" />,
+          });
 
-        if (Capacitor.isNativePlatform()) {
-          try {
-            await LocalNotifications.schedule({
-              notifications: [
-                {
-                  title: newNotif.title,
-                  body: newNotif.message,
-                  id: Math.floor(Math.random() * 10000),
-                  schedule: { at: new Date(Date.now() + 1000) },
-                  sound: 'default',
-                  actionTypeId: "",
-                  extra: null
-                }
-              ]
-            });
-          } catch (e) {
-            console.error("Local notification failed", e);
+          if (Capacitor.isNativePlatform()) {
+            try {
+              await LocalNotifications.schedule({
+                notifications: [
+                  {
+                    title: newNotif.title,
+                    body: newNotif.message,
+                    id: Math.floor(Math.random() * 10000),
+                    schedule: { at: new Date(Date.now() + 1000) },
+                    sound: 'default',
+                    actionTypeId: "",
+                    extra: null
+                  }
+                ]
+              });
+            } catch (e) {
+              console.error("Local notification failed", e);
+            }
           }
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedNotif = payload.new as Notification;
+          setNotifications(prev => prev.map(n => n.id === updatedNotif.id ? updatedNotif : n));
+          // Recalculate unread count based on the new state
+          setNotifications(current => {
+            setUnreadCount(current.filter(n => !n.read).length);
+            return current;
+          });
+        } else if (payload.eventType === 'DELETE') {
+          const deletedId = payload.old.id;
+          setNotifications(prev => {
+            const filtered = prev.filter(n => n.id !== deletedId);
+            setUnreadCount(filtered.filter(n => !n.read).length);
+            return filtered;
+          });
         }
       })
       .subscribe();
@@ -102,40 +120,28 @@ const NotificationBell: React.FC = () => {
   }, [user, fetchNotifications]);
 
   const markAsRead = async (id: string) => {
-    const { error } = await supabase
+    await supabase
       .from("notifications")
       .update({ read: true })
       .eq("id", id);
-
-    if (!error) {
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    }
+    // Local state is updated via the real-time subscription
   };
 
   const markAllAsRead = async () => {
-    const { error } = await supabase
+    await supabase
       .from("notifications")
       .update({ read: true })
       .eq("user_id", user?.id)
       .eq("read", false);
-
-    if (!error) {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      setUnreadCount(0);
-    }
+    // Local state is updated via the real-time subscription
   };
 
   const deleteNotification = async (id: string) => {
-    const { error } = await supabase
+    await supabase
       .from("notifications")
       .delete()
       .eq("id", id);
-
-    if (!error) {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-      setUnreadCount(prev => notifications.find(n => n.id === id)?.read ? prev : Math.max(0, prev - 1));
-    }
+    // Local state is updated via the real-time subscription
   };
 
   return (
