@@ -26,7 +26,7 @@ export const sendBookingNotificationEmail = async ({
   }
 
   const emailData = {
-    from: "HDT App <onboarding@resend.dev>",
+    from: "HDT App <notifications@harleydrivertraining.com>", // Updated to verified domain
     to: [to],
     subject: `New Lesson Booked: ${studentName}`,
     html: `
