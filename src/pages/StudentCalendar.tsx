@@ -12,7 +12,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Sparkles, CalendarDays, Clock, Check, Info, AlertCircle } from "lucide-react";
+import { ArrowLeft, Sparkles, CalendarDays, Clock, Check, Info, AlertCircle, ClipboardCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -45,6 +45,7 @@ const StudentCalendar: React.FC = () => {
   const [studentData, setStudentData] = useState<any>(null);
   const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
   const [minNoticeHours, setMinNoticeHours] = useState(48);
+  const [requireApproval, setRequireApproval] = useState(false);
   
   const [selectedSlot, setSelectedSlot] = useState<BigCalendarEvent | null>(null);
   const [isBooking, setIsBooking] = useState(false);
@@ -65,7 +66,7 @@ const StudentCalendar: React.FC = () => {
 
       const { data: instructorProfile } = await supabase
         .from("profiles")
-        .select("calendar_start_hour, calendar_end_hour, min_booking_notice_hours")
+        .select("calendar_start_hour, calendar_end_hour, min_booking_notice_hours, require_booking_approval")
         .eq("id", sData.user_id)
         .single();
       
@@ -75,6 +76,7 @@ const StudentCalendar: React.FC = () => {
           end: instructorProfile.calendar_end_hour ?? 18
         });
         setMinNoticeHours(instructorProfile.min_booking_notice_hours ?? 48);
+        setRequireApproval(instructorProfile.require_booking_approval ?? false);
       }
 
       const { data: bookingsData, error: bError } = await supabase
@@ -87,7 +89,7 @@ const StudentCalendar: React.FC = () => {
 
       const formattedEvents: BigCalendarEvent[] = (bookingsData || []).map(b => ({
         id: b.id,
-        title: b.status === 'available' ? "Available Slot" : b.lesson_type,
+        title: b.status === 'available' ? "Available Slot" : b.status === 'pending_approval' ? "Pending Approval" : b.lesson_type,
         start: new Date(b.start_time),
         end: new Date(b.end_time),
         resource: {
@@ -129,27 +131,32 @@ const StudentCalendar: React.FC = () => {
 
     setIsBooking(true);
     try {
+      const newStatus = requireApproval ? "pending_approval" : "scheduled";
+      const displayTitle = requireApproval 
+        ? `${studentData.name} - Pending Approval` 
+        : `${studentData.name} - Driving lesson`;
+
       const { error } = await supabase
         .from("bookings")
         .update({
           student_id: studentData.id,
-          status: "scheduled",
-          title: `${studentData.name} - Driving lesson`,
+          status: newStatus,
+          title: displayTitle,
           lesson_type: "Driving lesson"
         })
         .eq("id", selectedSlot.id);
 
       if (error) throw error;
 
-      // Create in-app notification (Email is now handled by DB trigger)
+      // Create in-app notification
       await supabase.from("notifications").insert({
         user_id: studentData.user_id,
-        title: "New Lesson Booked!",
-        message: `${studentData.name} has booked the available slot on ${format(selectedSlot.start!, "PPP p")}.`,
+        title: requireApproval ? "New Booking Request!" : "New Lesson Booked!",
+        message: `${studentData.name} has ${requireApproval ? 'requested' : 'booked'} the slot on ${format(selectedSlot.start!, "PPP p")}.`,
         type: "booking_claimed"
       });
 
-      showSuccess("Lesson booked successfully!");
+      showSuccess(requireApproval ? "Request sent! Waiting for instructor approval." : "Lesson booked successfully!");
       setSelectedSlot(null);
       fetchData();
     } catch (error: any) {
@@ -173,6 +180,8 @@ const StudentCalendar: React.FC = () => {
       } else {
         className += "bg-blue-500/20 border-2 border-dashed border-blue-500 text-blue-700 font-bold";
       }
+    } else if (status === 'pending_approval') {
+      className += "bg-orange-500/20 border-2 border-dashed border-orange-500 text-orange-700 font-bold";
     } else if (status === 'completed') {
       className += "bg-green-600 text-white opacity-80";
     } else if (status === 'cancelled') {
@@ -203,7 +212,7 @@ const StudentCalendar: React.FC = () => {
         <Sparkles className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-800">
           <p className="font-bold">How to book:</p>
-          <p>Click on any <span className="font-bold text-blue-600">available slot</span> to book a lesson. Your instructor requires <span className="font-bold">{minNoticeHours} hours</span> notice for new bookings.</p>
+          <p>Click on any <span className="font-bold text-blue-600">available slot</span> to book a lesson. {requireApproval && "Your instructor will need to approve the request."}</p>
         </div>
       </div>
 
@@ -227,11 +236,13 @@ const StudentCalendar: React.FC = () => {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-blue-600" />
-              Confirm Booking
+              {requireApproval ? <ClipboardCheck className="h-5 w-5 text-orange-600" /> : <CalendarDays className="h-5 w-5 text-blue-600" />}
+              {requireApproval ? "Request Booking" : "Confirm Booking"}
             </DialogTitle>
             <DialogDescription>
-              Would you like to book this extra lesson slot?
+              {requireApproval 
+                ? "This slot requires instructor approval. Send a request?" 
+                : "Would you like to book this extra lesson slot?"}
             </DialogDescription>
           </DialogHeader>
           
@@ -250,15 +261,19 @@ const StudentCalendar: React.FC = () => {
               
               <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50/50 p-3 rounded border border-blue-100">
                 <Info className="h-4 w-4 text-blue-500 shrink-0" />
-                <p>Once confirmed, this lesson will be added to your schedule and your instructor will be notified.</p>
+                <p>
+                  {requireApproval 
+                    ? "Your instructor will be notified and can approve or decline your request." 
+                    : "Once confirmed, this lesson will be added to your schedule and your instructor will be notified."}
+                </p>
               </div>
             </div>
           )}
 
           <DialogFooter className="flex gap-2 sm:gap-0">
             <Button variant="ghost" onClick={() => setSelectedSlot(null)} disabled={isBooking}>Cancel</Button>
-            <Button onClick={handleConfirmBooking} disabled={isBooking} className="font-bold bg-blue-600 hover:bg-blue-700">
-              {isBooking ? "Booking..." : "Confirm Booking"}
+            <Button onClick={handleConfirmBooking} disabled={isBooking} className={cn("font-bold", requireApproval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700")}>
+              {isBooking ? "Processing..." : requireApproval ? "Send Request" : "Confirm Booking"}
             </Button>
           </DialogFooter>
         </DialogContent>

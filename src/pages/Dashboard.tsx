@@ -4,10 +4,10 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 import OwnerDashboard from "./OwnerDashboard";
 import StudentDashboard from "./StudentDashboard";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Booking {
   id: string;
@@ -41,6 +41,7 @@ interface Booking {
 type RevenueTimeframe = "daily" | "weekly" | "monthly";
 
 const DEFAULT_WIDGETS: DashboardWidget[] = [
+  { id: "pending_requests", label: "Pending Booking Requests", visible: true },
   { id: "quick_stats", label: "Quick Stats Row", visible: true },
   { id: "upcoming_lessons", label: "Upcoming Lessons List", visible: true },
   { id: "test_stats", label: "Test Performance (12m)", visible: true },
@@ -51,6 +52,7 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
+  const queryClient = useQueryClient();
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
   const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
   const [showAllLessons, setShowAllLessons] = useState(false);
@@ -91,6 +93,21 @@ const Dashboard: React.FC = () => {
 
   const userRole = profile?.role?.toLowerCase();
   const isInstructor = userRole === 'instructor';
+
+  // Pending Requests Query
+  const { data: pendingRequests } = useQuery({
+    queryKey: ['pending-requests', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, title, start_time, end_time, students(name)")
+        .eq("user_id", user!.id)
+        .eq("status", "pending_approval")
+        .order("start_time", { ascending: true });
+      return (data || []) as any[];
+    },
+    enabled: !!user && isInstructor,
+  });
 
   // Students Count Query
   const { data: studentsCount } = useQuery({
@@ -269,6 +286,33 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
+  const handleApprove = async (id: string, studentName: string) => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "scheduled", title: `${studentName} - Driving lesson` })
+      .eq("id", id);
+    
+    if (error) showError("Failed to approve.");
+    else {
+      showSuccess("Booking approved!");
+      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-bookings'] });
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "available", student_id: null, title: "Available Slot" })
+      .eq("id", id);
+    
+    if (error) showError("Failed to reject.");
+    else {
+      showSuccess("Booking rejected and slot returned to available.");
+      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
+    }
+  };
+
   const getGreeting = useCallback(() => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good Morning";
@@ -294,6 +338,51 @@ const Dashboard: React.FC = () => {
 
   const renderWidget = (id: string) => {
     switch (id) {
+      case "pending_requests":
+        if (!pendingRequests || pendingRequests.length === 0) return null;
+        return (
+          <Card key={id} className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-md overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-bold flex items-center gap-2 text-orange-800">
+                <ClipboardCheck className="h-5 w-5" />
+                Pending Booking Requests ({pendingRequests.length})
+              </CardTitle>
+              <CardDescription className="text-orange-700/70">Students are waiting for you to confirm these slots.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-orange-100">
+                {pendingRequests.map((req) => (
+                  <div key={req.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
+                    <div className="min-w-0">
+                      <p className="font-bold text-orange-900">{req.students?.name || "Unknown Student"}</p>
+                      <div className="flex items-center gap-3 text-xs text-orange-800/70 mt-1 font-medium">
+                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(parseISO(req.start_time), "EEE, MMM do")}</span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {format(parseISO(req.start_time), "p")}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button 
+                        size="sm" 
+                        className="bg-green-600 hover:bg-green-700 font-bold h-8"
+                        onClick={() => handleApprove(req.id, req.students?.name)}
+                      >
+                        <Check className="mr-1 h-4 w-4" /> Approve
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8"
+                        onClick={() => handleReject(req.id)}
+                      >
+                        <X className="mr-1 h-4 w-4" /> Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
       case "quick_stats":
         return (
           <div key={id} className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -585,8 +674,9 @@ const Dashboard: React.FC = () => {
               key={widget.id} 
               className={cn(
                 widget.id === "quick_stats" && "lg:col-span-3",
+                widget.id === "pending_requests" && "lg:col-span-3",
                 widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
-                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons") && "lg:col-span-1"
+                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "pending_requests") && "lg:col-span-1"
               )}
             >
               {renderWidget(widget.id)}

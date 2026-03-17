@@ -22,11 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing, ClipboardCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -45,6 +46,7 @@ const formSchema = z.object({
     (val) => (val === "" ? 48 : Number(val)),
     z.number().min(0, { message: "Notice period cannot be negative." })
   ),
+  require_booking_approval: z.boolean().default(false),
 });
 
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
@@ -63,6 +65,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       calendar_end_hour: "18",
       instructor_pin: "",
       min_booking_notice_hours: 48,
+      require_booking_approval: false,
     },
   });
 
@@ -90,6 +93,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           calendar_end_hour: data.calendar_end_hour?.toString() || "18",
           instructor_pin: data.instructor_pin || "",
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
+          require_booking_approval: data.require_booking_approval ?? false,
         });
       }
     } catch (error: any) {
@@ -118,6 +122,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         calendar_start_hour: values.calendar_start_hour ? parseInt(values.calendar_start_hour) : 9,
         calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
         min_booking_notice_hours: values.min_booking_notice_hours,
+        require_booking_approval: values.require_booking_approval,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -272,6 +277,30 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
             <BellRing className="h-4 w-4" /> Free Slot Booking Restrictions
           </h3>
+          
+          <FormField
+            control={form.control}
+            name="require_booking_approval"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-sm font-bold flex items-center gap-2">
+                    <ClipboardCheck className="h-4 w-4 text-blue-600" /> Require Approval
+                  </FormLabel>
+                  <FormDescription className="text-[10px]">
+                    Student bookings will be "Pending" until you approve them.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
           <FormField
             control={form.control}
             name="min_booking_notice_hours"
