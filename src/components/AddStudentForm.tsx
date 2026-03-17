@@ -26,53 +26,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 
-// Helper function to calculate age
-const calculateAge = (dobString: string | null | undefined): number | null => {
-  if (!dobString) return null;
-  const parts = dobString.split('/');
-  if (parts.length !== 3) return null;
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const year = parseInt(parts[2], 10);
-  const dob = new Date(year, month, day);
-  if (isNaN(dob.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-    age--;
-  }
-  return age;
-};
-
 const formSchema = z.object({
-  name: z.string().min(2, {
-    message: "Student name must be at least 2 characters.",
-  }),
-  date_of_birth: z.string()
-    .optional()
-    .nullable()
-    .refine((val) => {
-      if (!val) return true;
-      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
-      if (!dateRegex.test(val)) return false;
-      const parts = val.split('/');
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10);
-      const year = parseInt(parts[2], 10);
-      if (month < 1 || month > 12 || day < 1 || day > 31) return false;
-      const date = new Date(year, month - 1, day);
-      return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-    }, {
-      message: "Invalid date format. Please use DD/MM/YYYY.",
-    }),
+  name: z.string().min(2, { message: "Student name must be at least 2 characters." }),
+  email: z.string().email({ message: "Invalid email address." }).optional().or(z.literal("")),
+  date_of_birth: z.string().optional().nullable(),
   driving_license_number: z.string().optional().nullable(),
   phone_number: z.string().optional().nullable(),
   full_address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
-  status: z.enum(["Beginner", "Intermediate", "Advanced"], {
-    message: "Please select a valid status.",
-  }),
+  status: z.enum(["Beginner", "Intermediate", "Advanced"]),
 });
 
 interface AddStudentFormProps {
@@ -86,44 +48,29 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      date_of_birth: "",
-      driving_license_number: "",
-      phone_number: "",
-      full_address: "",
-      notes: "",
+      email: "",
       status: "Beginner",
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!user) {
-      showError("You must be logged in to add a student.");
-      return;
-    }
-
-    const formattedDobForSupabase = values.date_of_birth
-      ? `${values.date_of_birth.split('/')[2]}-${values.date_of_birth.split('/')[1]}-${values.date_of_birth.split('/')[0]}`
-      : null;
+    if (!user) return;
 
     const { error } = await supabase
       .from("students")
       .insert({
         user_id: user.id,
         name: values.name,
-        date_of_birth: formattedDobForSupabase,
-        driving_license_number: values.driving_license_number,
+        email: values.email || null,
         phone_number: values.phone_number,
-        full_address: values.full_address,
-        notes: values.notes,
         status: values.status,
+        notes: values.notes,
       });
 
     if (error) {
-      console.error("Error adding student:", error);
       showError("Failed to add student: " + error.message);
     } else {
       showSuccess("Student added successfully!");
-      form.reset();
       onStudentAdded();
       onClose();
     }
@@ -138,86 +85,29 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
           render={({ field }) => (
             <FormItem>
               <FormLabel>Student Name</FormLabel>
-              <FormControl>
-                <Input placeholder="John Doe" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="date_of_birth"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Date of Birth</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., 15/01/2000" {...field} value={field.value || ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormItem>
-            <FormLabel>Current Age</FormLabel>
-            <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-              {calculateAge(form.watch("date_of_birth")) !== null
-                ? `${calculateAge(form.watch("date_of_birth"))} years`
-                : "N/A"}
-            </div>
-          </FormItem>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="driving_license_number"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Driving License Number</FormLabel>
-                <FormControl>
-                  <Input placeholder="ABC12345DEF" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone_number"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone Number</FormLabel>
-                <FormControl>
-                  <Input placeholder="+1 (555) 123-4567" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="full_address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Full Address</FormLabel>
-              <FormControl>
-                <Input placeholder="123 Main St, Anytown, USA" {...field} />
-              </FormControl>
+              <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
         <FormField
           control={form.control}
-          name="notes"
+          name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Any Notes</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., prefers morning lessons" {...field} />
-              </FormControl>
+              <FormLabel>Email Address</FormLabel>
+              <FormControl><Input type="email" placeholder="john@example.com" {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone_number"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Phone Number</FormLabel>
+              <FormControl><Input placeholder="07123 456789" {...field} value={field.value || ""} /></FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -229,11 +119,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
             <FormItem>
               <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a status" />
-                  </SelectTrigger>
-                </FormControl>
+                <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="Beginner">Beginner</SelectItem>
                   <SelectItem value="Intermediate">Intermediate</SelectItem>
