@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, PoundSterling, Circle } from "lucide-react";
+import { Check, PoundSterling, Circle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 interface CustomEventResource {
   student_id: string;
   description?: string;
-  status: "scheduled" | "completed" | "cancelled";
+  status: "scheduled" | "completed" | "cancelled" | "available";
   lesson_type: string;
   targets_for_next_session?: string;
   is_paid: boolean;
@@ -29,6 +29,7 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
   const { user } = useSession();
   const isCompleted = event.resource?.status === 'completed';
   const isCancelled = event.resource?.status === 'cancelled';
+  const isAvailable = event.resource?.status === 'available';
   const isDrivingTest = event.resource?.lesson_type === 'Driving Test';
   const isPersonal = event.resource?.lesson_type === 'Personal';
   const isDrivingLesson = event.resource?.lesson_type === 'Driving lesson';
@@ -80,17 +81,26 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
       {
         "bg-green-600/80": isCompleted,
         "bg-red-600/80": isCancelled,
+        "bg-blue-500/20 border-2 border-dashed border-blue-500 text-blue-700": isAvailable,
         "bg-purple-600/80": isDrivingTest && !isCompleted && !isCancelled,
         "bg-yellow-400/80": isPersonal && !isCompleted && !isCancelled,
         "bg-orange-600/80": (isDrivingLesson && duration >= 80 && duration <= 100) && !isCompleted && !isCancelled,
         "bg-sky-500/80": isDrivingLesson && duration >= 110 && !isCompleted && !isCancelled,
       }
     )}>
-      <span className="flex-1 truncate text-white text-[10px] sm:text-xs font-bold">{title}</span>
+      <div className="flex items-center gap-1 flex-1 min-w-0">
+        {isAvailable && <Sparkles className="h-3 w-3 shrink-0" />}
+        <span className={cn(
+          "truncate text-[10px] sm:text-xs font-bold",
+          isAvailable ? "text-blue-700" : "text-white"
+        )}>
+          {title}
+        </span>
+      </div>
       
       <div className="flex items-center gap-1 shrink-0">
         {/* Payment Status Button */}
-        {!isPersonal && !isCancelled && (
+        {!isPersonal && !isCancelled && !isAvailable && (
           <button
             onClick={handlePaymentClick}
             className={cn(
@@ -114,7 +124,7 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
         )}
 
         {/* Completion Button */}
-        {!isCompleted && !isCancelled && (
+        {!isCompleted && !isCancelled && !isAvailable && (
           <button
             onClick={handleMarkAsCompleted}
             className="relative flex items-center justify-center h-6 w-6 rounded-full text-white hover:text-green-300 transition-all hover:scale-110 active:scale-95"

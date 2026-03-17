@@ -26,7 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addMinutes, addWeeks } from "date-fns";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, Sparkles } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 import StudentSearch from "@/components/StudentSearch";
@@ -39,7 +39,7 @@ interface Student {
 const formSchema = z.object({
   student_id: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
-  lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal"], {
+  lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal", "Availability"], {
     message: "Please select a valid lesson type.",
   }),
   lesson_length: z.enum(["60", "90", "120"], {
@@ -50,7 +50,7 @@ const formSchema = z.object({
   repeat_count: z.number().min(1).max(12).optional(),
   start_time: z.date({ required_error: "Start time is required." }),
 }).superRefine((data, ctx) => {
-  if (data.lesson_type !== "Personal" && !data.student_id) {
+  if (data.lesson_type !== "Personal" && data.lesson_type !== "Availability" && !data.student_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Please select a student for this lesson type.",
@@ -92,7 +92,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     },
   });
 
-  // Fetch user's default lesson duration
   useEffect(() => {
     const fetchDefaultDuration = async () => {
       if (!user) return;
@@ -103,7 +102,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
         .single();
 
       if (!error && data?.default_lesson_duration) {
-        // Only set if not already a Driving Test (which overrides to 120)
         if (form.getValues("lesson_type") !== "Driving Test") {
           form.setValue("lesson_length", data.default_lesson_duration as "60" | "90" | "120");
         }
@@ -130,7 +128,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   const selectedRepeatBooking = form.watch("repeat_booking");
   const selectedLessonType = form.watch("lesson_type");
 
-  // Automatically set duration to 120 mins for Driving Tests
   useEffect(() => {
     if (selectedLessonType === "Driving Test") {
       form.setValue("lesson_length", "120");
@@ -178,7 +175,12 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     }
 
     let generatedTitle = "Personal Appointment";
-    if (values.lesson_type !== "Personal" || values.student_id) {
+    let status = "scheduled";
+
+    if (values.lesson_type === "Availability") {
+      generatedTitle = "Available Slot";
+      status = "available";
+    } else if (values.lesson_type !== "Personal" || values.student_id) {
       const studentName = students.find(s => s.id === values.student_id)?.name || "Unknown Student";
       generatedTitle = `${studentName} - ${values.lesson_type}`;
     }
@@ -206,7 +208,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
         targets_for_next_session: values.targets_for_next_session,
         start_time: currentStartTime.toISOString(),
         end_time: currentEndTime.toISOString(),
-        status: "scheduled",
+        status: status,
       });
     }
 
@@ -219,7 +221,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       console.error("Error adding booking(s):", error);
       showError("Failed to add booking(s): " + error.message);
     } else {
-      showSuccess("Booking(s) added successfully!");
+      showSuccess(values.lesson_type === "Availability" ? "Availability slot created!" : "Booking(s) added successfully!");
       form.reset();
       onBookingAdded();
       onClose();
@@ -245,6 +247,11 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                   <SelectItem value="Driving lesson">Driving lesson</SelectItem>
                   <SelectItem value="Driving Test">Driving Test</SelectItem>
                   <SelectItem value="Personal">Personal</SelectItem>
+                  <SelectItem value="Availability" className="text-blue-600 font-bold">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" /> Availability Slot
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -252,54 +259,62 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        <div className="flex flex-col sm:flex-row gap-3 items-start">
-          <div className="flex-1 w-full">
-            <FormField
-              control={form.control}
-              name="student_id"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Student {selectedLessonType === "Personal" && "(Opt)"}</FormLabel>
-                  <FormControl>
-                    <StudentSearch
-                      value={field.value}
-                      onChange={field.onChange}
-                      students={students}
-                      isLoading={isLoadingStudents}
-                      placeholder={selectedLessonType === "Personal" ? "Optional student" : "Select student"}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="w-full sm:w-[120px]">
-            <FormField
-              control={form.control}
-              name="lesson_length"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Length</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+        {selectedLessonType !== "Availability" && (
+          <div className="flex flex-col sm:flex-row gap-3 items-start">
+            <div className="flex-1 w-full">
+              <FormField
+                control={form.control}
+                name="student_id"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Student {selectedLessonType === "Personal" && "(Opt)"}</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
+                      <StudentSearch
+                        value={field.value}
+                        onChange={field.onChange}
+                        students={students}
+                        isLoading={isLoadingStudents}
+                        placeholder={selectedLessonType === "Personal" ? "Optional student" : "Select student"}
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="60">1 hr</SelectItem>
-                      <SelectItem value="90">1.5 hrs</SelectItem>
-                      <SelectItem value="120">2 hrs</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="w-full sm:w-[120px]">
+              <FormField
+                control={form.control}
+                name="lesson_length"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Length</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="60">1 hr</SelectItem>
+                        <SelectItem value="90">1.5 hrs</SelectItem>
+                        <SelectItem value="120">2 hrs</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
-        </div>
+        )}
+
+        {selectedLessonType === "Availability" && (
+          <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-xs text-blue-800 font-medium mb-2">
+            This slot will be visible to your students on their dashboard. They can book it directly for extra lessons.
+          </div>
+        )}
 
         <FormField
           control={form.control}
@@ -348,7 +363,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         />
 
-        {selectedLessonType !== "Personal" && (
+        {selectedLessonType !== "Personal" && selectedLessonType !== "Availability" && (
           <FormField
             control={form.control}
             name="targets_for_next_session"
@@ -427,7 +442,9 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           )}
         </div>
 
-        <Button type="submit" className="w-full">Add Booking</Button>
+        <Button type="submit" className="w-full font-bold">
+          {selectedLessonType === "Availability" ? "Create Availability Slot" : "Add Booking"}
+        </Button>
       </form>
     </Form>
   );

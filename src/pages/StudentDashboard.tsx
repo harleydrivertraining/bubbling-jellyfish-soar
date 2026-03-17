@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, parseISO, differenceInMinutes } from "date-fns";
 import { 
@@ -20,7 +20,9 @@ import {
   Target,
   LogOut,
   ArrowRight,
-  Star
+  Star,
+  Sparkles,
+  Plus
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -51,9 +53,11 @@ const StudentDashboard: React.FC = () => {
   const [student, setStudent] = useState<StudentData | null>(null);
   const [instructor, setInstructor] = useState<any>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<Booking[]>([]);
   const [progressPercentage, setProgressPercentage] = useState(0);
   const [totalCredit, setTotalCredit] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBooking, setIsBooking] = useState<string | null>(null);
 
   const handleLogout = async () => {
     try {
@@ -96,7 +100,17 @@ const StudentDashboard: React.FC = () => {
         .order("start_time", { ascending: true });
       setBookings(bookingsData || []);
 
-      // 4. Get Pre-paid Hours
+      // 4. Get Available Slots from this instructor
+      const { data: availabilityData } = await supabase
+        .from("bookings")
+        .select("*")
+        .eq("user_id", studentData.user_id)
+        .eq("status", "available")
+        .gte("start_time", new Date().toISOString())
+        .order("start_time", { ascending: true });
+      setAvailableSlots(availabilityData || []);
+
+      // 5. Get Pre-paid Hours
       const { data: hoursData } = await supabase
         .from("pre_paid_hours")
         .select("remaining_hours")
@@ -105,7 +119,7 @@ const StudentDashboard: React.FC = () => {
       const total = hoursData?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalCredit(total);
 
-      // 5. Calculate Progress
+      // 6. Calculate Progress
       const [topicsRes, hiddenRes, entriesRes] = await Promise.all([
         supabase.from("progress_topics").select("id").or(`user_id.eq.${studentData.user_id},is_default.eq.true`),
         supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", studentData.user_id),
@@ -135,6 +149,32 @@ const StudentDashboard: React.FC = () => {
   useEffect(() => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
+
+  const handleBookSlot = async (slot: Booking) => {
+    if (!student) return;
+    
+    setIsBooking(slot.id);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          student_id: student.id,
+          status: "scheduled",
+          title: `${student.name} - Driving lesson`,
+          lesson_type: "Driving lesson"
+        })
+        .eq("id", slot.id);
+
+      if (error) throw error;
+
+      showSuccess("Lesson booked successfully!");
+      fetchData();
+    } catch (error: any) {
+      showError("Failed to book lesson: " + error.message);
+    } finally {
+      setIsBooking(null);
+    }
+  };
 
   const upcomingLesson = useMemo(() => {
     return bookings.find(b => isAfter(parseISO(b.start_time), new Date()) && b.status === 'scheduled');
@@ -255,40 +295,83 @@ const StudentDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
-              Recent Feedback
+        <Card className="shadow-md border-none overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white">
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Available Extra Lessons
             </CardTitle>
-            <CardDescription>Notes from your last session.</CardDescription>
           </CardHeader>
-          <CardContent>
-            {bookings.filter(b => b.status === 'completed' && b.description).length > 0 ? (
-              <div className="space-y-4">
-                {bookings
-                  .filter(b => b.status === 'completed' && b.description)
-                  .slice(0, 1)
-                  .map(b => (
-                    <div key={b.id} className="space-y-3">
-                      <div className="bg-muted/30 p-4 rounded-lg border-l-4 border-l-primary italic text-sm">
-                        "{b.description}"
-                      </div>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">
-                        Recorded on {format(parseISO(b.start_time), "MMM d, yyyy")}
-                      </p>
-                    </div>
-                  ))
-                }
+          <CardContent className="p-0">
+            {availableSlots.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground italic">
+                No extra slots available right now.
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground italic">
-                No feedback recorded yet.
+              <div className="divide-y">
+                {availableSlots.map((slot) => {
+                  const start = parseISO(slot.start_time);
+                  const duration = differenceInMinutes(parseISO(slot.end_time), start) / 60;
+                  
+                  return (
+                    <div key={slot.id} className="p-4 flex items-center justify-between hover:bg-blue-50 transition-colors">
+                      <div className="space-y-1">
+                        <p className="font-bold text-sm">{format(start, "EEEE, MMM do")}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-2">
+                          <Clock className="h-3 w-3" />
+                          {format(start, "p")} ({duration.toFixed(1)}h)
+                        </p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        className="font-bold bg-blue-600 hover:bg-blue-700"
+                        onClick={() => handleBookSlot(slot)}
+                        disabled={isBooking === slot.id}
+                      >
+                        {isBooking === slot.id ? "Booking..." : <><Plus className="mr-1 h-4 w-4" /> Book</>}
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            Recent Feedback
+          </CardTitle>
+          <CardDescription>Notes from your last session.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {bookings.filter(b => b.status === 'completed' && b.description).length > 0 ? (
+            <div className="space-y-4">
+              {bookings
+                .filter(b => b.status === 'completed' && b.description)
+                .slice(0, 1)
+                .map(b => (
+                  <div key={b.id} className="space-y-3">
+                    <div className="bg-muted/30 p-4 rounded-lg border-l-4 border-l-primary italic text-sm">
+                      "{b.description}"
+                    </div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Recorded on {format(parseISO(b.start_time), "MMM d, yyyy")}
+                    </p>
+                  </div>
+                ))
+              }
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground italic">
+              No feedback recorded yet.
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
