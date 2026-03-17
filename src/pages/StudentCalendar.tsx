@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { addHours, isBefore } from "date-fns";
-import { sendBookingNotificationEmail } from "@/utils/email";
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({
@@ -142,29 +141,13 @@ const StudentCalendar: React.FC = () => {
 
       if (error) throw error;
 
-      // 1. Create in-app notification
+      // Create in-app notification (Email is now handled by DB trigger)
       await supabase.from("notifications").insert({
         user_id: studentData.user_id,
         title: "New Lesson Booked!",
         message: `${studentData.name} has booked the available slot on ${format(selectedSlot.start!, "PPP p")}.`,
         type: "booking_claimed"
       });
-
-      // 2. Send Email Notification
-      const { data: instructor } = await supabase
-        .from("profiles")
-        .select("email, email_notifications_enabled")
-        .eq("id", studentData.user_id)
-        .single();
-
-      if (instructor?.email_notifications_enabled && instructor?.email) {
-        await sendBookingNotificationEmail({
-          to: instructor.email,
-          studentName: studentData.name,
-          startTime: selectedSlot.start!,
-          endTime: selectedSlot.end!
-        });
-      }
 
       showSuccess("Lesson booked successfully!");
       setSelectedSlot(null);
