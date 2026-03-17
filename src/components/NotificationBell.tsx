@@ -33,7 +33,6 @@ const NotificationBell: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Derived state for unread count ensures it's always in sync with the notifications list
   const unreadCount = useMemo(() => 
     notifications.filter(n => !n.read).length, 
     [notifications]
@@ -119,53 +118,50 @@ const NotificationBell: React.FC = () => {
   const markAsRead = async (id: string) => {
     if (!user) return;
     
-    // Optimistic update
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     
     const { error } = await supabase
       .from("notifications")
       .update({ read: true })
-      .eq("id", id);
+      .match({ id, user_id: user.id });
 
     if (error) {
       console.error("Mark as read failed:", error);
-      fetchNotifications(); // Revert on error
+      fetchNotifications();
     }
   };
 
   const markAllAsRead = async () => {
     if (!user) return;
 
-    // Optimistic update
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     
     const { error } = await supabase
       .from("notifications")
       .update({ read: true })
-      .eq("user_id", user.id)
-      .eq("read", false);
+      .match({ user_id: user.id, read: false });
 
     if (error) {
       console.error("Mark all as read failed:", error);
-      fetchNotifications(); // Revert on error
+      fetchNotifications();
     }
   };
 
   const deleteNotification = async (id: string) => {
     if (!user) return;
 
-    // Optimistic update: remove from UI immediately
+    // Optimistic UI update
     setNotifications(prev => prev.filter(n => n.id !== id));
     
     const { error } = await supabase
       .from("notifications")
       .delete()
-      .eq("id", id);
+      .match({ id, user_id: user.id });
       
     if (error) {
       console.error("Delete failed:", error);
-      showError("Failed to delete notification from server.");
-      fetchNotifications(); // Restore UI state if server delete failed
+      showError("Permission denied: Please run the SQL fix in Supabase.");
+      fetchNotifications();
     }
   };
 
@@ -175,17 +171,16 @@ const NotificationBell: React.FC = () => {
     const confirmDelete = window.confirm("Are you sure you want to clear all notifications?");
     if (!confirmDelete) return;
 
-    // Optimistic update
     setNotifications([]);
     
     const { error } = await supabase
       .from("notifications")
       .delete()
-      .eq("user_id", user.id);
+      .match({ user_id: user.id });
 
     if (error) {
       console.error("Delete all failed:", error);
-      showError("Failed to clear notifications.");
+      showError("Failed to clear notifications from server.");
       fetchNotifications();
     } else {
       toast.success("All notifications cleared.");
