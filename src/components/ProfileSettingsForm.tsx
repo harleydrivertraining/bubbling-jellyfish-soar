@@ -26,7 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing, Mail, Send, Loader2, CheckCircle2 } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing, Mail, Send, Loader2, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 
@@ -72,6 +72,8 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     },
   });
 
+  const { isDirty } = form.formState;
+
   const fetchProfile = useCallback(async () => {
     if (!user) return;
     setIsLoadingProfile(true);
@@ -115,6 +117,11 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
   const handleTestEmail = async () => {
     if (!user) return;
     
+    if (isDirty) {
+      showError("You have unsaved changes. Please click 'Save All Changes' before sending a test email.");
+      return;
+    }
+
     const currentEmail = form.getValues("email");
     if (!currentEmail) {
       showError("Please enter and save an email address first.");
@@ -274,24 +281,33 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             />
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
-              className="font-bold border-blue-200 text-blue-700 hover:bg-blue-100"
-              onClick={handleTestEmail}
-              disabled={isTestingEmail}
-            >
-              {isTestingEmail ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
-              ) : (
-                <><Send className="mr-2 h-4 w-4" /> Send Test Email</>
-              )}
-            </Button>
-            <p className="text-[10px] text-muted-foreground italic">
-              Sends a test message to the email address above to verify your Resend setup.
-            </p>
+          <div className="flex flex-col gap-3 pt-2">
+            <div className="flex items-center gap-3">
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="font-bold border-blue-200 text-blue-700 hover:bg-blue-100"
+                onClick={handleTestEmail}
+                disabled={isTestingEmail}
+              >
+                {isTestingEmail ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
+                ) : (
+                  <><Send className="mr-2 h-4 w-4" /> Send Test Email</>
+                )}
+              </Button>
+              <p className="text-[10px] text-muted-foreground italic">
+                Verifies your Resend setup by sending a message to the email above.
+              </p>
+            </div>
+            
+            {isDirty && (
+              <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
+                <AlertTriangle className="h-3 w-3" />
+                <span>You have unsaved changes. Click "Save All Changes" before testing.</span>
+              </div>
+            )}
           </div>
         </div>
 
