@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -28,59 +28,28 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const hasInitialized = useRef(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", userId)
         .maybeSingle();
       
-      if (error) {
-        console.warn("Profile fetch error (expected if schema not ready):", error.message);
-        return null;
-      }
-      setProfile(data);
-      return data;
+      if (data) setProfile(data);
     } catch (e) {
-      return null;
+      console.warn("Profile fetch skipped");
     }
   }, []);
 
   useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
+    // Safety timeout: never stay in "loading" state for more than 3 seconds
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 3000);
 
-    const initializeAuth = async () => {
-      try {
-        // Set a timeout to ensure we don't hang forever if Supabase is unconfigured
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Auth timeout")), 5000)
-        );
-
-        const sessionPromise = supabase.auth.getSession();
-        
-        const { data: { session: initialSession } } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
-
-        if (initialSession) {
-          setSession(initialSession);
-          setUser(initialSession.user);
-          await fetchProfile(initialSession.user.id);
-        }
-      } catch (error) {
-        console.error("Auth initialization failed:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-
+    // Single source of truth for auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
@@ -92,14 +61,16 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       }
       
       setIsLoading(false);
+      clearTimeout(timer);
     });
 
     return () => {
       subscription.unsubscribe();
+      clearTimeout(timer);
     };
   }, [fetchProfile]);
 
-  // Navigation logic
+  // Handle protected route redirects
   useEffect(() => {
     if (isLoading) return;
 
@@ -113,15 +84,14 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, [session, isLoading, location.pathname, navigate]);
 
-  // If we are on a public route, we can show the content even if still "loading" 
-  // to prevent the loop from blocking the login form itself.
   const isPublicRoute = ["/login", "/signup"].includes(location.pathname);
 
+  // Only show the spinner if we are actually loading AND not on a login/signup page
   if (isLoading && !isPublicRoute) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-muted-foreground font-medium animate-pulse">Securing session...</p>
+        <p className="text-muted-foreground font-medium">Connecting...</p>
       </div>
     );
   }
