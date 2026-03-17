@@ -26,12 +26,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing, Mail, Send, Loader2, CheckCircle2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
+  email: z.string().email("Invalid email address").optional().nullable().or(z.literal("")),
+  email_notifications_enabled: z.boolean().default(true),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
@@ -50,12 +53,15 @@ const formSchema = z.object({
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
+      email: "",
+      email_notifications_enabled: true,
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
@@ -83,6 +89,8 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
+          email: data.email || "",
+          email_notifications_enabled: data.email_notifications_enabled ?? true,
           hourly_rate: data.hourly_rate,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
@@ -104,6 +112,36 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     fetchProfile();
   }, [fetchProfile]);
 
+  const handleTestEmail = async () => {
+    if (!user) return;
+    
+    const currentEmail = form.getValues("email");
+    if (!currentEmail) {
+      showError("Please enter and save an email address first.");
+      return;
+    }
+
+    setIsTestingEmail(true);
+    try {
+      const { data, error } = await supabase.rpc('send_test_email', { 
+        target_user_id: user.id 
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        showError(data.error);
+      } else {
+        showSuccess("Test email sent! Please check your inbox (and spam folder).");
+      }
+    } catch (err: any) {
+      console.error("Test email error:", err);
+      showError("Failed to trigger test email. Ensure you have run the SQL fix in Supabase.");
+    } finally {
+      setIsTestingEmail(false);
+    }
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
 
@@ -112,6 +150,8 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       .update({
         first_name: values.first_name,
         last_name: values.last_name,
+        email: values.email,
+        email_notifications_enabled: values.email_notifications_enabled,
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
@@ -193,6 +233,66 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
               </FormItem>
             )}
           />
+        </div>
+
+        <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
+          <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
+            <Mail className="h-4 w-4" /> Email Notifications
+          </h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notification Email Address</FormLabel>
+                  <FormControl>
+                    <Input placeholder="your@email.com" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email_notifications_enabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-xs">Enable Emails</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              className="font-bold border-blue-200 text-blue-700 hover:bg-blue-100"
+              onClick={handleTestEmail}
+              disabled={isTestingEmail}
+            >
+              {isTestingEmail ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
+              ) : (
+                <><Send className="mr-2 h-4 w-4" /> Send Test Email</>
+              )}
+            </Button>
+            <p className="text-[10px] text-muted-foreground italic">
+              Sends a test message to the email address above to verify your Resend setup.
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -337,7 +437,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           </div>
         </div>
 
-        <Button type="submit" className="w-full">Save Changes</Button>
+        <Button type="submit" className="w-full font-bold">Save All Changes</Button>
       </form>
     </Form>
   );
