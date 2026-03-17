@@ -50,68 +50,59 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, []);
 
+  // Initial session check - only runs ONCE on mount
   useEffect(() => {
-    let mounted = true;
-
-    const initializeAuth = async () => {
+    const initialize = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
-        if (!mounted) return;
-
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
           await fetchProfile(initialSession.user.id);
-          
-          // Redirect away from login if already authenticated
-          if (location.pathname === "/login" || location.pathname === "/signup") {
-            navigate("/", { replace: true });
-          }
-        } else {
-          // Redirect to login if not authenticated and not on a public route
-          if (location.pathname !== "/login" && location.pathname !== "/signup") {
-            navigate("/login", { replace: true });
-          }
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
       } finally {
-        if (mounted) setIsLoading(false);
+        setIsLoading(false);
       }
     };
 
-    initializeAuth();
+    initialize();
+  }, [fetchProfile]);
 
+  // Handle auth state changes (login/logout)
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!mounted) return;
-
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         if (currentSession?.user) {
           await fetchProfile(currentSession.user.id);
         }
-        if (location.pathname === "/login" || location.pathname === "/signup") {
-          navigate("/", { replace: true });
-        }
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
         setProfile(null);
-        if (location.pathname !== "/login" && location.pathname !== "/signup") {
-          navigate("/login", { replace: true });
-        }
       }
-      
-      setIsLoading(false);
     });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [navigate, location.pathname, fetchProfile]);
+    return () => subscription.unsubscribe();
+  }, [fetchProfile]);
+
+  // Handle redirects based on auth state
+  useEffect(() => {
+    if (isLoading) return;
+
+    const publicRoutes = ["/login", "/signup"];
+    const isPublicRoute = publicRoutes.includes(location.pathname);
+
+    if (!session && !isPublicRoute) {
+      navigate("/login", { replace: true });
+    } else if (session && isPublicRoute) {
+      navigate("/", { replace: true });
+    }
+  }, [session, isLoading, location.pathname, navigate]);
 
   if (isLoading) {
     return (
