@@ -168,7 +168,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     <div
       className={cn(
         "flex h-full flex-col border-r bg-sidebar transition-all duration-300",
-        isCollapsed ? "w-[60px]" : "w-[240px]"
+        isCollapsed ? "w-[60px]" : "w-full md:w-[240px]"
       )}
     >
       <div className="flex h-16 items-center justify-center p-4">
