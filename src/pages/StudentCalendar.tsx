@@ -42,6 +42,7 @@ const StudentCalendar: React.FC = () => {
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [studentData, setStudentData] = useState<any>(null);
+  const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
   
   const [selectedSlot, setSelectedSlot] = useState<BigCalendarEvent | null>(null);
   const [isBooking, setIsBooking] = useState(false);
@@ -61,7 +62,21 @@ const StudentCalendar: React.FC = () => {
       if (sError) throw sError;
       setStudentData(sData);
 
-      // 2. Get Bookings (Own + Available)
+      // 2. Get Instructor's working hours
+      const { data: instructorProfile } = await supabase
+        .from("profiles")
+        .select("calendar_start_hour, calendar_end_hour")
+        .eq("id", sData.user_id)
+        .single();
+      
+      if (instructorProfile) {
+        setCalendarHours({
+          start: instructorProfile.calendar_start_hour ?? 9,
+          end: instructorProfile.calendar_end_hour ?? 18
+        });
+      }
+
+      // 3. Get Bookings (Own + Available)
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
         .select("*")
@@ -179,8 +194,8 @@ const StudentCalendar: React.FC = () => {
           defaultView={isMobile ? 'day' : 'week'}
           eventPropGetter={eventPropGetter}
           onSelectEvent={handleSelectEvent}
-          min={new Date(0, 0, 0, 7, 0, 0)}
-          max={new Date(0, 0, 0, 21, 0, 0)}
+          min={new Date(0, 0, 0, calendarHours.start, 0, 0)}
+          max={new Date(0, 0, 0, calendarHours.end, 0, 0)}
         />
       </div>
 
