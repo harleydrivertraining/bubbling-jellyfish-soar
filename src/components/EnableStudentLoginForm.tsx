@@ -15,9 +15,10 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 import { showSuccess, showError } from "@/utils/toast";
-import { KeyRound, UserCheck } from "lucide-react";
+import { KeyRound, UserCheck, Loader2 } from "lucide-react";
+import { supabase as mainSupabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -57,14 +58,30 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
     try {
       const virtualEmail = `${cleanPhone}@student.hdt.app`;
       
-      // 1. Create the Auth User
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Create a temporary client that DOES NOT persist the session
+      // This prevents the instructor from being logged out
+      const tempSupabase = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY,
+        {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          }
+        }
+      );
+
+      // 1. Create the Auth User using the temp client
+      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email: virtualEmail,
         password: values.password,
         options: {
           data: {
             role: 'student',
             display_name: studentName,
+            first_name: studentName.split(' ')[0],
+            last_name: studentName.split(' ').slice(1).join(' ') || '',
           }
         }
       });
@@ -72,16 +89,15 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
       if (authError) throw authError;
 
       if (authData.user) {
-        // 2. Link the student record to the auth user
-        // We use the current instructor's session to perform this update
-        const { error: updateError } = await supabase
+        // 2. Link the student record to the auth user using the MAIN client (instructor's session)
+        const { error: updateError } = await mainSupabase
           .from("students")
           .update({ auth_user_id: authData.user.id })
           .eq("id", studentId);
 
         if (updateError) {
           console.error("Link error:", updateError);
-          throw new Error("Auth account created, but failed to link to student record. Please check RLS policies.");
+          throw new Error("Account created, but failed to link. Please ensure you ran the SQL update policy.");
         }
 
         showSuccess(`Login enabled for ${studentName}!`);
@@ -128,7 +144,14 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
         />
 
         <Button type="submit" className="w-full font-bold" disabled={isSubmitting}>
-          {isSubmitting ? "Enabling..." : "Enable Student Access"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Enabling...
+            </>
+          ) : (
+            "Enable Student Access"
+          )}
         </Button>
       </form>
     </Form>
