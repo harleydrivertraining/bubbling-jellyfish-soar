@@ -141,11 +141,23 @@ const StudentCalendar: React.FC = () => {
 
       if (error) throw error;
 
+      // 1. Create in-app notification
       await supabase.from("notifications").insert({
         user_id: studentData.user_id,
         title: "New Lesson Booked!",
         message: `${studentData.name} has booked the available slot on ${format(selectedSlot.start!, "PPP p")}.`,
         type: "booking_claimed"
+      });
+
+      // 2. Trigger Email Notification via Edge Function
+      // This function will check if the instructor has email notifications enabled
+      await supabase.functions.invoke('send-booking-email', {
+        body: { 
+          bookingId: selectedSlot.id,
+          studentName: studentData.name,
+          startTime: selectedSlot.start,
+          instructorId: studentData.user_id
+        }
       });
 
       showSuccess("Lesson booked successfully!");

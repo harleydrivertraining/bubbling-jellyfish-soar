@@ -22,11 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, RefreshCw, BellRing } from "lucide-react";
+import { User as UserIcon, Clock, Shield, RefreshCw, BellRing, Mail } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -45,6 +46,7 @@ const formSchema = z.object({
     (val) => (val === "" ? 48 : Number(val)),
     z.number().min(0, { message: "Notice period cannot be negative." })
   ),
+  email_notifications_enabled: z.boolean().default(true),
 });
 
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
@@ -64,12 +66,9 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       calendar_end_hour: "18",
       instructor_pin: "",
       min_booking_notice_hours: 48,
+      email_notifications_enabled: true,
     },
   });
-
-  const generateUniquePin = async () => {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-  };
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
@@ -78,27 +77,13 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, hourly_rate, logo_url, default_lesson_duration, calendar_start_hour, calendar_end_hour, instructor_pin, role, min_booking_notice_hours")
+        .select("*")
         .eq("id", user.id)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        if (data.role === 'instructor' && !data.instructor_pin) {
-          setIsGeneratingPin(true);
-          const newPin = await generateUniquePin();
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({ instructor_pin: newPin })
-            .eq("id", user.id);
-          
-          if (!updateError) {
-            data.instructor_pin = newPin;
-          }
-          setIsGeneratingPin(false);
-        }
-
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
@@ -109,6 +94,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           calendar_end_hour: data.calendar_end_hour?.toString() || "18",
           instructor_pin: data.instructor_pin || "",
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
+          email_notifications_enabled: data.email_notifications_enabled ?? true,
         });
       }
     } catch (error: any) {
@@ -137,6 +123,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         calendar_start_hour: values.calendar_start_hour ? parseInt(values.calendar_start_hour) : 9,
         calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
         min_booking_notice_hours: values.min_booking_notice_hours,
+        email_notifications_enabled: values.email_notifications_enabled,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -200,17 +187,14 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
               <FormItem>
                 <FormLabel>Your Unique 4-Digit PIN</FormLabel>
                 <FormControl>
-                  <div className="relative">
-                    <Input 
-                      {...field} 
-                      value={isGeneratingPin ? "Generating..." : (field.value || "")} 
-                      readOnly 
-                      className="font-mono text-lg tracking-widest bg-muted cursor-not-allowed"
-                    />
-                    {isGeneratingPin && <RefreshCw className="absolute right-3 top-2.5 h-5 w-5 animate-spin text-muted-foreground" />}
-                  </div>
+                  <Input 
+                    {...field} 
+                    value={field.value || ""} 
+                    readOnly 
+                    className="font-mono text-lg tracking-widest bg-muted cursor-not-allowed"
+                  />
                 </FormControl>
-                <FormDescription>This PIN is automatically assigned and unique to you. Give this to your students so they can link their account to you.</FormDescription>
+                <FormDescription>Give this to your students so they can link their account to you.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -241,6 +225,32 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
                   <Input placeholder="Doe" {...field} value={field.value || ""} />
                 </FormControl>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
+          <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
+            <Mail className="h-4 w-4" /> Email Notifications
+          </h3>
+          <FormField
+            control={form.control}
+            name="email_notifications_enabled"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 bg-white shadow-sm">
+                <div className="space-y-0.5">
+                  <FormLabel>Booking Alerts</FormLabel>
+                  <FormDescription className="text-[10px]">
+                    Receive an email whenever a student books an available slot.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />
@@ -290,8 +300,8 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           />
         </div>
 
-        <div className="p-4 border rounded-xl bg-blue-50/50 space-y-4">
-          <h3 className="text-sm font-bold uppercase text-blue-700 flex items-center gap-2">
+        <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
+          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
             <BellRing className="h-4 w-4" /> Booking Restrictions
           </h3>
           <FormField
@@ -307,9 +317,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
                     onChange={(e) => field.onChange(parseInt(e.target.value))}
                   />
                 </FormControl>
-                <FormDescription>
-                  Students cannot book available slots that start sooner than this many hours from now. (Default: 48)
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
