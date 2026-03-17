@@ -130,7 +130,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       });
       showSuccess("Test email request sent! Check your Resend dashboard or inbox.");
     } catch (error: any) {
-      showError("Failed to send test email. Check your Resend API key in .env");
+      showError(error.message || "Failed to send test email.");
     } finally {
       setIsSendingTest(false);
     }
