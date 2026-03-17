@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError, showSuccess } from "@/utils/toast";
+import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
 import { 
@@ -17,7 +17,6 @@ import {
   ArrowRight,
   User,
   RefreshCw,
-  ShieldCheck,
   GraduationCap
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -33,28 +32,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface ProgressActivity {
+interface SelfAssessment {
   id: string;
   student_id: string;
   topic_id: string;
   rating: number;
   comment: string | null;
   entry_date: string;
-  user_id: string; // Creator ID
+  user_id: string;
   student_name: string;
   topic_name: string;
-  is_pupil: boolean;
 }
 
 const StudentSelfAssessments: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
-  const [activities, setActivities] = useState<ProgressActivity[]>([]);
+  const [assessments, setAssessments] = useState<SelfAssessment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("all");
-  const [filterType, setFilterType] = useState<"all" | "pupil" | "instructor">("all");
 
-  const fetchActivity = useCallback(async () => {
+  const fetchAssessments = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
 
@@ -68,7 +65,7 @@ const StudentSelfAssessments: React.FC = () => {
       if (studentsError) throw studentsError;
       
       if (!myStudents || myStudents.length === 0) {
-        setActivities([]);
+        setAssessments([]);
         setIsLoading(false);
         return;
       }
@@ -85,49 +82,48 @@ const StudentSelfAssessments: React.FC = () => {
       if (topicsError) throw topicsError;
       const topicMap = new Map(topics?.map(t => [t.id, t.name]));
 
-      // 3. Fetch ALL progress entries for these students
-      // We fetch everything first to see if the connection works at all
+      // 3. Fetch progress entries where user_id is NOT the instructor
       const { data: entries, error: entriesError } = await supabase
         .from("student_progress_entries")
         .select("*")
         .in("student_id", studentIds)
+        .neq("user_id", user.id) // Strictly exclude instructor entries
         .order("entry_date", { ascending: false });
 
       if (entriesError) throw entriesError;
       
-      // 4. Manually map the names and identify the source
-      const formatted: ProgressActivity[] = (entries || []).map(entry => ({
+      // 4. Map names
+      const formatted: SelfAssessment[] = (entries || []).map(entry => ({
         ...entry,
         student_name: studentMap.get(entry.student_id) || "Unknown Student",
-        topic_name: topicMap.get(entry.topic_id) || "Unknown Topic",
-        is_pupil: entry.user_id !== user.id // If creator ID is not the instructor, it's the pupil
+        topic_name: topicMap.get(entry.topic_id) || "Unknown Topic"
       }));
 
-      setActivities(formatted);
+      setAssessments(formatted);
     } catch (error: any) {
-      console.error("Error fetching activity:", error);
-      showError("Failed to load progress activity.");
+      console.error("Error fetching assessments:", error);
+      showError("Failed to load pupil self-assessments.");
     } finally {
       setIsLoading(false);
     }
   }, [user]);
 
   useEffect(() => {
-    if (!isSessionLoading) fetchActivity();
-  }, [isSessionLoading, fetchActivity]);
+    if (!isSessionLoading) fetchAssessments();
+  }, [isSessionLoading, fetchAssessments]);
 
   const uniqueStudents = useMemo(() => {
     const map = new Map();
-    activities.forEach(a => {
+    assessments.forEach(a => {
       if (!map.has(a.student_id)) {
         map.set(a.student_id, a.student_name);
       }
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [activities]);
+  }, [assessments]);
 
-  const filteredActivities = useMemo(() => {
-    return activities.filter(a => {
+  const filteredAssessments = useMemo(() => {
+    return assessments.filter(a => {
       const matchesSearch = 
         a.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         a.topic_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -135,14 +131,9 @@ const StudentSelfAssessments: React.FC = () => {
       
       const matchesStudent = selectedStudentId === "all" || a.student_id === selectedStudentId;
       
-      const matchesType = 
-        filterType === "all" || 
-        (filterType === "pupil" && a.is_pupil) || 
-        (filterType === "instructor" && !a.is_pupil);
-      
-      return matchesSearch && matchesStudent && matchesType;
+      return matchesSearch && matchesStudent;
     });
-  }, [activities, searchTerm, selectedStudentId, filterType]);
+  }, [assessments, searchTerm, selectedStudentId]);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -160,104 +151,69 @@ const StudentSelfAssessments: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Pupil Self-Assessments</h1>
-          <p className="text-muted-foreground font-medium">Monitor how your students rate their own progress compared to your assessments.</p>
+          <p className="text-muted-foreground font-medium">Review how your students rate their own skills and confidence.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchActivity} className="font-bold">
+        <Button variant="outline" size="sm" onClick={fetchAssessments} className="font-bold">
           <RefreshCw className="mr-2 h-4 w-4" /> Refresh Feed
         </Button>
       </div>
 
-      <div className="flex flex-col gap-4 bg-muted/30 p-4 rounded-xl border">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search by student, topic or comment..." 
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="w-full sm:w-64">
-            <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
-              <SelectTrigger>
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Filter by Student" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Students</SelectItem>
-                {uniqueStudents.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="flex flex-col sm:flex-row gap-4 bg-muted/30 p-4 rounded-xl border">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search by student, topic or comment..." 
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            variant={filterType === "all" ? "default" : "outline"} 
-            size="sm" 
-            onClick={() => setFilterType("all")}
-            className="font-bold h-8"
-          >
-            All Activity
-          </Button>
-          <Button 
-            variant={filterType === "pupil" ? "default" : "outline"} 
-            size="sm" 
-            onClick={() => setFilterType("pupil")}
-            className="font-bold h-8"
-          >
-            <GraduationCap className="mr-1.5 h-3.5 w-3.5" /> Pupil Only
-          </Button>
-          <Button 
-            variant={filterType === "instructor" ? "default" : "outline"} 
-            size="sm" 
-            onClick={() => setFilterType("instructor")}
-            className="font-bold h-8"
-          >
-            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Instructor Only
-          </Button>
+        <div className="w-full sm:w-64">
+          <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
+            <SelectTrigger>
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="Filter by Student" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Students</SelectItem>
+              {uniqueStudents.map(s => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {filteredActivities.length === 0 ? (
+      {filteredAssessments.length === 0 ? (
         <Card className="p-12 text-center">
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-            <UserCircle className="h-6 w-6 text-muted-foreground" />
+            <GraduationCap className="h-6 w-6 text-muted-foreground" />
           </div>
           <p className="text-muted-foreground font-medium">
-            {activities.length === 0 
-              ? "No progress activity found for your students yet." 
-              : "No activity found matching your filters."}
+            {assessments.length === 0 
+              ? "No pupil self-assessments found yet." 
+              : "No assessments found matching your filters."}
           </p>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredActivities.map((activity) => (
-            <Card key={activity.id} className={cn(
-              "flex flex-col hover:shadow-md transition-all border-l-4",
-              activity.is_pupil ? "border-l-primary bg-primary/5" : "border-l-blue-500"
-            )}>
+          {filteredAssessments.map((assessment) => (
+            <Card key={assessment.id} className="flex flex-col hover:shadow-md transition-all border-l-4 border-l-primary bg-primary/5">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                   <div className="min-w-0">
                     <CardTitle className="text-lg font-bold truncate flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      {activity.student_name}
+                      <User className="h-4 w-4 text-primary/60" />
+                      {assessment.student_name}
                     </CardTitle>
-                    <CardDescription className="font-bold text-foreground mt-0.5">
-                      {activity.topic_name}
+                    <CardDescription className="font-bold text-primary mt-0.5">
+                      {assessment.topic_name}
                     </CardDescription>
                   </div>
-                  <Badge variant={activity.is_pupil ? "default" : "outline"} className={cn(
-                    "text-[10px] font-bold uppercase",
-                    !activity.is_pupil && "bg-blue-50 text-blue-700 border-blue-200"
-                  )}>
-                    {activity.is_pupil ? "Pupil" : "Instructor"}
+                  <Badge variant="default" className="text-[10px] font-bold uppercase">
+                    Pupil Rating
                   </Badge>
                 </div>
               </CardHeader>
@@ -268,29 +224,29 @@ const StudentSelfAssessments: React.FC = () => {
                       key={i} 
                       className={cn(
                         "h-4 w-4", 
-                        i < activity.rating ? "fill-yellow-400 text-yellow-400" : "text-muted/30"
+                        i < assessment.rating ? "fill-yellow-400 text-yellow-400" : "text-muted/30"
                       )} 
                     />
                   ))}
                   <span className="text-xs font-bold text-muted-foreground ml-2">
-                    {activity.rating}/5
+                    {assessment.rating}/5
                   </span>
                 </div>
 
-                {activity.comment && (
-                  <div className="bg-background/50 p-3 rounded-lg border border-muted italic text-sm relative">
-                    <MessageSquare className="h-3 w-3 text-muted-foreground absolute -top-1.5 -left-1.5 bg-background rounded-full" />
-                    "{activity.comment}"
+                {assessment.comment && (
+                  <div className="bg-background/80 p-3 rounded-lg border border-primary/10 italic text-sm relative">
+                    <MessageSquare className="h-3 w-3 text-primary/40 absolute -top-1.5 -left-1.5 bg-background rounded-full" />
+                    "{assessment.comment}"
                   </div>
                 )}
 
-                <div className="flex items-center justify-between pt-2 mt-auto border-t">
+                <div className="flex items-center justify-between pt-2 mt-auto border-t border-primary/10">
                   <div className="flex items-center text-[10px] font-bold text-muted-foreground uppercase">
                     <Calendar className="mr-1 h-3 w-3" />
-                    {format(parseISO(activity.entry_date), "MMM d, yyyy")}
+                    {format(parseISO(assessment.entry_date), "MMM d, yyyy")}
                   </div>
-                  <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold uppercase" asChild>
-                    <Link to={`/students/${activity.student_id}`}>
+                  <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold uppercase text-primary hover:text-primary hover:bg-primary/10" asChild>
+                    <Link to={`/students/${assessment.student_id}`}>
                       View Profile <ArrowRight className="ml-1 h-3 w-3" />
                     </Link>
                   </Button>
