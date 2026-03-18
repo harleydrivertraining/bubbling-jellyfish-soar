@@ -1,21 +1,26 @@
--- 1. Force update any existing profiles missing a PIN
--- This targets anyone who isn't explicitly a 'student'
+-- 1. Ensure the column exists
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='instructor_pin') THEN
+    ALTER TABLE public.profiles ADD COLUMN instructor_pin TEXT;
+  END IF;
+END $$;
+
+-- 2. Force update any existing profiles missing a PIN
 UPDATE public.profiles 
 SET instructor_pin = floor(random() * 9000 + 1000)::text
 WHERE (instructor_pin IS NULL OR instructor_pin = '')
 AND (role IS NULL OR role = 'instructor' OR role = 'owner');
 
--- 2. Update the function to be more robust
+-- 3. Update the trigger function to be robust
 CREATE OR REPLACE FUNCTION public.handle_new_user_profile()
 RETURNS TRIGGER AS $$
 DECLARE
   new_pin TEXT;
   role_val TEXT;
 BEGIN
-  -- Default to instructor if not specified
   role_val := COALESCE(NEW.raw_user_meta_data->>'role', 'instructor');
   
-  -- Generate PIN for anyone who isn't a student
   IF role_val != 'student' THEN
     new_pin := floor(random() * 9000 + 1000)::text;
   ELSE
@@ -37,9 +42,3 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 3. Re-verify trigger
-DROP TRIGGER IF EXISTS on_auth_user_created_profile ON auth.users;
-CREATE TRIGGER on_auth_user_created_profile
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_profile();

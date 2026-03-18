@@ -29,7 +29,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User as UserIcon, Clock, Shield, BellRing, ClipboardCheck, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
@@ -50,7 +50,7 @@ const formSchema = z.object({
   require_booking_approval: z.boolean().default(false),
 });
 
-const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
+const ProfileSettingsForm: React.FC = () => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -135,7 +135,6 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     } else {
       showSuccess("Profile updated successfully!");
       fetchProfile();
-      if (onProfileUpdated) onProfileUpdated();
     }
   };
 
@@ -150,13 +149,12 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
         <Skeleton className="h-20 w-20 rounded-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
       </div>
     );
   }
 
-  const hasPin = !!form.watch("instructor_pin");
   const isStudent = userRole === 'student';
+  const pinValue = form.watch("instructor_pin");
 
   return (
     <Form {...form}>
@@ -181,50 +179,28 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           />
         </div>
 
-        <div className="p-4 border rounded-xl bg-primary/5 space-y-4">
-          <h3 className="text-sm font-bold uppercase text-primary flex items-center gap-2">
-            <Shield className="h-4 w-4" /> Assigned Instructor PIN
-          </h3>
-          
-          {!hasPin && !isStudent && (
-            <Alert variant="destructive" className="bg-red-50 border-red-200">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>PIN Missing</AlertTitle>
-              <AlertDescription>
-                Your unique PIN hasn't been generated. Please run the SQL fix in Supabase or contact support.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {isStudent && (
-            <p className="text-xs text-muted-foreground italic">Students do not have an instructor PIN.</p>
-          )}
-
-          {!isStudent && (
-            <FormField
-              control={form.control}
-              name="instructor_pin"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Your Unique 4-Digit PIN</FormLabel>
-                  <FormControl>
-                    <Input 
-                      {...field} 
-                      value={field.value || "NOT ASSIGNED"} 
-                      readOnly 
-                      className={cn(
-                        "font-mono text-lg tracking-widest bg-muted cursor-not-allowed",
-                        !field.value && "text-destructive"
-                      )}
-                    />
-                  </FormControl>
-                  <FormDescription>Give this to your students so they can link their account to you.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-        </div>
+        {!isStudent && (
+          <div className="p-4 border rounded-xl bg-primary/5 space-y-3">
+            <h3 className="text-sm font-bold uppercase text-primary flex items-center gap-2">
+              <Shield className="h-4 w-4" /> Instructor Access PIN
+            </h3>
+            
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Your Unique 4-Digit PIN</Label>
+              <div className={cn(
+                "p-3 rounded-lg font-mono text-2xl tracking-[0.5em] text-center border bg-background",
+                !pinValue && "text-destructive border-destructive/20 bg-destructive/5"
+              )}>
+                {pinValue || "NOT ASSIGNED"}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {pinValue 
+                  ? "Give this PIN to your students so they can sign in to their dashboard." 
+                  : "Error: PIN not generated. Please run the SQL fix in Supabase."}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
@@ -301,7 +277,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
 
         <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
           <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
-            <BellRing className="h-4 w-4" /> Free Slot Booking Restrictions
+            <BellRing className="h-4 w-4" /> Booking Restrictions
           </h3>
           
           <FormField
@@ -310,9 +286,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
                 <div className="space-y-0.5">
-                  <FormLabel className="text-sm font-bold flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-blue-600" /> Require Approval
-                  </FormLabel>
+                  <FormLabel className="text-sm font-bold">Require Approval</FormLabel>
                   <FormDescription className="text-[10px]">
                     Student bookings will be "Pending" until you approve them.
                   </FormDescription>
