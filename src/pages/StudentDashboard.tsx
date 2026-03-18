@@ -27,7 +27,8 @@ import {
   ClipboardCheck,
   AlertCircle,
   Bell,
-  X
+  X,
+  XCircle
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -148,7 +149,7 @@ const StudentDashboard: React.FC = () => {
         .eq("user_id", user.id)
         .eq("read", false)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(10);
       setNotifications(notifData || []);
 
       // 7. Calculate Progress
@@ -258,6 +259,10 @@ const StudentDashboard: React.FC = () => {
     return bookings.filter(b => b.status === 'pending_approval' && isAfter(parseISO(b.start_time), new Date()));
   }, [bookings]);
 
+  const rejectedRequests = useMemo(() => {
+    return notifications.filter(n => n.type === 'booking_rejected');
+  }, [notifications]);
+
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6 p-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div></div>;
   }
@@ -283,32 +288,32 @@ const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {notifications.length > 0 && (
+      {/* Rejected Requests Section */}
+      {rejectedRequests.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
-            <Bell className="h-4 w-4" /> Recent Alerts
+          <h3 className="text-sm font-bold uppercase text-red-600 flex items-center gap-2">
+            <XCircle className="h-4 w-4" /> Rejected Booking Requests
           </h3>
           <div className="grid gap-3">
-            {notifications.map((notif) => (
-              <Card key={notif.id} className={cn(
-                "border-l-4 shadow-sm",
-                notif.type === 'booking_rejected' ? "border-l-red-500 bg-red-50/30" : "border-l-blue-500 bg-blue-50/30"
-              )}>
+            {rejectedRequests.map((notif) => (
+              <Card key={notif.id} className="border-l-4 border-l-red-500 bg-red-50/30 shadow-sm">
                 <CardContent className="p-4 flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    {notif.type === 'booking_rejected' ? (
-                      <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-                    ) : (
-                      <Bell className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-                    )}
+                    <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className={cn("font-bold text-sm", notif.type === 'booking_rejected' ? "text-red-900" : "text-blue-900")}>
-                        {notif.title}
+                      <p className="font-bold text-sm text-red-900">{notif.title}</p>
+                      <p className="text-xs text-red-800/80 leading-relaxed">{notif.message}</p>
+                      <p className="text-[10px] text-red-700/50 font-bold uppercase pt-1">
+                        {format(parseISO(notif.created_at), "MMM d, p")}
                       </p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{notif.message}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleMarkNotifRead(notif.id)}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-100" 
+                    onClick={() => handleMarkNotifRead(notif.id)}
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 </CardContent>
@@ -318,6 +323,7 @@ const StudentDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Pending Approval Section */}
       {pendingRequests.length > 0 && (
         <Card className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-sm">
           <CardHeader className="pb-2">
