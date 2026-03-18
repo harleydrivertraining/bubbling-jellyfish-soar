@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import CalendarComponent from "@/components/Calendar";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, RefreshCcw, AlertCircle } from "lucide-react";
+import { PlusCircle, RefreshCcw, AlertCircle, ClipboardCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
 import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid, isWithinInterval } from "date-fns";
@@ -13,6 +13,7 @@ import { showError, showSuccess } from "@/utils/toast";
 import { Event as BigCalendarEvent } from 'react-big-calendar';
 import { useIsMobile } from "@/hooks/use-mobile";
 import CalendarLegend from "@/components/CalendarLegend";
+import { Link } from "react-router-dom";
 
 const Schedule: React.FC = () => {
   const { user, isLoading: isSessionLoading, initialBookings, isLoadingInitialBookings } = useSession();
@@ -22,6 +23,7 @@ const Schedule: React.FC = () => {
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
+  const [pendingCount, setPendingCount] = useState(0);
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [currentCalendarView, _setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
@@ -56,6 +58,21 @@ const Schedule: React.FC = () => {
       }
     };
     fetchSettings();
+  }, [user]);
+
+  // Fetch pending requests count
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      if (!user) return;
+      const { count } = await supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("status", "pending_approval");
+      
+      setPendingCount(count || 0);
+    };
+    fetchPendingCount();
   }, [user]);
 
   // Helper to format bookings into calendar events with payment logic
@@ -261,7 +278,21 @@ const Schedule: React.FC = () => {
         />
       </div>
 
-      <CalendarLegend />
+      <div className="flex flex-col gap-4">
+        <Button asChild variant="outline" className={cn(
+          "w-full h-12 font-black text-lg border-2 transition-all",
+          pendingCount > 0 
+            ? "bg-orange-50 border-orange-500 text-orange-700 hover:bg-orange-100 animate-pulse" 
+            : "bg-muted/30 border-muted text-muted-foreground"
+        )}>
+          <Link to="/pending-requests">
+            <ClipboardCheck className="mr-2 h-5 w-5" />
+            View Pending Requests {pendingCount > 0 && `(${pendingCount})`}
+          </Link>
+        </Button>
+
+        <CalendarLegend />
+      </div>
 
       <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
