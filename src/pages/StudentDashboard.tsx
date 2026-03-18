@@ -28,14 +28,18 @@ import {
   AlertCircle,
   Bell,
   X,
-  XCircle
+  XCircle,
+  LayoutDashboard,
+  Inbox
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import StudentBookingStatusCard from "@/components/StudentBookingStatusCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface StudentData {
   id: string;
@@ -52,6 +56,7 @@ interface Booking {
   status: string;
   lesson_type: string;
   description?: string;
+  targets_for_next_session?: string;
 }
 
 interface Notification {
@@ -66,6 +71,9 @@ interface Notification {
 const StudentDashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "overview";
+  
   const [student, setStudent] = useState<StudentData | null>(null);
   const [instructor, setInstructor] = useState<any>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -118,7 +126,7 @@ const StudentDashboard: React.FC = () => {
         .from("bookings")
         .select("*")
         .eq("student_id", studentData.id)
-        .order("start_time", { ascending: true });
+        .order("start_time", { ascending: false });
       setBookings(bookingsData || []);
 
       // 4. Get Available Slots from this instructor
@@ -208,10 +216,7 @@ const StudentDashboard: React.FC = () => {
   }, [user, fetchData]);
 
   const handleMarkNotifRead = async (id: string) => {
-    // Optimistically remove from local state
     setNotifications(prev => prev.filter(n => n.id !== id));
-    
-    // Update DB to mark as read so it doesn't come back on refresh
     const { error } = await supabase
       .from("notifications")
       .update({ read: true })
@@ -219,7 +224,7 @@ const StudentDashboard: React.FC = () => {
 
     if (error) {
       console.error("Error dismissing notification:", error);
-      fetchData(true); // Re-sync if DB update failed
+      fetchData(true);
     }
   };
 
@@ -268,8 +273,6 @@ const StudentDashboard: React.FC = () => {
 
   const bookingActivity = useMemo(() => {
     const activity: any[] = [];
-
-    // 1. Add Pending Requests from Bookings table (these are always shown until approved/rejected)
     bookings
       .filter(b => b.status === 'pending_approval' && isAfter(parseISO(b.start_time), new Date()))
       .forEach(b => {
@@ -282,7 +285,6 @@ const StudentDashboard: React.FC = () => {
         });
       });
 
-    // 2. Add Accepted/Rejected from Notifications table (only show UNREAD ones)
     notifications
       .filter(n => !n.read)
       .forEach(n => {
@@ -299,9 +301,14 @@ const StudentDashboard: React.FC = () => {
         }
       });
 
-    // Sort by time (most recent first)
     return activity.sort((a, b) => parseISO(b.start_time).getTime() - parseISO(a.start_time).getTime());
   }, [bookings, notifications]);
+
+  const instructorMessages = useMemo(() => {
+    return bookings
+      .filter(b => b.status === 'completed' && (b.description || b.targets_for_next_session))
+      .sort((a, b) => parseISO(b.start_time).getTime() - parseISO(a.start_time).getTime());
+  }, [bookings]);
 
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6 p-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div></div>;
@@ -328,183 +335,240 @@ const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Unified Booking Activity Card */}
-      <StudentBookingStatusCard 
-        requests={bookingActivity} 
-        onDismiss={handleMarkNotifRead} 
-      />
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-l-4 border-l-blue-500 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-3 w-3 text-blue-600" /> Course Progress
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-3xl font-black text-blue-700">{progressPercentage}%</div>
-              <Badge variant="outline" className="bg-blue-50">{student?.status}</Badge>
-            </div>
-            <Progress value={progressPercentage} className="h-2" />
-            
-            <div className="grid grid-cols-1 gap-2 pt-2">
-              <Button asChild variant="default" className="w-full font-bold bg-blue-600 hover:bg-blue-700">
-                <Link to="/progress-report?tab=self">
-                  <Star className="mr-2 h-4 w-4" /> Self Assess Skills
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="w-full font-bold">
-                <Link to="/progress-report">View Full Report <ArrowRight className="ml-2 h-4 w-4" /></Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={cn("border-l-4 shadow-sm", totalCredit > 0 ? "border-l-green-500" : "border-l-orange-500")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-              <Hourglass className="h-3 w-3 text-primary" /> Lesson Credit
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-primary">{totalCredit.toFixed(1)}h</div>
-            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Remaining pre-paid hours</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-              <CheckCircle2 className="h-3 w-3 text-purple-600" /> Lessons Done
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-purple-700">
-              {bookings.filter(b => b.status === 'completed').length}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Completed sessions</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-8 lg:grid-cols-2">
-        <Card className="shadow-md border-none overflow-hidden">
-          <CardHeader className="bg-primary text-primary-foreground">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" />
-              Next Lesson
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            {upcomingLesson ? (
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="h-16 w-16 rounded-xl bg-muted flex flex-col items-center justify-center shrink-0 border shadow-sm">
-                    <span className="text-[10px] uppercase font-black text-muted-foreground">{format(parseISO(upcomingLesson.start_time), "MMM")}</span>
-                    <span className="text-2xl font-black leading-none">{format(parseISO(upcomingLesson.start_time), "dd")}</span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="font-black text-xl">{format(parseISO(upcomingLesson.start_time), "EEEE")}</p>
-                    <p className="text-muted-foreground font-medium flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      {format(parseISO(upcomingLesson.start_time), "p")} — {format(parseISO(upcomingLesson.end_time), "p")}
-                    </p>
-                  </div>
-                </div>
-                <div className="p-4 bg-muted/30 rounded-lg border border-muted">
-                  <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Lesson Type</p>
-                  <p className="font-bold">{upcomingLesson.lesson_type}</p>
-                  {upcomingLesson.description && (
-                    <p className="text-sm text-muted-foreground mt-2 italic">"{upcomingLesson.description}"</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground italic">
-                No upcoming lessons scheduled.
-              </div>
+      <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 h-12 mb-8">
+          <TabsTrigger value="overview" className="font-bold flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4" /> Overview
+          </TabsTrigger>
+          <TabsTrigger value="messages" className="font-bold flex items-center gap-2">
+            <Inbox className="h-4 w-4" /> 
+            Messages 
+            {instructorMessages.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary/10 text-primary border-none">
+                {instructorMessages.length}
+              </Badge>
             )}
-          </CardContent>
-        </Card>
+          </TabsTrigger>
+        </TabsList>
 
-        <Card className="shadow-md border-none overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <Sparkles className="h-5 w-5" />
-              Available Extra Lessons
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {availableSlots.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground italic">
-                No extra slots available right now.
-              </div>
-            ) : (
-              <div className="divide-y">
-                {availableSlots.map((slot) => {
-                  const start = parseISO(slot.start_time);
-                  const duration = differenceInMinutes(parseISO(slot.end_time), start) / 60;
-                  
-                  return (
-                    <div key={slot.id} className="p-4 flex items-center justify-between hover:bg-blue-50 transition-colors">
+        <TabsContent value="overview" className="space-y-8 animate-in fade-in duration-300">
+          {/* Unified Booking Activity Card */}
+          <StudentBookingStatusCard 
+            requests={bookingActivity} 
+            onDismiss={handleMarkNotifRead} 
+          />
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="h-3 w-3 text-blue-600" /> Course Progress
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-3xl font-black text-blue-700">{progressPercentage}%</div>
+                  <Badge variant="outline" className="bg-blue-50">{student?.status}</Badge>
+                </div>
+                <Progress value={progressPercentage} className="h-2" />
+                
+                <div className="grid grid-cols-1 gap-2 pt-2">
+                  <Button asChild variant="default" className="w-full font-bold bg-blue-600 hover:bg-blue-700">
+                    <Link to="/progress-report?tab=self">
+                      <Star className="mr-2 h-4 w-4" /> Self Assess Skills
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="w-full font-bold">
+                    <Link to="/progress-report">View Full Report <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={cn("border-l-4 shadow-sm", totalCredit > 0 ? "border-l-green-500" : "border-l-orange-500")}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                  <Hourglass className="h-3 w-3 text-primary" /> Lesson Credit
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-black text-primary">{totalCredit.toFixed(1)}h</div>
+                <p className="text-[10px] text-muted-foreground mt-1 font-medium">Remaining pre-paid hours</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-purple-500 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-3 w-3 text-purple-600" /> Lessons Done
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-black text-purple-700">
+                  {bookings.filter(b => b.status === 'completed').length}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1 font-medium">Completed sessions</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-2">
+            <Card className="shadow-md border-none overflow-hidden">
+              <CardHeader className="bg-primary text-primary-foreground">
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5" />
+                  Next Lesson
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {upcomingLesson ? (
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-4">
+                      <div className="h-16 w-16 rounded-xl bg-muted flex flex-col items-center justify-center shrink-0 border shadow-sm">
+                        <span className="text-[10px] uppercase font-black text-muted-foreground">{format(parseISO(upcomingLesson.start_time), "MMM")}</span>
+                        <span className="text-2xl font-black leading-none">{format(parseISO(upcomingLesson.start_time), "dd")}</span>
+                      </div>
                       <div className="space-y-1">
-                        <p className="font-bold text-sm">{format(start, "EEEE, MMM do")}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-2">
-                          <Clock className="h-3 w-3" />
-                          {format(start, "p")} ({duration.toFixed(1)}h)
+                        <p className="font-black text-xl">{format(parseISO(upcomingLesson.start_time), "EEEE")}</p>
+                        <p className="text-muted-foreground font-medium flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          {format(parseISO(upcomingLesson.start_time), "p")} — {format(parseISO(upcomingLesson.end_time), "p")}
                         </p>
                       </div>
-                      <Button 
-                        size="sm" 
-                        className={cn("font-bold", instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700")}
-                        onClick={() => handleBookSlot(slot)}
-                        disabled={isBooking === slot.id}
-                      >
-                        {isBooking === slot.id ? "Booking..." : instructor?.require_booking_approval ? <><ClipboardCheck className="mr-1 h-4 w-4" /> Request</> : <><Plus className="mr-1 h-4 w-4" /> Book</>}
-                      </Button>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg font-bold flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
-            Recent Feedback
-          </CardTitle>
-          <CardDescription>Notes from your last session.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {bookings.filter(b => b.status === 'completed' && b.description).length > 0 ? (
-            <div className="space-y-4">
-              {bookings
-                .filter(b => b.status === 'completed' && b.description)
-                .slice(0, 1)
-                .map(b => (
-                  <div key={b.id} className="space-y-3">
-                    <div className="bg-muted/30 p-4 rounded-lg border-l-4 border-l-primary italic text-sm">
-                      "{b.description}"
+                    <div className="p-4 bg-muted/30 rounded-lg border border-muted">
+                      <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Lesson Type</p>
+                      <p className="font-bold">{upcomingLesson.lesson_type}</p>
+                      {upcomingLesson.description && (
+                        <p className="text-sm text-muted-foreground mt-2 italic">"{upcomingLesson.description}"</p>
+                      )}
                     </div>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase">
-                      Recorded on {format(parseISO(b.start_time), "MMM d, yyyy")}
-                    </p>
                   </div>
-                ))
-              }
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground italic">
-              No feedback recorded yet.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground italic">
+                    No upcoming lessons scheduled.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-md border-none overflow-hidden">
+              <CardHeader className="bg-blue-600 text-white">
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                  <Sparkles className="h-5 w-5" />
+                  Available Extra Lessons
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {availableSlots.length === 0 ? (
+                  <div className="p-12 text-center text-muted-foreground italic">
+                    No extra slots available right now.
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {availableSlots.map((slot) => {
+                      const start = parseISO(slot.start_time);
+                      const duration = differenceInMinutes(parseISO(slot.end_time), start) / 60;
+                      
+                      return (
+                        <div key={slot.id} className="p-4 flex items-center justify-between hover:bg-blue-50 transition-colors">
+                          <div className="space-y-1">
+                            <p className="font-bold text-sm">{format(start, "EEEE, MMM do")}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-2">
+                              <Clock className="h-3 w-3" />
+                              {format(start, "p")} ({duration.toFixed(1)}h)
+                            </p>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            className={cn("font-bold", instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700")}
+                            onClick={() => handleBookSlot(slot)}
+                            disabled={isBooking === slot.id}
+                          >
+                            {isBooking === slot.id ? "Booking..." : instructor?.require_booking_approval ? <><ClipboardCheck className="mr-1 h-4 w-4" /> Request</> : <><Plus className="mr-1 h-4 w-4" /> Book</>}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="messages" className="animate-in fade-in duration-300">
+          <Card className="shadow-md border-none overflow-hidden">
+            <CardHeader className="bg-primary text-primary-foreground">
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Instructor Notes & Feedback
+              </CardTitle>
+              <CardDescription className="text-primary-foreground/70">
+                A history of all notes and targets left by your instructor.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {instructorMessages.length === 0 ? (
+                <div className="p-12 text-center space-y-4">
+                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto">
+                    <Inbox className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground font-medium italic">
+                    No messages or lesson notes found yet.
+                  </p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[600px]">
+                  <div className="divide-y">
+                    {instructorMessages.map((msg) => (
+                      <div key={msg.id} className="p-6 space-y-4 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0 border border-primary/10">
+                              <span className="text-[8px] uppercase font-black text-primary">{format(parseISO(msg.start_time), "MMM")}</span>
+                              <span className="text-lg font-black leading-none text-primary">{format(parseISO(msg.start_time), "dd")}</span>
+                            </div>
+                            <div>
+                              <p className="font-black text-sm">{format(parseISO(msg.start_time), "EEEE, MMMM do")}</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{msg.lesson_type}</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="bg-background font-bold text-[10px]">COMPLETED</Badge>
+                        </div>
+
+                        <div className="space-y-4 pl-1">
+                          {msg.description && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                                <MessageSquare className="h-3 w-3" /> Lesson Feedback
+                              </p>
+                              <div className="bg-muted/50 p-4 rounded-xl italic text-sm border border-muted">
+                                "{msg.description}"
+                              </div>
+                            </div>
+                          )}
+
+                          {msg.targets_for_next_session && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
+                                <Target className="h-3 w-3" /> Targets for Next Time
+                              </p>
+                              <div className="bg-primary/5 p-4 rounded-xl font-bold text-sm border border-primary/10 text-primary">
+                                {msg.targets_for_next_session}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

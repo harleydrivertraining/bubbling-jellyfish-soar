@@ -30,7 +30,8 @@ import {
   PoundSterling,
   LogOut,
   UserCircle,
-  Sparkles
+  Sparkles,
+  Inbox
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -43,7 +44,7 @@ interface NavLinkProps {
 
 const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isCollapsed, onLinkClick }) => {
   const location = useLocation();
-  const isActive = location.pathname === to;
+  const isActive = location.pathname === to || (to === "/" && location.search.includes("tab="));
 
   return (
     <Tooltip delayDuration={0}>
@@ -137,6 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     if (userRole === 'student') {
       items = [
         { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
+        { id: "messages", to: "/?tab=messages", icon: Inbox, label: "Messages" },
         { id: "available-slots", to: "/available-slots", icon: Sparkles, label: "Available Slots" },
         { id: "progress-report", to: "/progress-report", icon: TrendingUp, label: "Progress Report" },
         { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
