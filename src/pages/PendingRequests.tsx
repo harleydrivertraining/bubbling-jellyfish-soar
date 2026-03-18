@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { BellRing, Check, X, Clock, Calendar, User, Loader2, ArrowLeft, Inbox } from "lucide-react";
+import { BellRing, Check, X, Clock, Calendar, User, Loader2, ArrowLeft, Inbox, RefreshCcw } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,22 +17,54 @@ const PendingRequests: React.FC = () => {
   const queryClient = useQueryClient();
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const { data: requests = [], isLoading } = useQuery({
+  const { data: requests = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['pending-requests-page', user?.id],
     queryFn: async () => {
       if (!user) return [];
       
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("bookings")
         .select("id, title, start_time, end_time, student_id, students(name, auth_user_id)")
         .eq("user_id", user.id)
         .eq("status", "pending_approval")
         .order("start_time", { ascending: true });
       
+      if (error) {
+        console.error("Error fetching pending requests:", error);
+        throw error;
+      }
+      
       return (data || []) as any[];
     },
     enabled: !!user,
   });
+
+  // Real-time subscription to catch new requests immediately
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('pending-requests-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          // Invalidate both the page query and the global alert query
+          queryClient.invalidateQueries({ queryKey: ['pending-requests-page'] });
+          queryClient.invalidateQueries({ queryKey: ['pending-requests-global'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   const handleApprove = async (id: string, studentName: string, authUserId: string | null) => {
     setProcessingId(id);
@@ -88,9 +120,9 @@ const PendingRequests: React.FC = () => {
     setProcessingId(null);
   };
 
-  if (isSessionLoading || isLoading) {
+  if (isSessionLoading || (isLoading && !isFetching)) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 max-w-4xl mx-auto p-4">
         <Skeleton className="h-10 w-48" />
         <div className="space-y-4">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-32 w-full" />)}
@@ -100,33 +132,43 @@ const PendingRequests: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" asChild className="-ml-2">
             <Link to="/schedule">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Schedule
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Link>
           </Button>
-          <h1 className="text-3xl font-black tracking-tight">Booking Requests</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Booking Requests</h1>
         </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => refetch()} 
+          disabled={isFetching}
+          className="font-bold"
+        >
+          <RefreshCcw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
+          Refresh
+        </Button>
       </div>
 
       {requests.length === 0 ? (
-        <Card className="p-12 text-center border-dashed">
+        <Card className="p-12 text-center border-dashed bg-muted/10">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
             <Inbox className="h-8 w-8 text-muted-foreground" />
           </div>
           <h2 className="text-xl font-bold">No pending requests</h2>
           <p className="text-muted-foreground mt-1">When students request available slots, they will appear here.</p>
-          <Button asChild variant="outline" className="mt-6">
+          <Button asChild variant="outline" className="mt-6 font-bold">
             <Link to="/schedule">Return to Calendar</Link>
           </Button>
         </Card>
       ) : (
         <div className="grid gap-4">
           {requests.map((req) => (
-            <Card key={req.id} className="overflow-hidden border-l-4 border-l-orange-500 shadow-sm">
+            <Card key={req.id} className="overflow-hidden border-l-4 border-l-orange-500 shadow-md">
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="space-y-3 min-w-0">
