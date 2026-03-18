@@ -24,7 +24,7 @@ const BookingRequestAlert: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const { data: requests = [] } = useQuery({
+  const { data: requests = [], refetch } = useQuery({
     queryKey: ['pending-requests-global', user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -51,17 +51,22 @@ const BookingRequestAlert: React.FC = () => {
 
   // Listen for global trigger to open this dialog
   useEffect(() => {
-    const handleOpenTrigger = () => setIsOpen(true);
+    const handleOpenTrigger = () => {
+      // Force a refetch to ensure the new request is in the list
+      refetch();
+      setIsOpen(true);
+    };
+    
     window.addEventListener("hdt-open-booking-requests", handleOpenTrigger);
     return () => window.removeEventListener("hdt-open-booking-requests", handleOpenTrigger);
-  }, []);
+  }, [refetch]);
 
   // Real-time subscription for new requests
   useEffect(() => {
     if (!user) return;
 
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('schema-db-changes-global')
       .on(
         'postgres_changes',
         {
@@ -133,19 +138,21 @@ const BookingRequestAlert: React.FC = () => {
     setProcessingId(null);
   };
 
-  if (requests.length === 0) return null;
-
+  // We always render the Dialog so the listener stays active, 
+  // but we only show the trigger button if there are requests.
   return (
     <>
-      <button 
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 hover:bg-red-100 border border-red-200 transition-all animate-pulse group"
-      >
-        <BellRing className="h-4 w-4 text-red-600 group-hover:rotate-12 transition-transform" />
-        <span className="text-xs sm:text-sm font-black text-red-600 uppercase tracking-tight">
-          New Request ({requests.length})
-        </span>
-      </button>
+      {requests.length > 0 && (
+        <button 
+          onClick={() => setIsOpen(true)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 hover:bg-red-100 border border-red-200 transition-all animate-pulse group"
+        >
+          <BellRing className="h-4 w-4 text-red-600 group-hover:rotate-12 transition-transform" />
+          <span className="text-xs sm:text-sm font-black text-red-600 uppercase tracking-tight">
+            New Request ({requests.length})
+          </span>
+        </button>
+      )}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
@@ -160,50 +167,60 @@ const BookingRequestAlert: React.FC = () => {
           </DialogHeader>
           
           <ScrollArea className="max-h-[60vh]">
-            <div className="divide-y">
-              {requests.map((req) => (
-                <div key={req.id} className="p-6 space-y-4 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <User className="h-4 w-4 text-primary" />
+            {requests.length === 0 ? (
+              <div className="p-12 text-center space-y-2">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                  <Check className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="font-bold text-lg">All caught up!</p>
+                <p className="text-sm text-muted-foreground">No pending requests at the moment.</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {requests.map((req) => (
+                  <div key={req.id} className="p-6 space-y-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
+                          <p className="font-black text-lg truncate">{req.students?.name || "Unknown Student"}</p>
                         </div>
-                        <p className="font-black text-lg truncate">{req.students?.name || "Unknown Student"}</p>
-                      </div>
-                      <div className="flex flex-col gap-1 pl-10">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground font-bold">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {format(parseISO(req.start_time), "EEEE, MMMM do")}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground font-bold">
-                          <Clock className="h-3.5 w-3.5" />
-                          {format(parseISO(req.start_time), "p")} — {format(parseISO(req.end_time), "p")}
+                        <div className="flex flex-col gap-1 pl-10">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground font-bold">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {format(parseISO(req.start_time), "EEEE, MMMM do")}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground font-bold">
+                            <Clock className="h-3.5 w-3.5" />
+                            {format(parseISO(req.start_time), "p")} — {format(parseISO(req.end_time), "p")}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-3 pt-2">
-                    <Button 
-                      className="flex-1 bg-green-600 hover:bg-green-700 font-black h-11"
-                      onClick={() => handleApprove(req.id, req.students?.name, req.students?.auth_user_id)}
-                      disabled={processingId === req.id}
-                    >
-                      {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-2 h-5 w-5" /> Approve</>}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-1 border-red-200 text-red-700 hover:bg-red-50 font-black h-11"
-                      onClick={() => handleReject(req.id, req.students?.auth_user_id, req.start_time)}
-                      disabled={processingId === req.id}
-                    >
-                      {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><X className="mr-2 h-5 w-5" /> Deny</>}
-                    </Button>
+                    <div className="flex items-center gap-3 pt-2">
+                      <Button 
+                        className="flex-1 bg-green-600 hover:bg-green-700 font-black h-11"
+                        onClick={() => handleApprove(req.id, req.students?.name, req.students?.auth_user_id)}
+                        disabled={processingId === req.id}
+                      >
+                        {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-2 h-5 w-5" /> Approve</>}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="flex-1 border-red-200 text-red-700 hover:bg-red-50 font-black h-11"
+                        onClick={() => handleReject(req.id, req.students?.auth_user_id, req.start_time)}
+                        disabled={processingId === req.id}
+                      >
+                        {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><X className="mr-2 h-5 w-5" /> Deny</>}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </ScrollArea>
           
           <div className="p-4 bg-muted/30 border-t text-center">
