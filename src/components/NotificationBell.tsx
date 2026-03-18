@@ -54,6 +54,47 @@ const NotificationBell: React.FC = () => {
     }
   }, [user]);
 
+  const markAsRead = useCallback(async (id: string) => {
+    if (!user) return;
+    
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read: true })
+      .match({ id, user_id: user.id });
+
+    if (error) {
+      console.error("Mark as read failed:", error);
+      fetchNotifications();
+    }
+  }, [user, fetchNotifications]);
+
+  const handleNotificationClick = useCallback((notif: Notification) => {
+    if (!notif.read) {
+      markAsRead(notif.id);
+    }
+    setIsOpen(false);
+
+    // Navigation logic based on notification type
+    switch (notif.type) {
+      case 'booking_claimed':
+        // Trigger the approval popup instead of just navigating
+        window.dispatchEvent(new Event("hdt-open-booking-requests"));
+        break;
+      case 'self_assessment':
+        navigate('/pupil-self-assessments');
+        break;
+      case 'booking_confirmed':
+      case 'booking_rejected':
+        navigate('/');
+        break;
+      default:
+        // Default behavior: just close the popover
+        break;
+    }
+  }, [markAsRead, navigate]);
+
   useEffect(() => {
     fetchNotifications();
 
@@ -78,9 +119,17 @@ const NotificationBell: React.FC = () => {
             return [newNotif, ...prev];
           });
           
+          // Make the toast clickable and add an action button
           toast(newNotif.title, {
             description: newNotif.message,
             icon: <Sparkles className="h-4 w-4 text-blue-500" />,
+            duration: 6000,
+            action: {
+              label: "View",
+              onClick: () => handleNotificationClick(newNotif)
+            },
+            // Also make the whole toast clickable
+            onClick: () => handleNotificationClick(newNotif)
           });
 
           if (Capacitor.isNativePlatform()) {
@@ -115,48 +164,7 @@ const NotificationBell: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchNotifications]);
-
-  const markAsRead = async (id: string) => {
-    if (!user) return;
-    
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .match({ id, user_id: user.id });
-
-    if (error) {
-      console.error("Mark as read failed:", error);
-      fetchNotifications();
-    }
-  };
-
-  const handleNotificationClick = (notif: Notification) => {
-    if (!notif.read) {
-      markAsRead(notif.id);
-    }
-    setIsOpen(false);
-
-    // Navigation logic based on notification type
-    switch (notif.type) {
-      case 'booking_claimed':
-        // Trigger the approval popup instead of just navigating
-        window.dispatchEvent(new Event("hdt-open-booking-requests"));
-        break;
-      case 'self_assessment':
-        navigate('/pupil-self-assessments');
-        break;
-      case 'booking_confirmed':
-      case 'booking_rejected':
-        navigate('/');
-        break;
-      default:
-        // Default behavior: just close the popover
-        break;
-    }
-  };
+  }, [user, fetchNotifications, handleNotificationClick]);
 
   const markAllAsRead = async () => {
     if (!user) return;
@@ -175,7 +183,7 @@ const NotificationBell: React.FC = () => {
   };
 
   const deleteNotification = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the click handler for the notification item
+    e.stopPropagation(); 
     if (!user) return;
 
     setNotifications(prev => prev.filter(n => n.id !== id));
