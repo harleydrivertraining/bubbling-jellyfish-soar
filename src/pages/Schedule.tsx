@@ -14,6 +14,7 @@ import { Event as BigCalendarEvent } from 'react-big-calendar';
 import { useIsMobile } from "@/hooks/use-mobile";
 import CalendarLegend from "@/components/CalendarLegend";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 const Schedule: React.FC = () => {
   const { user, isLoading: isSessionLoading, initialBookings, isLoadingInitialBookings } = useSession();
