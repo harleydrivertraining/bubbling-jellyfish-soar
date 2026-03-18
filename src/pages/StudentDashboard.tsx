@@ -143,13 +143,13 @@ const StudentDashboard: React.FC = () => {
       const total = hoursData?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalCredit(total);
 
-      // 6. Get Notifications (Fetch both read and unread for the activity card)
+      // 6. Get Notifications
       const { data: notifData } = await supabase
         .from("notifications")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(15);
+        .limit(20);
       setNotifications(notifData || []);
 
       // 7. Calculate Progress
@@ -208,10 +208,19 @@ const StudentDashboard: React.FC = () => {
   }, [user, fetchData]);
 
   const handleMarkNotifRead = async (id: string) => {
-    // For the activity card, we "dismiss" by marking as read if it wasn't already, 
-    // but we also want to filter it out of the immediate view if the user clicks X
+    // Optimistically remove from local state
     setNotifications(prev => prev.filter(n => n.id !== id));
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
+    
+    // Update DB to mark as read so it doesn't come back on refresh
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error dismissing notification:", error);
+      fetchData(true); // Re-sync if DB update failed
+    }
   };
 
   const handleBookSlot = async (slot: Booking) => {
@@ -260,7 +269,7 @@ const StudentDashboard: React.FC = () => {
   const bookingActivity = useMemo(() => {
     const activity: any[] = [];
 
-    // 1. Add Pending Requests from Bookings table
+    // 1. Add Pending Requests from Bookings table (these are always shown until approved/rejected)
     bookings
       .filter(b => b.status === 'pending_approval' && isAfter(parseISO(b.start_time), new Date()))
       .forEach(b => {
@@ -273,21 +282,22 @@ const StudentDashboard: React.FC = () => {
         });
       });
 
-    // 2. Add Accepted/Rejected from Notifications table
-    // We show these even if read, so they stay in the list for context
-    notifications.forEach(n => {
-      if (n.type === 'booking_confirmed' || n.type === 'booking_rejected') {
-        activity.push({
-          id: n.id,
-          start_time: n.created_at, 
-          status: n.type === 'booking_confirmed' ? 'scheduled' : 'rejected',
-          type: n.type === 'booking_confirmed' ? 'accepted' : 'rejected',
-          title: n.title,
-          message: n.message,
-          notificationId: n.id
-        });
-      }
-    });
+    // 2. Add Accepted/Rejected from Notifications table (only show UNREAD ones)
+    notifications
+      .filter(n => !n.read)
+      .forEach(n => {
+        if (n.type === 'booking_confirmed' || n.type === 'booking_rejected') {
+          activity.push({
+            id: n.id,
+            start_time: n.created_at, 
+            status: n.type === 'booking_confirmed' ? 'scheduled' : 'rejected',
+            type: n.type === 'booking_confirmed' ? 'accepted' : 'rejected',
+            title: n.title,
+            message: n.message,
+            notificationId: n.id
+          });
+        }
+      });
 
     // Sort by time (most recent first)
     return activity.sort((a, b) => parseISO(b.start_time).getTime() - parseISO(a.start_time).getTime());
