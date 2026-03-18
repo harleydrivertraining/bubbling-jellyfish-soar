@@ -27,8 +27,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing, ClipboardCheck } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing, ClipboardCheck, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
@@ -52,6 +53,7 @@ const formSchema = z.object({
 const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onProfileUpdated }) => {
   const { user } = useSession();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -83,6 +85,7 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
       if (error) throw error;
 
       if (data) {
+        setUserRole(data.role);
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
@@ -152,6 +155,9 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
     );
   }
 
+  const hasPin = !!form.watch("instructor_pin");
+  const isStudent = userRole === 'student';
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -179,25 +185,45 @@ const ProfileSettingsForm: React.FC<{ onProfileUpdated?: () => void }> = ({ onPr
           <h3 className="text-sm font-bold uppercase text-primary flex items-center gap-2">
             <Shield className="h-4 w-4" /> Assigned Instructor PIN
           </h3>
-          <FormField
-            control={form.control}
-            name="instructor_pin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Your Unique 4-Digit PIN</FormLabel>
-                <FormControl>
-                  <Input 
-                    {...field} 
-                    value={field.value || ""} 
-                    readOnly 
-                    className="font-mono text-lg tracking-widest bg-muted cursor-not-allowed"
-                  />
-                </FormControl>
-                <FormDescription>Give this to your students so they can link their account to you.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          
+          {!hasPin && !isStudent && (
+            <Alert variant="destructive" className="bg-red-50 border-red-200">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>PIN Missing</AlertTitle>
+              <AlertDescription>
+                Your unique PIN hasn't been generated. Please run the SQL fix in Supabase or contact support.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isStudent && (
+            <p className="text-xs text-muted-foreground italic">Students do not have an instructor PIN.</p>
+          )}
+
+          {!isStudent && (
+            <FormField
+              control={form.control}
+              name="instructor_pin"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Your Unique 4-Digit PIN</FormLabel>
+                  <FormControl>
+                    <Input 
+                      {...field} 
+                      value={field.value || "NOT ASSIGNED"} 
+                      readOnly 
+                      className={cn(
+                        "font-mono text-lg tracking-widest bg-muted cursor-not-allowed",
+                        !field.value && "text-destructive"
+                      )}
+                    />
+                  </FormControl>
+                  <FormDescription>Give this to your students so they can link their account to you.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
