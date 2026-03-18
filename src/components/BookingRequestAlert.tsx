@@ -39,7 +39,7 @@ const BookingRequestAlert: React.FC = () => {
 
       const { data } = await supabase
         .from("bookings")
-        .select("id, title, start_time, end_time, student_id, students(name)")
+        .select("id, title, start_time, end_time, student_id, students(name, auth_user_id)")
         .eq("user_id", user.id)
         .eq("status", "pending_approval")
         .order("start_time", { ascending: true });
@@ -81,7 +81,7 @@ const BookingRequestAlert: React.FC = () => {
     };
   }, [user, queryClient]);
 
-  const handleApprove = async (id: string, studentName: string, studentId: string) => {
+  const handleApprove = async (id: string, studentName: string, authUserId: string | null) => {
     setProcessingId(id);
     const { error } = await supabase
       .from("bookings")
@@ -91,10 +91,10 @@ const BookingRequestAlert: React.FC = () => {
     if (error) {
       showError("Failed to approve.");
     } else {
-      if (studentId) {
+      if (authUserId) {
         const req = requests.find(r => r.id === id);
         await supabase.from("notifications").insert({
-          user_id: studentId,
+          user_id: authUserId,
           title: "Booking Approved!",
           message: `Your lesson on ${format(parseISO(req.start_time), "PPP")} has been confirmed.`,
           type: "booking_confirmed"
@@ -107,12 +107,12 @@ const BookingRequestAlert: React.FC = () => {
     setProcessingId(null);
   };
 
-  const handleReject = async (id: string, studentId: string, startTime: string) => {
+  const handleReject = async (id: string, authUserId: string | null, startTime: string) => {
     setProcessingId(id);
     
-    if (studentId) {
+    if (authUserId) {
       await supabase.from("notifications").insert({
-        user_id: studentId,
+        user_id: authUserId,
         title: "Booking Request Declined",
         message: `Your request for the slot on ${format(parseISO(startTime), "PPP")} was not approved.`,
         type: "booking_rejected"
@@ -187,7 +187,7 @@ const BookingRequestAlert: React.FC = () => {
                   <div className="flex items-center gap-3 pt-2">
                     <Button 
                       className="flex-1 bg-green-600 hover:bg-green-700 font-black h-11"
-                      onClick={() => handleApprove(req.id, req.students?.name, req.student_id)}
+                      onClick={() => handleApprove(req.id, req.students?.name, req.students?.auth_user_id)}
                       disabled={processingId === req.id}
                     >
                       {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-2 h-5 w-5" /> Approve</>}
@@ -195,7 +195,7 @@ const BookingRequestAlert: React.FC = () => {
                     <Button 
                       variant="outline" 
                       className="flex-1 border-red-200 text-red-700 hover:bg-red-50 font-black h-11"
-                      onClick={() => handleReject(req.id, req.student_id, req.start_time)}
+                      onClick={() => handleReject(req.id, req.students?.auth_user_id, req.start_time)}
                       disabled={processingId === req.id}
                     >
                       {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><X className="mr-2 h-5 w-5" /> Deny</>}

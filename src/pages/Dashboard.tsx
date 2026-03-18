@@ -101,7 +101,7 @@ const Dashboard: React.FC = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("id, title, start_time, end_time, student_id, students(name)")
+        .select("id, title, start_time, end_time, student_id, students(name, auth_user_id)")
         .eq("user_id", user!.id)
         .eq("status", "pending_approval")
         .order("start_time", { ascending: true });
@@ -287,7 +287,7 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  const handleApprove = async (id: string, studentName: string, studentId?: string) => {
+  const handleApprove = async (id: string, studentName: string, authUserId: string | null) => {
     const { error } = await supabase
       .from("bookings")
       .update({ status: "scheduled", title: `${studentName} - Driving lesson` })
@@ -296,10 +296,10 @@ const Dashboard: React.FC = () => {
     if (error) showError("Failed to approve.");
     else {
       // Notify student
-      if (studentId) {
+      if (authUserId) {
         const req = pendingRequests?.find(r => r.id === id);
         await supabase.from("notifications").insert({
-          user_id: studentId,
+          user_id: authUserId,
           title: "Booking Approved!",
           message: `Your lesson on ${format(parseISO(req.start_time), "PPP")} has been confirmed.`,
           type: "booking_confirmed"
@@ -312,11 +312,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleReject = async (id: string, studentId?: string, startTime?: string) => {
+  const handleReject = async (id: string, authUserId: string | null, startTime: string) => {
     // Notify student first
-    if (studentId && startTime) {
+    if (authUserId && startTime) {
       await supabase.from("notifications").insert({
-        user_id: studentId,
+        user_id: authUserId,
         title: "Booking Request Declined",
         message: `Your request for the slot on ${format(parseISO(startTime), "PPP")} was not approved.`,
         type: "booking_rejected"
@@ -390,7 +390,7 @@ const Dashboard: React.FC = () => {
                       <Button 
                         size="sm" 
                         className="bg-green-600 hover:bg-green-700 font-bold h-8"
-                        onClick={() => handleApprove(req.id, req.students?.name, req.student_id)}
+                        onClick={() => handleApprove(req.id, req.students?.name, req.students?.auth_user_id)}
                       >
                         <Check className="mr-1 h-4 w-4" /> Approve
                       </Button>
@@ -398,7 +398,7 @@ const Dashboard: React.FC = () => {
                         size="sm" 
                         variant="outline" 
                         className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8"
-                        onClick={() => handleReject(req.id, req.student_id, req.start_time)}
+                        onClick={() => handleReject(req.id, req.students?.auth_user_id, req.start_time)}
                       >
                         <X className="mr-1 h-4 w-4" /> Reject
                       </Button>
