@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing, ClipboardCheck, AlertCircle } from "lucide-react";
+import { User as UserIcon, Clock, Shield, BellRing, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -138,11 +138,6 @@ const ProfileSettingsForm: React.FC = () => {
     }
   };
 
-  const hours = Array.from({ length: 24 }, (_, i) => ({
-    label: `${i.toString().padStart(2, '0')}:00`,
-    value: i.toString()
-  }));
-
   if (isLoadingProfile) {
     return (
       <div className="space-y-4">
@@ -185,6 +180,13 @@ const ProfileSettingsForm: React.FC = () => {
               <Shield className="h-4 w-4" /> Instructor Access PIN
             </h3>
             
+            {!pinValue && (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 text-xs">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
+                <p><strong>PIN Missing:</strong> Your unique PIN hasn't been generated. Please run the SQL fix in Supabase.</p>
+              </div>
+            )}
+
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Your Unique 4-Digit PIN</Label>
               <div className={cn(
@@ -194,9 +196,7 @@ const ProfileSettingsForm: React.FC = () => {
                 {pinValue || "NOT ASSIGNED"}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {pinValue 
-                  ? "Give this PIN to your students so they can sign in to their dashboard." 
-                  : "Error: PIN not generated. Please run the SQL fix in Supabase."}
+                Give this PIN to your students so they can sign in to their dashboard.
               </p>
             </div>
           </div>
@@ -318,52 +318,6 @@ const ProfileSettingsForm: React.FC = () => {
               </FormItem>
             )}
           />
-        </div>
-
-        <div className="space-y-4 pt-4 border-t">
-          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
-            <Clock className="h-4 w-4" /> Calendar Display Hours
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="calendar_start_hour"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Start Hour</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "9"}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="calendar_end_hour"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>End Hour</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "18"}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-          </div>
         </div>
 
         <Button type="submit" className="w-full font-bold">Save Profile Changes</Button>
