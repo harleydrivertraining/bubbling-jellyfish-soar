@@ -52,7 +52,6 @@ const BookingRequestAlert: React.FC = () => {
   // Listen for global trigger to open this dialog
   useEffect(() => {
     const handleOpenTrigger = () => {
-      // Force a refetch to ensure the new request is in the list
       refetch();
       setIsOpen(true);
     };
@@ -138,8 +137,6 @@ const BookingRequestAlert: React.FC = () => {
     setProcessingId(null);
   };
 
-  // We always render the Dialog so the listener stays active, 
-  // but we only show the trigger button if there are requests.
   return (
     <>
       {requests.length > 0 && (
@@ -155,14 +152,14 @@ const BookingRequestAlert: React.FC = () => {
       )}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
-          <DialogHeader className="p-6 bg-red-600 text-white">
-            <DialogTitle className="text-xl font-black flex items-center gap-2">
-              <BellRing className="h-6 w-6" />
-              Pending Booking Requests
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden max-w-[95vw] rounded-xl">
+          <DialogHeader className="p-4 sm:p-6 bg-red-600 text-white">
+            <DialogTitle className="text-lg sm:text-xl font-black flex items-center gap-2">
+              <BellRing className="h-5 w-5 sm:h-6 sm:w-6" />
+              Pending Requests
             </DialogTitle>
-            <DialogDescription className="text-red-100 font-medium">
-              Review and manage lesson requests from your students.
+            <DialogDescription className="text-red-100 font-medium text-xs sm:text-sm">
+              Review lesson requests from your students.
             </DialogDescription>
           </DialogHeader>
           
@@ -178,21 +175,19 @@ const BookingRequestAlert: React.FC = () => {
             ) : (
               <div className="divide-y">
                 {requests.map((req) => (
-                  <div key={req.id} className="p-6 space-y-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1.5 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            <User className="h-4 w-4 text-primary" />
-                          </div>
-                          <p className="font-black text-lg truncate">{req.students?.name || "Unknown Student"}</p>
-                        </div>
-                        <div className="flex flex-col gap-1 pl-10">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground font-bold">
+                  <div key={req.id} className="p-4 sm:p-6 space-y-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-base sm:text-lg truncate">{req.students?.name || "Unknown Student"}</p>
+                        <div className="flex flex-col gap-1 mt-1">
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground font-bold">
                             <Calendar className="h-3.5 w-3.5" />
-                            {format(parseISO(req.start_time), "EEEE, MMMM do")}
+                            {format(parseISO(req.start_time), "EEEE, MMM do")}
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground font-bold">
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground font-bold">
                             <Clock className="h-3.5 w-3.5" />
                             {format(parseISO(req.start_time), "p")} — {format(parseISO(req.end_time), "p")}
                           </div>
@@ -200,21 +195,21 @@ const BookingRequestAlert: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-2">
+                    <div className="flex items-center gap-2 sm:gap-3 pt-1">
                       <Button 
-                        className="flex-1 bg-green-600 hover:bg-green-700 font-black h-11"
+                        className="flex-1 bg-green-600 hover:bg-green-700 font-black h-10 sm:h-11 text-xs sm:text-sm"
                         onClick={() => handleApprove(req.id, req.students?.name, req.students?.auth_user_id)}
                         disabled={processingId === req.id}
                       >
-                        {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-2 h-5 w-5" /> Approve</>}
+                        {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" /> Approve</>}
                       </Button>
                       <Button 
                         variant="outline" 
-                        className="flex-1 border-red-200 text-red-700 hover:bg-red-50 font-black h-11"
+                        className="flex-1 border-red-200 text-red-700 hover:bg-red-50 font-black h-10 sm:h-11 text-xs sm:text-sm"
                         onClick={() => handleReject(req.id, req.students?.auth_user_id, req.start_time)}
                         disabled={processingId === req.id}
                       >
-                        {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><X className="mr-2 h-5 w-5" /> Deny</>}
+                        {processingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><X className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" /> Deny</>}
                       </Button>
                     </div>
                   </div>
@@ -223,8 +218,8 @@ const BookingRequestAlert: React.FC = () => {
             )}
           </ScrollArea>
           
-          <div className="p-4 bg-muted/30 border-t text-center">
-            <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="font-bold text-muted-foreground">
+          <div className="p-3 bg-muted/30 border-t text-center">
+            <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="font-bold text-muted-foreground text-xs">
               Close Window
             </Button>
           </div>
