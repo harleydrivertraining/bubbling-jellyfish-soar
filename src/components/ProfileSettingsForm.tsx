@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Clock, Shield, BellRing, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { User, Clock, Shield, BellRing, CheckSquare, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -36,16 +36,16 @@ const formSchema = z.object({
   last_name: z.string().optional().nullable(),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
-    z.number().min(0, { message: "Hourly rate cannot be negative." }).nullable().optional()
+    z.number().min(0).nullable().optional()
   ),
-  logo_url: z.string().url({ message: "Must be a valid URL." }).optional().nullable().or(z.literal("")),
+  logo_url: z.string().url().optional().nullable().or(z.literal("")),
   default_lesson_duration: z.enum(["60", "90", "120"]).optional().nullable(),
   calendar_start_hour: z.string().optional().nullable(),
   calendar_end_hour: z.string().optional().nullable(),
   instructor_pin: z.string().optional().nullable(),
   min_booking_notice_hours: z.preprocess(
     (val) => (val === "" ? 48 : Number(val)),
-    z.number().min(0, { message: "Notice period cannot be negative." })
+    z.number().min(0)
   ),
   require_booking_approval: z.boolean().default(false),
 });
@@ -101,7 +101,6 @@ const ProfileSettingsForm: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Error fetching profile:", error);
-      showError("Failed to load profile.");
     } finally {
       setIsLoadingProfile(false);
     }
@@ -138,19 +137,8 @@ const ProfileSettingsForm: React.FC = () => {
     }
   };
 
-  const hours = Array.from({ length: 24 }, (_, i) => ({
-    label: `${i.toString().padStart(2, '0')}:00`,
-    value: i.toString()
-  }));
-
   if (isLoadingProfile) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-20 w-20 rounded-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-    );
+    return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>;
   }
 
   const isStudent = userRole === 'student';
@@ -160,9 +148,9 @@ const ProfileSettingsForm: React.FC = () => {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex items-center space-x-4">
-          <Avatar className="h-20 w-20">
-            <AvatarImage src={form.watch("logo_url") || undefined} alt="Logo" />
-            <AvatarFallback><UserIcon className="h-10 w-10 text-muted-foreground" /></AvatarFallback>
+          <Avatar className="h-16 w-16">
+            <AvatarImage src={form.watch("logo_url") || undefined} />
+            <AvatarFallback><User className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
           </Avatar>
           <FormField
             control={form.control}
@@ -184,16 +172,7 @@ const ProfileSettingsForm: React.FC = () => {
             <h3 className="text-sm font-bold uppercase text-primary flex items-center gap-2">
               <Shield className="h-4 w-4" /> Instructor Access PIN
             </h3>
-            
-            {!pinValue && (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 text-xs">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
-                <p><strong>PIN Missing:</strong> Your unique PIN hasn't been generated. Please run the SQL fix in Supabase.</p>
-              </div>
-            )}
-
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Your Unique 4-Digit PIN</Label>
               <div className={cn(
                 "p-3 rounded-lg font-mono text-2xl tracking-[0.5em] text-center border bg-background",
                 !pinValue && "text-destructive border-destructive/20 bg-destructive/5"
@@ -201,7 +180,7 @@ const ProfileSettingsForm: React.FC = () => {
                 {pinValue || "NOT ASSIGNED"}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
-                Give this PIN to your students so they can sign in to their dashboard.
+                Give this PIN to your students so they can sign in.
               </p>
             </div>
           </div>
@@ -214,9 +193,7 @@ const ProfileSettingsForm: React.FC = () => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>First Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="John" {...field} value={field.value || ""} />
-                </FormControl>
+                <FormControl><Input {...field} value={field.value || ""} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -227,9 +204,7 @@ const ProfileSettingsForm: React.FC = () => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Last Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="Doe" {...field} value={field.value || ""} />
-                </FormControl>
+                <FormControl><Input {...field} value={field.value || ""} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -242,15 +217,9 @@ const ProfileSettingsForm: React.FC = () => {
             name="hourly_rate"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Hourly Lesson Rate (£)</FormLabel>
+                <FormLabel>Hourly Rate (£)</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    {...field}
-                    value={field.value === null ? "" : field.value}
-                    onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
-                  />
+                  <Input type="number" step="0.01" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -261,20 +230,15 @@ const ProfileSettingsForm: React.FC = () => {
             name="default_lesson_duration"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Default Lesson Duration</FormLabel>
+                <FormLabel>Default Duration</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select default" />
-                    </SelectTrigger>
-                  </FormControl>
+                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                   <SelectContent>
                     <SelectItem value="60">1 hour</SelectItem>
                     <SelectItem value="90">1.5 hours</SelectItem>
                     <SelectItem value="120">2 hours</SelectItem>
                   </SelectContent>
                 </Select>
-                <FormMessage />
               </FormItem>
             )}
           />
@@ -284,96 +248,31 @@ const ProfileSettingsForm: React.FC = () => {
           <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
             <BellRing className="h-4 w-4" /> Booking Restrictions
           </h3>
-          
           <FormField
             control={form.control}
             name="require_booking_approval"
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
                 <div className="space-y-0.5">
-                  <FormLabel className="text-sm font-bold flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-blue-600" /> Require Approval
-                  </FormLabel>
-                  <FormDescription className="text-[10px]">
-                    Student bookings will be "Pending" until you approve them.
-                  </FormDescription>
+                  <FormLabel className="text-sm font-bold">Require Approval</FormLabel>
                 </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="min_booking_notice_hours"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Minimum Booking Notice (Hours)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    {...field}
-                    onChange={(e) => field.onChange(parseInt(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
+                <FormLabel>Notice Period (Hours)</FormLabel>
+                <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} /></FormControl>
               </FormItem>
             )}
           />
         </div>
 
-        <div className="space-y-4 pt-4 border-t">
-          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
-            <Clock className="h-4 w-4" /> Calendar Display Hours
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="calendar_start_hour"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Start Hour</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "9"}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="calendar_end_hour"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>End Hour</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "18"}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {hours.map(h => <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-          </div>
-        </div>
-
-        <Button type="submit" className="w-full font-bold">Save Profile Changes</Button>
+        <Button type="submit" className="w-full font-bold">Save Changes</Button>
       </form>
     </Form>
   );
