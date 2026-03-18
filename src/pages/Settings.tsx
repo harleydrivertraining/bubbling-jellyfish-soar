@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, ChevronRight } from "lucide-react";
+import { LogOut, LayoutList, UserCog, ShieldCheck, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import ProfileSettingsForm from "@/components/ProfileSettingsForm";
 import NotificationSettingsForm from "@/components/NotificationSettingsForm";
@@ -29,37 +29,39 @@ const Settings: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-20">
-      <h1 className="text-3xl font-black tracking-tight">Settings</h1>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-black tracking-tight">Settings</h1>
+        <p className="text-muted-foreground font-medium">Manage your account, notifications, and app preferences.</p>
+      </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Sidebar Navigation */}
-        <div className="space-y-1">
+      <div className="space-y-6">
+        {/* Top Navigation Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border w-full overflow-x-auto no-scrollbar">
           {navItems.map((item) => (
             <Button
               key={item.id}
               variant={activeTab === item.id ? "default" : "ghost"}
               className={cn(
-                "w-full justify-between font-bold h-12 px-4",
-                activeTab === item.id ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                "flex-1 min-w-[120px] font-bold h-10 rounded-lg transition-all",
+                activeTab === item.id 
+                  ? "bg-background text-primary shadow-sm hover:bg-background" 
+                  : "text-muted-foreground hover:bg-transparent hover:text-primary"
               )}
               onClick={() => setActiveTab(item.id as SettingsTab)}
             >
-              <div className="flex items-center gap-3">
-                <item.icon className="h-5 w-5" />
-                {item.label}
-              </div>
-              <ChevronRight className={cn("h-4 w-4 transition-transform", activeTab === item.id ? "rotate-90" : "")} />
+              <item.icon className="h-4 w-4 mr-2 shrink-0" />
+              {item.label}
             </Button>
           ))}
         </div>
 
         {/* Content Area */}
-        <div className="md:col-span-3 animate-in fade-in slide-in-from-right-4 duration-300">
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
           {activeTab === "profile" && (
-            <Card>
+            <Card className="border-none shadow-sm bg-card">
               <CardHeader>
                 <CardTitle>Profile Settings</CardTitle>
-                <CardDescription>Manage your personal information and app preferences.</CardDescription>
+                <CardDescription>Update your personal information and instructor preferences.</CardDescription>
               </CardHeader>
               <CardContent>
                 <ProfileSettingsForm />
@@ -72,7 +74,7 @@ const Settings: React.FC = () => {
           )}
 
           {activeTab === "menu" && (
-            <Card>
+            <Card className="border-none shadow-sm bg-card">
               <CardHeader>
                 <CardTitle>Customise Menu</CardTitle>
                 <CardDescription>Rearrange or hide pages in your sidebar navigation.</CardDescription>
@@ -85,24 +87,25 @@ const Settings: React.FC = () => {
 
           {activeTab === "account" && (
             <div className="space-y-6">
-              <Card>
+              <Card className="border-none shadow-sm bg-card">
                 <CardHeader>
                   <CardTitle>Change Password</CardTitle>
-                  <CardDescription>Update your login credentials.</CardDescription>
+                  <CardDescription>Update your login credentials to keep your account secure.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ChangePasswordForm />
                 </CardContent>
               </Card>
 
-              <Card className="border-destructive/20 bg-destructive/5">
+              <Card className="border-destructive/20 bg-destructive/5 shadow-none">
                 <CardHeader>
-                  <CardTitle className="text-destructive">Account Actions</CardTitle>
+                  <CardTitle className="text-destructive text-lg">Danger Zone</CardTitle>
+                  <CardDescription>Actions that affect your current session.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button 
                     variant="destructive" 
-                    className="w-full font-bold" 
+                    className="w-full font-bold h-12" 
                     onClick={handleLogout}
                   >
                     <LogOut className="mr-2 h-4 w-4" /> Logout of App
