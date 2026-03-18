@@ -43,7 +43,8 @@ import {
   UserCircle,
   Lock,
   Send,
-  Inbox
+  Inbox,
+  Megaphone
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -68,6 +69,7 @@ import { Progress } from "@/components/ui/progress";
 import StarRatingInput from "@/components/StarRatingInput";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import MessageConversation from "@/components/MessageConversation";
 
 interface Student {
   id: string;
@@ -124,6 +126,7 @@ interface DirectMessage {
   content: string;
   created_at: string;
   is_broadcast: boolean;
+  instructor_id: string;
 }
 
 const StudentProfile: React.FC = () => {
@@ -150,6 +153,7 @@ const StudentProfile: React.FC = () => {
   
   const [savingTopicId, setSavingTopicId] = useState<string | null>(null);
   const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
+  const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null);
   
   // Messaging State
   const [newMessage, setNewMessage] = useState("");
@@ -992,21 +996,21 @@ const StudentProfile: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase text-muted-foreground">New Message</Label>
-                  <Textarea 
-                    placeholder="Type your message here..." 
-                    className="min-h-[100px] resize-none"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <Button 
-                    className="font-bold" 
-                    onClick={handleSendMessage}
-                    disabled={isSending || !newMessage.trim()}
-                  >
-                    {isSending ? "Sending..." : <><Send className="mr-2 h-4 w-4" /> Send Message</>}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Textarea 
+                      placeholder="Type your message here..." 
+                      className="min-h-[100px] resize-none"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                    />
+                    <Button 
+                      className="font-bold h-auto" 
+                      onClick={handleSendMessage}
+                      disabled={isSending || !newMessage.trim()}
+                    >
+                      {isSending ? "..." : <Send className="h-5 w-5" />}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -1019,16 +1023,46 @@ const StudentProfile: React.FC = () => {
                 ) : (
                   <div className="space-y-4">
                     {directMessages.map((msg) => (
-                      <div key={msg.id} className="bg-muted/30 p-4 rounded-xl border border-muted space-y-2">
+                      <div key={msg.id} className="bg-muted/30 p-4 rounded-xl border border-muted space-y-3">
                         <div className="flex items-center justify-between">
-                          <Badge variant={msg.is_broadcast ? "default" : "outline"} className="text-[8px] font-bold uppercase">
-                            {msg.is_broadcast ? "Broadcast" : "Private"}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {msg.is_broadcast ? (
+                              <Badge className="bg-primary text-primary-foreground font-bold text-[8px] uppercase">
+                                <Megaphone className="mr-1 h-3 w-3" /> Broadcast
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="font-bold text-[8px] uppercase border-blue-200 text-blue-700 bg-blue-50">
+                                <User className="mr-1 h-3 w-3" /> Private
+                              </Badge>
+                            )}
+                          </div>
                           <span className="text-[10px] font-bold text-muted-foreground uppercase">
                             {format(parseISO(msg.created_at), "MMM d, p")}
                           </span>
                         </div>
                         <p className="text-sm italic">"{msg.content}"</p>
+                        
+                        <div className="pt-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setExpandedMessageId(expandedMessageId === msg.id ? null : msg.id)}
+                            className="text-[10px] font-bold uppercase h-7 px-2"
+                          >
+                            {expandedMessageId === msg.id ? "Hide Conversation" : "View Conversation"}
+                          </Button>
+                          
+                          {expandedMessageId === msg.id && (
+                            <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                              <MessageConversation 
+                                messageId={msg.id} 
+                                instructorId={msg.instructor_id}
+                                studentId={student.id}
+                                isBroadcast={msg.is_broadcast}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -41,6 +41,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import StudentBookingStatusCard from "@/components/StudentBookingStatusCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import MessageConversation from "@/components/MessageConversation";
 
 interface StudentData {
   id: string;
@@ -65,6 +66,7 @@ interface DirectMessage {
   content: string;
   created_at: string;
   is_broadcast: boolean;
+  instructor_id: string;
 }
 
 interface Notification {
@@ -93,6 +95,7 @@ const StudentDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isBooking, setIsBooking] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null);
 
   const handleLogout = async () => {
     try {
@@ -353,7 +356,8 @@ const StudentDashboard: React.FC = () => {
         title: m.is_broadcast ? "Announcement" : "Private Message",
         subtitle: "From Instructor",
         content: m.content,
-        is_broadcast: m.is_broadcast
+        is_broadcast: m.is_broadcast,
+        instructor_id: m.instructor_id
       });
     });
 
@@ -622,6 +626,31 @@ const StudentDashboard: React.FC = () => {
                               <div className="bg-primary/5 p-4 rounded-xl font-bold text-sm border border-primary/10 text-primary">
                                 {item.targets}
                               </div>
+                            </div>
+                          )}
+
+                          {/* Conversation View for Direct Messages */}
+                          {item.type === 'direct_message' && (
+                            <div className="pt-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setExpandedMessageId(expandedMessageId === item.id ? null : item.id)}
+                                className="text-[10px] font-bold uppercase h-7 px-2"
+                              >
+                                {expandedMessageId === item.id ? "Hide Conversation" : "View / Reply"}
+                              </Button>
+                              
+                              {expandedMessageId === item.id && (
+                                <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                                  <MessageConversation 
+                                    messageId={item.id} 
+                                    instructorId={item.instructor_id}
+                                    studentId={student?.id || null}
+                                    isBroadcast={item.is_broadcast}
+                                  />
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

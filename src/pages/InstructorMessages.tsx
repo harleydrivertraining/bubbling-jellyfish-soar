@@ -18,7 +18,9 @@ import {
   Clock, 
   Search,
   CheckCircle2,
-  Inbox
+  Inbox,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import MessageConversation from "@/components/MessageConversation";
 
 interface Student {
   id: string;
@@ -39,6 +42,7 @@ interface Message {
   created_at: string;
   is_broadcast: boolean;
   student_id: string | null;
+  instructor_id: string;
   students?: {
     name: string;
   };
@@ -50,6 +54,7 @@ const InstructorMessages: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null);
   
   // Form State
   const [messageContent, setMessageContent] = useState("");
@@ -261,7 +266,7 @@ const InstructorMessages: React.FC = () => {
             <CardTitle className="flex items-center gap-2">
               <Inbox className="h-5 w-5 text-primary" /> Sent History
             </CardTitle>
-            <CardDescription>Review your previous communications.</CardDescription>
+            <CardDescription>Review your previous communications and student replies.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {messages.length === 0 ? (
@@ -292,6 +297,29 @@ const InstructorMessages: React.FC = () => {
                       </div>
                       <div className="bg-muted/30 p-4 rounded-xl text-sm text-foreground border border-muted">
                         {msg.content}
+                      </div>
+
+                      {/* Conversation View */}
+                      <div className="pt-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setExpandedMessageId(expandedMessageId === msg.id ? null : msg.id)}
+                          className="text-[10px] font-bold uppercase h-7 px-2"
+                        >
+                          {expandedMessageId === msg.id ? <>Hide Conversation <ChevronUp className="ml-1 h-3 w-3" /></> : <>View Conversation <ChevronDown className="ml-1 h-3 w-3" /></>}
+                        </Button>
+                        
+                        {expandedMessageId === msg.id && (
+                          <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                            <MessageConversation 
+                              messageId={msg.id} 
+                              instructorId={msg.instructor_id}
+                              studentId={msg.student_id}
+                              isBroadcast={msg.is_broadcast}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
