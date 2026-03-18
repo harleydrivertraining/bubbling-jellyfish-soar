@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { showSuccess, showError } from "@/utils/toast";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const PendingRequests: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
