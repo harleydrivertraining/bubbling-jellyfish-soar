@@ -183,6 +183,29 @@ const StudentDashboard: React.FC = () => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
 
+  // Real-time subscription for notifications and bookings
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`student-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        () => fetchData(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings' },
+        () => fetchData(true)
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchData]);
+
   const handleMarkNotifRead = async (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
     await supabase.from("notifications").update({ read: true }).eq("id", id);
@@ -211,7 +234,6 @@ const StudentDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      // Create in-app notification for instructor
       await supabase.from("notifications").insert({
         user_id: student.user_id,
         title: requireApproval ? "New Booking Request!" : "New Lesson Booked!",
@@ -261,7 +283,6 @@ const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Notifications / Alerts Section */}
       {notifications.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">

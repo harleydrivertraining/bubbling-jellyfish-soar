@@ -82,8 +82,8 @@ const Layout = () => {
             </header>
           )}
 
-          {/* Mobile Top Alert Bar */}
-          {isMobile === true && (
+          {/* Mobile Top Alert Bar - Show if mobile or still detecting */}
+          {(isMobile === true || isMobile === undefined) && (
             <div className="sticky top-0 z-[40] flex justify-center p-2 bg-background/80 backdrop-blur-sm border-b">
               <BookingRequestAlert />
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -27,10 +27,12 @@ const BookingRequestAlert: React.FC = () => {
   const { data: requests = [] } = useQuery({
     queryKey: ['pending-requests-global', user?.id],
     queryFn: async () => {
+      if (!user) return [];
+      
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
-        .eq("id", user!.id)
+        .eq("id", user.id)
         .single();
       
       if (profile?.role?.toLowerCase() !== 'instructor') return [];
@@ -38,15 +40,40 @@ const BookingRequestAlert: React.FC = () => {
       const { data } = await supabase
         .from("bookings")
         .select("id, title, start_time, end_time, student_id, students(name)")
-        .eq("user_id", user!.id)
+        .eq("user_id", user.id)
         .eq("status", "pending_approval")
         .order("start_time", { ascending: true });
       
       return (data || []) as any[];
     },
     enabled: !!user,
-    refetchInterval: 30000, // Refresh every 30 seconds
   });
+
+  // Real-time subscription for new requests
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['pending-requests-global'] });
+          queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   const handleApprove = async (id: string, studentName: string, studentId: string) => {
     setProcessingId(id);
@@ -58,20 +85,18 @@ const BookingRequestAlert: React.FC = () => {
     if (error) {
       showError("Failed to approve.");
     } else {
-      // Notify student of approval
       if (studentId) {
+        const req = requests.find(r => r.id === id);
         await supabase.from("notifications").insert({
           user_id: studentId,
           title: "Booking Approved!",
-          message: `Your lesson on ${format(parseISO(requests.find(r => r.id === id).start_time), "PPP")} has been confirmed.`,
+          message: `Your lesson on ${format(parseISO(req.start_time), "PPP")} has been confirmed.`,
           type: "booking_confirmed"
         });
       }
 
       showSuccess("Booking approved!");
       queryClient.invalidateQueries({ queryKey: ['pending-requests-global'] });
-      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-bookings'] });
     }
     setProcessingId(null);
   };
@@ -79,17 +104,15 @@ const BookingRequestAlert: React.FC = () => {
   const handleReject = async (id: string, studentId: string, startTime: string) => {
     setProcessingId(id);
     
-    // 1. Notify student first while we still have the link
     if (studentId) {
       await supabase.from("notifications").insert({
         user_id: studentId,
         title: "Booking Request Declined",
-        message: `Your request for the slot on ${format(parseISO(startTime), "PPP")} was not approved. The slot is now available for others to book.`,
+        message: `Your request for the slot on ${format(parseISO(startTime), "PPP")} was not approved.`,
         type: "booking_rejected"
       });
     }
 
-    // 2. Reset the slot
     const { error } = await supabase
       .from("bookings")
       .update({ status: "available", student_id: null, title: "Available Slot" })
@@ -100,7 +123,6 @@ const BookingRequestAlert: React.FC = () => {
     } else {
       showSuccess("Booking rejected.");
       queryClient.invalidateQueries({ queryKey: ['pending-requests-global'] });
-      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
     }
     setProcessingId(null);
   };
@@ -115,7 +137,7 @@ const BookingRequestAlert: React.FC = () => {
       >
         <BellRing className="h-4 w-4 text-red-600 group-hover:rotate-12 transition-transform" />
         <span className="text-xs sm:text-sm font-black text-red-600 uppercase tracking-tight">
-          Booking Request Made ({requests.length})
+          New Request ({requests.length})
         </span>
       </button>
 
