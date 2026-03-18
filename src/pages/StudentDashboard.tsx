@@ -25,7 +25,9 @@ import {
   Plus,
   RefreshCw,
   ClipboardCheck,
-  AlertCircle
+  AlertCircle,
+  Bell,
+  X
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +52,15 @@ interface Booking {
   description?: string;
 }
 
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  created_at: string;
+  read: boolean;
+  type: string;
+}
+
 const StudentDashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const navigate = useNavigate();
@@ -57,6 +68,7 @@ const StudentDashboard: React.FC = () => {
   const [instructor, setInstructor] = useState<any>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [availableSlots, setAvailableSlots] = useState<Booking[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [progressPercentage, setProgressPercentage] = useState(0);
   const [totalCredit, setTotalCredit] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,7 +141,17 @@ const StudentDashboard: React.FC = () => {
       const total = hoursData?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalCredit(total);
 
-      // 6. Calculate Progress
+      // 6. Get Notifications
+      const { data: notifData } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("read", false)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      setNotifications(notifData || []);
+
+      // 7. Calculate Progress
       const [topicsRes, hiddenRes, entriesRes] = await Promise.all([
         supabase.from("progress_topics").select("id").or(`user_id.eq.${studentData.user_id},is_default.eq.true`),
         supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", studentData.user_id),
@@ -161,6 +183,11 @@ const StudentDashboard: React.FC = () => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
 
+  const handleMarkNotifRead = async (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    await supabase.from("notifications").update({ read: true }).eq("id", id);
+  };
+
   const handleBookSlot = async (slot: Booking) => {
     if (!student || !instructor) return;
     
@@ -184,7 +211,7 @@ const StudentDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      // Create in-app notification
+      // Create in-app notification for instructor
       await supabase.from("notifications").insert({
         user_id: student.user_id,
         title: requireApproval ? "New Booking Request!" : "New Lesson Booked!",
@@ -233,6 +260,42 @@ const StudentDashboard: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Notifications / Alerts Section */}
+      {notifications.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
+            <Bell className="h-4 w-4" /> Recent Alerts
+          </h3>
+          <div className="grid gap-3">
+            {notifications.map((notif) => (
+              <Card key={notif.id} className={cn(
+                "border-l-4 shadow-sm",
+                notif.type === 'booking_rejected' ? "border-l-red-500 bg-red-50/30" : "border-l-blue-500 bg-blue-50/30"
+              )}>
+                <CardContent className="p-4 flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    {notif.type === 'booking_rejected' ? (
+                      <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <Bell className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                    )}
+                    <div className="space-y-1">
+                      <p className={cn("font-bold text-sm", notif.type === 'booking_rejected' ? "text-red-900" : "text-blue-900")}>
+                        {notif.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{notif.message}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleMarkNotifRead(notif.id)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pendingRequests.length > 0 && (
         <Card className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-sm">
