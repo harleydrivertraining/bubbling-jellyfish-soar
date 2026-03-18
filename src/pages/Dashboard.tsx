@@ -431,6 +431,7 @@ const Dashboard: React.FC = () => {
                 <div className="text-3xl sm:text-4xl font-black">{(bookingsData || []).filter(b => b.lesson_type === "Driving Test").length}</div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
               </CardContent>
+            </Card>
 
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
