@@ -47,14 +47,26 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
 
   const fetchReplies = useCallback(async () => {
     try {
+      // We use a simpler select and handle the join explicitly if needed, 
+      // but PostgREST should handle this if the FK is correct.
       const { data, error } = await supabase
         .from("instructor_message_replies")
-        .select("*, profiles:sender_id(first_name, last_name, role)")
+        .select(`
+          id, 
+          content, 
+          sender_id, 
+          created_at,
+          profiles (
+            first_name,
+            last_name,
+            role
+          )
+        `)
         .eq("message_id", messageId)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-      setReplies(data || []);
+      setReplies(data as any || []);
     } catch (error: any) {
       console.error("Error fetching replies:", error);
     } finally {
@@ -84,7 +96,10 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
     }
   }, [replies]);
 
@@ -101,10 +116,7 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
           content: newReply.trim(),
         });
 
-      if (error) {
-        console.error("Reply insert error:", error);
-        throw new Error(error.message || "Permission denied. Please ensure the SQL policies are applied.");
-      }
+      if (error) throw error;
 
       // Notify the other party
       const isInstructor = user.id === instructorId;
@@ -140,12 +152,12 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
   return (
     <div className="flex flex-col space-y-4 mt-2">
       {replies.length > 0 ? (
-        <ScrollArea className={cn("border rounded-lg bg-muted/10 p-3")} style={{ maxHeight }}>
+        <ScrollArea className={cn("border rounded-lg bg-muted/10 p-3")} style={{ maxHeight }} ref={scrollRef}>
           <div className="space-y-3">
             {replies.map((reply) => {
               const isMe = reply.sender_id === user?.id;
-              const role = (reply.profiles as any)?.role;
-              const isInstructor = role === 'instructor' || role === 'owner';
+              const role = reply.profiles?.role;
+              const isInstructorReply = role === 'instructor' || role === 'owner';
               
               return (
                 <div key={reply.id} className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
@@ -157,7 +169,7 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
                       "flex items-center gap-1.5 mb-1 text-[9px] font-bold uppercase",
                       isMe ? "text-primary-foreground/70" : "text-muted-foreground"
                     )}>
-                      {isInstructor ? <ShieldCheck className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
+                      {isInstructorReply ? <ShieldCheck className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
                       {reply.profiles?.first_name || "User"} • {format(parseISO(reply.created_at), "p")}
                     </div>
                     <p className="whitespace-pre-wrap">{reply.content}</p>
