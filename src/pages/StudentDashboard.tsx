@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
+import StudentBookingStatusCard from "@/components/StudentBookingStatusCard";
 
 interface StudentData {
   id: string;
@@ -255,13 +256,41 @@ const StudentDashboard: React.FC = () => {
     return bookings.find(b => b.status === 'scheduled' && isAfter(parseISO(b.start_time), new Date()));
   }, [bookings]);
 
-  const pendingRequests = useMemo(() => {
-    return bookings.filter(b => b.status === 'pending_approval' && isAfter(parseISO(b.start_time), new Date()));
-  }, [bookings]);
+  const bookingActivity = useMemo(() => {
+    const activity: any[] = [];
 
-  const rejectedRequests = useMemo(() => {
-    return notifications.filter(n => n.type === 'booking_rejected');
-  }, [notifications]);
+    // 1. Add Pending Requests
+    bookings
+      .filter(b => b.status === 'pending_approval' && isAfter(parseISO(b.start_time), new Date()))
+      .forEach(b => {
+        activity.push({
+          id: b.id,
+          start_time: b.start_time,
+          status: b.status,
+          type: 'pending',
+          title: "Pending Approval"
+        });
+      });
+
+    // 2. Add Accepted/Rejected from Notifications
+    notifications.forEach(n => {
+      if (n.type === 'booking_confirmed' || n.type === 'booking_rejected') {
+        // Try to extract date from message if possible, or use created_at
+        // For now we use created_at as a fallback for the item's time
+        activity.push({
+          id: n.id,
+          start_time: n.created_at, // This is the notification time
+          status: n.type === 'booking_confirmed' ? 'scheduled' : 'rejected',
+          type: n.type === 'booking_confirmed' ? 'accepted' : 'rejected',
+          title: n.title,
+          message: n.message,
+          notificationId: n.id
+        });
+      }
+    });
+
+    return activity.sort((a, b) => parseISO(b.start_time).getTime() - parseISO(a.start_time).getTime());
+  }, [bookings, notifications]);
 
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6 p-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div></div>;
@@ -288,73 +317,11 @@ const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Rejected Requests Section */}
-      {rejectedRequests.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold uppercase text-red-600 flex items-center gap-2">
-            <XCircle className="h-4 w-4" /> Rejected Booking Requests
-          </h3>
-          <div className="grid gap-3">
-            {rejectedRequests.map((notif) => (
-              <Card key={notif.id} className="border-l-4 border-l-red-500 bg-red-50/30 shadow-sm">
-                <CardContent className="p-4 flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="font-bold text-sm text-red-900">{notif.title}</p>
-                      <p className="text-xs text-red-800/80 leading-relaxed">{notif.message}</p>
-                      <p className="text-[10px] text-red-700/50 font-bold uppercase pt-1">
-                        {format(parseISO(notif.created_at), "MMM d, p")}
-                      </p>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-100" 
-                    onClick={() => handleMarkNotifRead(notif.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pending Approval Section */}
-      {pendingRequests.length > 0 && (
-        <Card className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-bold flex items-center gap-2 text-orange-800">
-              <ClipboardCheck className="h-5 w-5 text-orange-600" />
-              Pending Approval ({pendingRequests.length})
-            </CardTitle>
-            <CardDescription className="text-orange-700/70">
-              Your instructor needs to confirm these lesson requests.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-orange-100">
-              {pendingRequests.map((req) => (
-                <div key={req.id} className="p-4 flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="font-bold text-sm text-orange-900">{format(parseISO(req.start_time), "EEEE, MMM do")}</p>
-                    <p className="text-xs text-orange-800/70 flex items-center gap-2">
-                      <Clock className="h-3 w-3" />
-                      {format(parseISO(req.start_time), "p")}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="bg-white text-orange-600 border-orange-200 font-bold uppercase text-[10px]">
-                    Waiting...
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Unified Booking Activity Card */}
+      <StudentBookingStatusCard 
+        requests={bookingActivity} 
+        onDismiss={handleMarkNotifRead} 
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-l-4 border-l-blue-500 shadow-sm">
