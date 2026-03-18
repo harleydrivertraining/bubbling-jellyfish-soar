@@ -49,6 +49,13 @@ const BookingRequestAlert: React.FC = () => {
     enabled: !!user,
   });
 
+  // Listen for global trigger to open this dialog
+  useEffect(() => {
+    const handleOpenTrigger = () => setIsOpen(true);
+    window.addEventListener("hdt-open-booking-requests", handleOpenTrigger);
+    return () => window.removeEventListener("hdt-open-booking-requests", handleOpenTrigger);
+  }, []);
+
   // Real-time subscription for new requests
   useEffect(() => {
     if (!user) return;
@@ -65,7 +72,6 @@ const BookingRequestAlert: React.FC = () => {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['pending-requests-global'] });
-          queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
         }
       )
       .subscribe();

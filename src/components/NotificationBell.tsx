@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { format } from "date-fns";
@@ -142,7 +142,8 @@ const NotificationBell: React.FC = () => {
     // Navigation logic based on notification type
     switch (notif.type) {
       case 'booking_claimed':
-        navigate('/schedule');
+        // Trigger the approval popup instead of just navigating
+        window.dispatchEvent(new Event("hdt-open-booking-requests"));
         break;
       case 'self_assessment':
         navigate('/pupil-self-assessments');
