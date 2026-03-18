@@ -30,7 +30,8 @@ import {
   X,
   XCircle,
   LayoutDashboard,
-  Inbox
+  Inbox,
+  Megaphone
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,13 @@ interface Booking {
   targets_for_next_session?: string;
 }
 
+interface DirectMessage {
+  id: string;
+  content: string;
+  created_at: string;
+  is_broadcast: boolean;
+}
+
 interface Notification {
   id: string;
   title: string;
@@ -78,6 +86,7 @@ const StudentDashboard: React.FC = () => {
   const [instructor, setInstructor] = useState<any>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [availableSlots, setAvailableSlots] = useState<Booking[]>([]);
+  const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [progressPercentage, setProgressPercentage] = useState(0);
   const [totalCredit, setTotalCredit] = useState(0);
@@ -142,7 +151,15 @@ const StudentDashboard: React.FC = () => {
       if (availError) console.error("Error fetching availability:", availError);
       setAvailableSlots(availabilityData || []);
 
-      // 5. Get Pre-paid Hours
+      // 5. Get Direct Messages
+      const { data: messagesData } = await supabase
+        .from("instructor_messages")
+        .select("*")
+        .or(`student_id.eq.${studentData.id},is_broadcast.eq.true`)
+        .order("created_at", { ascending: false });
+      setDirectMessages(messagesData || []);
+
+      // 6. Get Pre-paid Hours
       const { data: hoursData } = await supabase
         .from("pre_paid_hours")
         .select("remaining_hours")
@@ -151,7 +168,7 @@ const StudentDashboard: React.FC = () => {
       const total = hoursData?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalCredit(total);
 
-      // 6. Get Notifications
+      // 7. Get Notifications
       const { data: notifData } = await supabase
         .from("notifications")
         .select("*")
@@ -160,7 +177,7 @@ const StudentDashboard: React.FC = () => {
         .limit(20);
       setNotifications(notifData || []);
 
-      // 7. Calculate Progress
+      // 8. Calculate Progress
       const [topicsRes, hiddenRes, entriesRes] = await Promise.all([
         supabase.from("progress_topics").select("id").or(`user_id.eq.${studentData.user_id},is_default.eq.true`),
         supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", studentData.user_id),
@@ -206,6 +223,11 @@ const StudentDashboard: React.FC = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
+        () => fetchData(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'instructor_messages' },
         () => fetchData(true)
       )
       .subscribe();
@@ -304,11 +326,39 @@ const StudentDashboard: React.FC = () => {
     return activity.sort((a, b) => parseISO(b.start_time).getTime() - parseISO(a.start_time).getTime());
   }, [bookings, notifications]);
 
-  const instructorMessages = useMemo(() => {
-    return bookings
+  const combinedMessages = useMemo(() => {
+    const items: any[] = [];
+
+    // 1. Add Lesson Notes
+    bookings
       .filter(b => b.status === 'completed' && (b.description || b.targets_for_next_session))
-      .sort((a, b) => parseISO(b.start_time).getTime() - parseISO(a.start_time).getTime());
-  }, [bookings]);
+      .forEach(b => {
+        items.push({
+          id: b.id,
+          type: 'lesson_note',
+          date: b.start_time,
+          title: format(parseISO(b.start_time), "EEEE, MMMM do"),
+          subtitle: b.lesson_type,
+          content: b.description,
+          targets: b.targets_for_next_session
+        });
+      });
+
+    // 2. Add Direct Messages
+    directMessages.forEach(m => {
+      items.push({
+        id: m.id,
+        type: 'direct_message',
+        date: m.created_at,
+        title: m.is_broadcast ? "Announcement" : "Private Message",
+        subtitle: "From Instructor",
+        content: m.content,
+        is_broadcast: m.is_broadcast
+      });
+    });
+
+    return items.sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
+  }, [bookings, directMessages]);
 
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6 p-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div></div>;
@@ -343,9 +393,9 @@ const StudentDashboard: React.FC = () => {
           <TabsTrigger value="messages" className="font-bold flex items-center gap-2">
             <Inbox className="h-4 w-4" /> 
             Messages 
-            {instructorMessages.length > 0 && (
+            {combinedMessages.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary/10 text-primary border-none">
-                {instructorMessages.length}
+                {combinedMessages.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -505,11 +555,11 @@ const StudentDashboard: React.FC = () => {
                 Instructor Notes & Feedback
               </CardTitle>
               <CardDescription className="text-primary-foreground/70">
-                A history of all notes and targets left by your instructor.
+                A history of all notes, targets, and direct messages from your instructor.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {instructorMessages.length === 0 ? (
+              {combinedMessages.length === 0 ? (
                 <div className="p-12 text-center space-y-4">
                   <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto">
                     <Inbox className="h-8 w-8 text-muted-foreground" />
@@ -521,41 +571,56 @@ const StudentDashboard: React.FC = () => {
               ) : (
                 <ScrollArea className="h-[600px]">
                   <div className="divide-y">
-                    {instructorMessages.map((msg) => (
-                      <div key={msg.id} className="p-6 space-y-4 hover:bg-muted/30 transition-colors">
+                    {combinedMessages.map((item) => (
+                      <div key={item.id} className={cn(
+                        "p-6 space-y-4 hover:bg-muted/30 transition-colors",
+                        item.type === 'direct_message' && "bg-primary/5"
+                      )}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0 border border-primary/10">
-                              <span className="text-[8px] uppercase font-black text-primary">{format(parseISO(msg.start_time), "MMM")}</span>
-                              <span className="text-lg font-black leading-none text-primary">{format(parseISO(msg.start_time), "dd")}</span>
-                            </div>
+                            {item.type === 'lesson_note' ? (
+                              <div className="h-10 w-10 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0 border border-primary/10">
+                                <span className="text-[8px] uppercase font-black text-primary">{format(parseISO(item.date), "MMM")}</span>
+                                <span className="text-lg font-black leading-none text-primary">{format(parseISO(item.date), "dd")}</span>
+                              </div>
+                            ) : (
+                              <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm">
+                                {item.is_broadcast ? <Megaphone className="h-5 w-5 text-white" /> : <MessageSquare className="h-5 w-5 text-white" />}
+                              </div>
+                            )}
                             <div>
-                              <p className="font-black text-sm">{format(parseISO(msg.start_time), "EEEE, MMMM do")}</p>
-                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{msg.lesson_type}</p>
+                              <p className="font-black text-sm">{item.title}</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{item.subtitle}</p>
                             </div>
                           </div>
-                          <Badge variant="outline" className="bg-background font-bold text-[10px]">COMPLETED</Badge>
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground uppercase">
+                            <Clock className="h-3 w-3" />
+                            {format(parseISO(item.date), "p")}
+                          </div>
                         </div>
 
                         <div className="space-y-4 pl-1">
-                          {msg.description && (
+                          {item.content && (
                             <div className="space-y-1.5">
                               <p className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
-                                <MessageSquare className="h-3 w-3" /> Lesson Feedback
+                                <MessageSquare className="h-3 w-3" /> {item.type === 'lesson_note' ? 'Lesson Feedback' : 'Message'}
                               </p>
-                              <div className="bg-muted/50 p-4 rounded-xl italic text-sm border border-muted">
-                                "{msg.description}"
+                              <div className={cn(
+                                "p-4 rounded-xl italic text-sm border",
+                                item.type === 'direct_message' ? "bg-background border-blue-100" : "bg-muted/50 border-muted"
+                              )}>
+                                "{item.content}"
                               </div>
                             </div>
                           )}
 
-                          {msg.targets_for_next_session && (
+                          {item.targets && (
                             <div className="space-y-1.5">
                               <p className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
                                 <Target className="h-3 w-3" /> Targets for Next Time
                               </p>
                               <div className="bg-primary/5 p-4 rounded-xl font-bold text-sm border border-primary/10 text-primary">
-                                {msg.targets_for_next_session}
+                                {item.targets}
                               </div>
                             </div>
                           )}

@@ -41,7 +41,9 @@ import {
   KeyRound,
   UserCheck,
   UserCircle,
-  Lock
+  Lock,
+  Send,
+  Inbox
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -65,6 +67,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Progress } from "@/components/ui/progress";
 import StarRatingInput from "@/components/StarRatingInput";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Student {
   id: string;
@@ -116,6 +119,13 @@ interface DrivingTest {
   notes?: string;
 }
 
+interface DirectMessage {
+  id: string;
+  content: string;
+  created_at: string;
+  is_broadcast: boolean;
+}
+
 const StudentProfile: React.FC = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const { user, isLoading: isSessionLoading } = useSession();
@@ -128,6 +138,7 @@ const StudentProfile: React.FC = () => {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [progressEntries, setProgressEntries] = useState<Record<string, ProgressEntry>>({});
   const [selfAssessments, setSelfAssessments] = useState<ProgressEntry[]>([]);
+  const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [totalPrepaidHours, setTotalPrepaidHours] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -139,13 +150,17 @@ const StudentProfile: React.FC = () => {
   
   const [savingTopicId, setSavingTopicId] = useState<string | null>(null);
   const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
+  
+  // Messaging State
+  const [newMessage, setNewMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user || !studentId) return;
     setIsLoading(true);
 
     try {
-      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes, topicsRes, hiddenRes, testsRes] = await Promise.all([
+      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes, topicsRes, hiddenRes, testsRes, messagesRes] = await Promise.all([
         supabase.from("students").select("*").eq("id", studentId).single(),
         supabase.from("pre_paid_hours").select("remaining_hours").eq("student_id", studentId),
         supabase.from("bookings").select("*").eq("student_id", studentId).order("start_time", { ascending: false }),
@@ -153,13 +168,15 @@ const StudentProfile: React.FC = () => {
         supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id),
         supabase.from("progress_topics").select("id, name, is_default").or(`user_id.eq.${user.id},is_default.eq.true`).order("is_default", { ascending: false }).order("name", { ascending: true }),
         supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", user.id),
-        supabase.from("driving_tests").select("*").eq("student_id", studentId).order("test_date", { ascending: false })
+        supabase.from("driving_tests").select("*").eq("student_id", studentId).order("test_date", { ascending: false }),
+        supabase.from("instructor_messages").select("*").eq("student_id", studentId).eq("instructor_id", user.id).order("created_at", { ascending: false })
       ]);
 
       if (studentRes.error) throw studentRes.error;
       const studentData = studentRes.data;
       setStudent(studentData);
       setDrivingTests(testsRes.data || []);
+      setDirectMessages(messagesRes.data || []);
       
       const totalHours = hoursRes.data?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalPrepaidHours(totalHours);
@@ -242,6 +259,42 @@ const StudentProfile: React.FC = () => {
       fetchData();
     }
   }, [isSessionLoading, fetchData]);
+
+  const handleSendMessage = async () => {
+    if (!user || !studentId || !newMessage.trim()) return;
+
+    setIsSending(true);
+    try {
+      const { error } = await supabase
+        .from("instructor_messages")
+        .insert({
+          instructor_id: user.id,
+          student_id: studentId,
+          content: newMessage.trim(),
+          is_broadcast: false
+        });
+
+      if (error) throw error;
+
+      // Notify student
+      if (student?.auth_user_id) {
+        await supabase.from("notifications").insert({
+          user_id: student.auth_user_id,
+          title: "New Message",
+          message: "Your instructor has sent you a private message.",
+          type: "instructor_message"
+        });
+      }
+
+      showSuccess("Message sent!");
+      setNewMessage("");
+      fetchData();
+    } catch (error: any) {
+      showError("Failed to send message: " + error.message);
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   const handleCancelLesson = async (bookingId: string) => {
     const { error } = await supabase
@@ -533,11 +586,12 @@ const StudentProfile: React.FC = () => {
       </div>
 
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-12">
+        <TabsList className="grid w-full grid-cols-5 h-12">
           <TabsTrigger value="summary" className="font-bold">Summary</TabsTrigger>
           <TabsTrigger value="lessons" className="font-bold">Lessons</TabsTrigger>
           <TabsTrigger value="progress" className="font-bold">Progress</TabsTrigger>
-          <TabsTrigger value="self" className="font-bold">Self Assessment</TabsTrigger>
+          <TabsTrigger value="messages" className="font-bold">Messages</TabsTrigger>
+          <TabsTrigger value="self" className="font-bold">Self</TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary" className="mt-6 space-y-6">
@@ -924,6 +978,64 @@ const StudentProfile: React.FC = () => {
               })}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="messages" className="mt-6 space-y-6">
+          <Card className="shadow-md border-none overflow-hidden">
+            <CardHeader className="bg-primary text-primary-foreground">
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" /> Direct Messaging
+              </CardTitle>
+              <CardDescription className="text-primary-foreground/70">Send a private message or announcement to {student.name}.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">New Message</Label>
+                  <Textarea 
+                    placeholder="Type your message here..." 
+                    className="min-h-[100px] resize-none"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button 
+                    className="font-bold" 
+                    onClick={handleSendMessage}
+                    disabled={isSending || !newMessage.trim()}
+                  >
+                    {isSending ? "Sending..." : <><Send className="mr-2 h-4 w-4" /> Send Message</>}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t">
+                <h3 className="text-sm font-bold uppercase text-muted-foreground mb-4 flex items-center gap-2">
+                  <History className="h-4 w-4" /> Message History
+                </h3>
+                {directMessages.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground italic text-sm">No direct messages sent yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {directMessages.map((msg) => (
+                      <div key={msg.id} className="bg-muted/30 p-4 rounded-xl border border-muted space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant={msg.is_broadcast ? "default" : "outline"} className="text-[8px] font-bold uppercase">
+                            {msg.is_broadcast ? "Broadcast" : "Private"}
+                          </Badge>
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                            {format(parseISO(msg.created_at), "MMM d, p")}
+                          </span>
+                        </div>
+                        <p className="text-sm italic">"{msg.content}"</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="self" className="mt-6 space-y-6">

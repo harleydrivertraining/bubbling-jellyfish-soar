@@ -35,6 +35,7 @@ const Support = lazy(() => import("./pages/Support"));
 const AdminSupport = lazy(() => import("./pages/AdminSupport"));
 const Accounts = lazy(() => import("./pages/Accounts"));
 const PendingRequests = lazy(() => import("./pages/PendingRequests"));
+const InstructorMessages = lazy(() => import("./pages/InstructorMessages"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
@@ -99,6 +100,7 @@ const AppContent = () => {
           <Route path="support" element={<Support />} />
           <Route path="admin/support" element={<AdminSupport />} />
           <Route path="pending-requests" element={<PendingRequests />} />
+          <Route path="messages" element={<InstructorMessages />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>

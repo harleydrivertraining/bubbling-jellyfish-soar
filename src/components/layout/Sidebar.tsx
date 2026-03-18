@@ -31,7 +31,8 @@ import {
   LogOut,
   UserCircle,
   Sparkles,
-  Inbox
+  Inbox,
+  MessageSquare
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -79,6 +80,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { id: "students", to: "/students", icon: Users, label: "Students" },
   { id: "schedule", to: "/schedule", icon: CalendarDays, label: "Schedule" },
+  { id: "messages", to: "/messages", icon: MessageSquare, label: "Messages" },
   { id: "lessons", to: "/lessons", icon: BookOpen, label: "Lessons" },
   { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
   { id: "student-targets", to: "/student-targets", icon: Target, label: "Student Targets" },
