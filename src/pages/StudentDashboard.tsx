@@ -143,14 +143,13 @@ const StudentDashboard: React.FC = () => {
       const total = hoursData?.reduce((sum, pkg) => sum + (pkg.remaining_hours || 0), 0) || 0;
       setTotalCredit(total);
 
-      // 6. Get Notifications
+      // 6. Get Notifications (Fetch both read and unread for the activity card)
       const { data: notifData } = await supabase
         .from("notifications")
         .select("*")
         .eq("user_id", user.id)
-        .eq("read", false)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(15);
       setNotifications(notifData || []);
 
       // 7. Calculate Progress
@@ -209,6 +208,8 @@ const StudentDashboard: React.FC = () => {
   }, [user, fetchData]);
 
   const handleMarkNotifRead = async (id: string) => {
+    // For the activity card, we "dismiss" by marking as read if it wasn't already, 
+    // but we also want to filter it out of the immediate view if the user clicks X
     setNotifications(prev => prev.filter(n => n.id !== id));
     await supabase.from("notifications").update({ read: true }).eq("id", id);
   };
@@ -259,7 +260,7 @@ const StudentDashboard: React.FC = () => {
   const bookingActivity = useMemo(() => {
     const activity: any[] = [];
 
-    // 1. Add Pending Requests
+    // 1. Add Pending Requests from Bookings table
     bookings
       .filter(b => b.status === 'pending_approval' && isAfter(parseISO(b.start_time), new Date()))
       .forEach(b => {
@@ -272,14 +273,13 @@ const StudentDashboard: React.FC = () => {
         });
       });
 
-    // 2. Add Accepted/Rejected from Notifications
+    // 2. Add Accepted/Rejected from Notifications table
+    // We show these even if read, so they stay in the list for context
     notifications.forEach(n => {
       if (n.type === 'booking_confirmed' || n.type === 'booking_rejected') {
-        // Try to extract date from message if possible, or use created_at
-        // For now we use created_at as a fallback for the item's time
         activity.push({
           id: n.id,
-          start_time: n.created_at, // This is the notification time
+          start_time: n.created_at, 
           status: n.type === 'booking_confirmed' ? 'scheduled' : 'rejected',
           type: n.type === 'booking_confirmed' ? 'accepted' : 'rejected',
           title: n.title,
@@ -289,6 +289,7 @@ const StudentDashboard: React.FC = () => {
       }
     });
 
+    // Sort by time (most recent first)
     return activity.sort((a, b) => parseISO(b.start_time).getTime() - parseISO(a.start_time).getTime());
   }, [bookings, notifications]);
 
