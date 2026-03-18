@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO } from "date-fns";
-import { Send, User, ShieldCheck, Clock } from "lucide-react";
+import { Send, User, ShieldCheck, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Reply {
@@ -42,23 +42,23 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
   const [replies, setReplies] = useState<Reply[]>([]);
   const [newReply, setNewReply] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchReplies = useCallback(async () => {
-    // If it's a broadcast, we only want to see replies from THIS student if we are a student,
-    // or ALL replies if we are the instructor.
-    let query = supabase
-      .from("instructor_message_replies")
-      .select("*, profiles:sender_id(first_name, last_name, role)")
-      .eq("message_id", messageId)
-      .order("created_at", { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from("instructor_message_replies")
+        .select("*, profiles:sender_id(first_name, last_name, role)")
+        .eq("message_id", messageId)
+        .order("created_at", { ascending: true });
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error fetching replies:", error);
-    } else {
+      if (error) throw error;
       setReplies(data || []);
+    } catch (error: any) {
+      console.error("Error fetching replies:", error);
+    } finally {
+      setIsInitialLoading(false);
     }
   }, [messageId]);
 
@@ -66,7 +66,7 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
     fetchReplies();
     
     const channel = supabase
-      .channel(`msg-replies-${messageId}`)
+      .channel(`msg-replies-realtime-${messageId}`)
       .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
@@ -101,14 +101,16 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
           content: newReply.trim(),
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Reply insert error:", error);
+        throw new Error(error.message || "Permission denied. Please ensure the SQL policies are applied.");
+      }
 
       // Notify the other party
       const isInstructor = user.id === instructorId;
       let targetUserId = instructorId;
       
       if (isInstructor && studentId) {
-        // Find student's auth user id
         const { data: sData } = await supabase.from("students").select("auth_user_id").eq("id", studentId).single();
         if (sData?.auth_user_id) targetUserId = sData.auth_user_id;
       }
@@ -123,7 +125,7 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
       }
 
       setNewReply("");
-      fetchReplies();
+      await fetchReplies();
     } catch (error: any) {
       showError("Failed to send reply: " + error.message);
     } finally {
@@ -131,13 +133,13 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
     }
   };
 
-  if (replies.length === 0 && !isSending && user?.id === instructorId && isBroadcast) {
-    return <p className="text-[10px] text-muted-foreground italic px-4 pb-2">No replies yet.</p>;
+  if (isInitialLoading) {
+    return <div className="flex justify-center p-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   }
 
   return (
     <div className="flex flex-col space-y-4 mt-2">
-      {replies.length > 0 && (
+      {replies.length > 0 ? (
         <ScrollArea className={cn("border rounded-lg bg-muted/10 p-3")} style={{ maxHeight }}>
           <div className="space-y-3">
             {replies.map((reply) => {
@@ -148,23 +150,27 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
               return (
                 <div key={reply.id} className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
                   <div className={cn(
-                    "max-w-[85%] rounded-lg p-2 text-xs",
-                    isMe ? "bg-primary text-primary-foreground" : "bg-muted border"
+                    "max-w-[85%] rounded-lg p-2 text-xs shadow-sm",
+                    isMe ? "bg-primary text-primary-foreground" : "bg-background border"
                   )}>
                     <div className={cn(
                       "flex items-center gap-1.5 mb-1 text-[9px] font-bold uppercase",
                       isMe ? "text-primary-foreground/70" : "text-muted-foreground"
                     )}>
                       {isInstructor ? <ShieldCheck className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
-                      {reply.profiles?.first_name} • {format(parseISO(reply.created_at), "p")}
+                      {reply.profiles?.first_name || "User"} • {format(parseISO(reply.created_at), "p")}
                     </div>
-                    {reply.content}
+                    <p className="whitespace-pre-wrap">{reply.content}</p>
                   </div>
                 </div>
               );
             })}
           </div>
         </ScrollArea>
+      ) : (
+        user?.id === instructorId && isBroadcast && (
+          <p className="text-[10px] text-muted-foreground italic px-4 pb-2">No student replies yet.</p>
+        )
       )}
 
       <div className="flex gap-2">
@@ -173,6 +179,7 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
           value={newReply}
           onChange={(e) => setNewReply(e.target.value)}
           className="min-h-[40px] max-h-[100px] text-xs bg-background"
+          disabled={isSending}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -186,7 +193,7 @@ const MessageConversation: React.FC<MessageConversationProps> = ({
           disabled={isSending || !newReply.trim()}
           className="shrink-0 h-10 w-10"
         >
-          <Send className="h-4 w-4" />
+          {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </div>
