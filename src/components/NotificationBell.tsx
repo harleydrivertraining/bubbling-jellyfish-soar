@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 import { showError } from "@/utils/toast";
+import { useNavigate } from "react-router-dom";
 
 interface Notification {
   id: string;
@@ -30,6 +31,7 @@ interface Notification {
 
 const NotificationBell: React.FC = () => {
   const { user } = useSession();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -131,6 +133,30 @@ const NotificationBell: React.FC = () => {
     }
   };
 
+  const handleNotificationClick = (notif: Notification) => {
+    if (!notif.read) {
+      markAsRead(notif.id);
+    }
+    setIsOpen(false);
+
+    // Navigation logic based on notification type
+    switch (notif.type) {
+      case 'booking_claimed':
+        navigate('/schedule');
+        break;
+      case 'self_assessment':
+        navigate('/pupil-self-assessments');
+        break;
+      case 'booking_confirmed':
+      case 'booking_rejected':
+        navigate('/');
+        break;
+      default:
+        // Default behavior: just close the popover
+        break;
+    }
+  };
+
   const markAllAsRead = async () => {
     if (!user) return;
 
@@ -147,10 +173,10 @@ const NotificationBell: React.FC = () => {
     }
   };
 
-  const deleteNotification = async (id: string) => {
+  const deleteNotification = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the click handler for the notification item
     if (!user) return;
 
-    // Optimistic UI update
     setNotifications(prev => prev.filter(n => n.id !== id));
     
     const { error } = await supabase
@@ -160,7 +186,6 @@ const NotificationBell: React.FC = () => {
       
     if (error) {
       console.error("Delete failed:", error);
-      showError("Permission denied: Please run the SQL fix in Supabase.");
       fetchNotifications();
     }
   };
@@ -180,7 +205,6 @@ const NotificationBell: React.FC = () => {
 
     if (error) {
       console.error("Delete all failed:", error);
-      showError("Failed to clear notifications from server.");
       fetchNotifications();
     } else {
       toast.success("All notifications cleared.");
@@ -226,21 +250,22 @@ const NotificationBell: React.FC = () => {
                 <div 
                   key={notif.id} 
                   className={cn(
-                    "p-4 space-y-1 transition-colors relative group",
+                    "p-4 space-y-1 transition-colors relative group cursor-pointer",
                     !notif.read ? "bg-blue-50/50" : "hover:bg-muted/30"
                   )}
+                  onClick={() => handleNotificationClick(notif)}
                 >
                   <div className="flex justify-between items-start gap-2">
                     <p className={cn("text-sm font-bold leading-tight", !notif.read && "text-blue-700")}>
                       {notif.title}
                     </p>
                     <div className="flex gap-1 shrink-0">
-                      {!notif.read && (
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-600" onClick={() => markAsRead(notif.id)}>
-                          <Check className="h-3 w-3" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => deleteNotification(notif.id)}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive" 
+                        onClick={(e) => deleteNotification(notif.id, e)}
+                      >
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>

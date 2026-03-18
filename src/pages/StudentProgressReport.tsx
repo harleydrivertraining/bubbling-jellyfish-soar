@@ -126,6 +126,7 @@ const StudentProgressReport: React.FC = () => {
     const currentEntry = selfEntries[topicId] || { topic_id: topicId, rating: 0, comment: "" };
     const rating = ratingOverride !== undefined ? ratingOverride : currentEntry.rating;
     const comment = currentEntry.comment;
+    const topicName = topics.find(t => t.id === topicId)?.name || "a topic";
 
     if (rating === 0) {
       showError("Please select a star rating.");
@@ -147,6 +148,14 @@ const StudentProgressReport: React.FC = () => {
     if (error) {
       showError("Failed to save your assessment: " + error.message);
     } else {
+      // Notify instructor
+      await supabase.from("notifications").insert({
+        user_id: student.user_id,
+        title: "New Pupil Self-Assessment",
+        message: `${student.name} rated themselves on ${topicName}.`,
+        type: "self_assessment"
+      });
+
       setSelfEntries(prev => ({
         ...prev,
         [topicId]: { topic_id: topicId, rating, comment }
