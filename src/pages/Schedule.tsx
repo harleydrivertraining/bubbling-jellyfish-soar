@@ -17,12 +17,11 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const Schedule: React.FC = () => {
-  const { user, isLoading: isSessionLoading, initialBookings, isLoadingInitialBookings } = useSession();
+  const { user, isLoading: isSessionLoading, initialBookings } = useSession();
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<BigCalendarEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -61,7 +60,6 @@ const Schedule: React.FC = () => {
     fetchSettings();
   }, [user]);
 
-  // Fetch pending requests count
   useEffect(() => {
     const fetchPendingCount = async () => {
       if (!user) return;
@@ -76,7 +74,6 @@ const Schedule: React.FC = () => {
     fetchPendingCount();
   }, [user]);
 
-  // Helper to format bookings into calendar events with payment logic
   const processBookings = useCallback(async (bookings: any[]) => {
     if (!user || !bookings.length) return [];
 
@@ -155,7 +152,7 @@ const Schedule: React.FC = () => {
     if (!force && rangeKey === lastFetchedRange.current) return;
     
     lastFetchedRange.current = rangeKey;
-    setFetchError(null);
+    setIsLoadingEvents(true);
     
     try {
       const { data: bookings, error: bookingsError } = await supabase
@@ -167,47 +164,15 @@ const Schedule: React.FC = () => {
 
       if (bookingsError) throw bookingsError;
 
-      if (!bookings || bookings.length === 0) {
-        setEvents([]);
-        setIsLoadingEvents(false);
-        return;
-      }
-
-      const processed = await processBookings(bookings);
+      const processed = await processBookings(bookings || []);
       setEvents(processed);
     } catch (error: any) {
-      setFetchError(error.message || "An unexpected error occurred.");
+      console.error("Fetch error:", error);
       showError("Failed to load schedule.");
     } finally {
       setIsLoadingEvents(false);
     }
   }, [user, processBookings]);
-
-  // Initial load from context
-  useEffect(() => {
-    if (initialBookings && initialBookings.length > 0 && events.length === 0) {
-      const start = startOfMonth(subMonths(currentCalendarDate, 1));
-      const end = endOfMonth(addMonths(currentCalendarDate, 2));
-      
-      // Filter initial bookings to the current view range
-      const visibleInitial = initialBookings.filter(b => 
-        isWithinInterval(parseISO(b.start_time), { start, end })
-      );
-
-      if (visibleInitial.length > 0) {
-        processBookings(visibleInitial).then(processed => {
-          setEvents(processed);
-          setIsLoadingEvents(false);
-        });
-      }
-    }
-  }, [initialBookings, currentCalendarDate, events.length, processBookings]);
-
-  const handleRetry = useCallback(async () => {
-    const start = startOfMonth(subMonths(currentCalendarDate, 1));
-    const end = endOfMonth(addMonths(currentCalendarDate, 2));
-    await fetchBookings(start, end, true);
-  }, [currentCalendarDate, fetchBookings]);
 
   useEffect(() => {
     if (!isSessionLoading && user) {
@@ -223,7 +188,9 @@ const Schedule: React.FC = () => {
     if (error) showError("Failed to mark as paid.");
     else {
       showSuccess("Lesson marked as paid.");
-      handleRetry();
+      const start = startOfMonth(subMonths(currentCalendarDate, 1));
+      const end = endOfMonth(addMonths(currentCalendarDate, 2));
+      fetchBookings(start, end, true);
     }
   };
 
@@ -233,12 +200,13 @@ const Schedule: React.FC = () => {
   }, []);
 
   const handleBookingAdded = useCallback(async () => {
-    await handleRetry();
+    const start = startOfMonth(subMonths(currentCalendarDate, 1));
+    const end = endOfMonth(addMonths(currentCalendarDate, 2));
+    await fetchBookings(start, end, true);
     setIsAddBookingDialogOpen(false);
     setSelectedSlot(null);
-  }, [handleRetry]);
+  }, [currentCalendarDate, fetchBookings]);
 
-  // Only show full page loader if we have NO data and are loading
   if (isSessionLoading || (isLoadingEvents && events.length === 0)) {
     return (
       <div className="flex flex-col h-full items-center justify-center">
@@ -267,7 +235,7 @@ const Schedule: React.FC = () => {
       <div className="flex-1 min-h-[600px]">
         <CalendarComponent
           events={events}
-          onEventsRefetch={(s, e) => fetchBookings(s, e)}
+          onEventsRefetch={(s, e) => fetchBookings(s, e, true)} // Always force refresh on refetch calls
           onSelectSlot={handleOpenAddBookingDialog}
           currentDate={currentCalendarDate}
           setCurrentDate={setCurrentCalendarDate}

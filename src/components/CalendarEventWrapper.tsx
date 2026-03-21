@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Check, PoundSterling, Circle, Sparkles, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -27,7 +27,9 @@ interface CalendarEventWrapperProps {
 
 const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, title, onEventStatusChange, onMarkAsPaid }) => {
   const { user } = useSession();
-  const isCompleted = event.resource?.status === 'completed';
+  const [isOptimisticCompleted, setIsOptimisticCompleted] = useState(false);
+  
+  const isCompleted = isOptimisticCompleted || event.resource?.status === 'completed';
   const isCancelled = event.resource?.status === 'cancelled';
   const isAvailable = event.resource?.status === 'available';
   const isPending = event.resource?.status === 'pending_approval';
@@ -49,6 +51,9 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
       return;
     }
 
+    // Optimistic update
+    setIsOptimisticCompleted(true);
+
     const { error } = await supabase
       .from("bookings")
       .update({ status: "completed" })
@@ -57,6 +62,7 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
     if (error) {
       console.error("Error marking booking as completed:", error);
       showError("Failed to mark booking as completed: " + error.message);
+      setIsOptimisticCompleted(false);
     } else {
       showSuccess("Booking marked as completed!");
       onEventStatusChange();
@@ -78,7 +84,7 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
 
   return (
     <div className={cn(
-      "flex items-center justify-between h-full w-full p-1",
+      "flex items-center justify-between h-full w-full p-1 transition-colors duration-300",
       {
         "bg-green-600/80": isCompleted,
         "bg-red-600/80": isCancelled,
