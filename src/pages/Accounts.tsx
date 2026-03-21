@@ -19,7 +19,9 @@ import {
   startOfMonth, 
   endOfMonth, 
   startOfWeek, 
-  endOfWeek 
+  endOfWeek,
+  setMonth,
+  setYear
 } from "date-fns";
 import { 
   PoundSterling, 
@@ -62,6 +64,7 @@ import AddAdditionalIncomeForm from "@/components/AddAdditionalIncomeForm";
 import AddExpenditureForm from "@/components/AddExpenditureForm";
 import ManageRecurringExpenditures from "@/components/ManageRecurringExpenditures";
 import ManageAccountCategories from "@/components/ManageAccountCategories";
+import DatePicker from "@/components/DatePicker";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 
 interface IncomeTransaction {
@@ -119,6 +122,7 @@ const Accounts: React.FC = () => {
   
   const [timeframe, setTimeframe] = useState<TimeframeType>('tax-year');
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
+  const [baseDate, setBaseDate] = useState<Date>(new Date());
 
   const processRecurringExpenditures = useCallback(async () => {
     if (!user) return;
@@ -356,18 +360,17 @@ const Accounts: React.FC = () => {
   };
 
   const activeRange = useMemo(() => {
-    const now = new Date();
     switch(timeframe) {
       case 'calendar-year':
-        return { start: startOfYear(now), end: endOfYear(now) };
+        return { start: startOfYear(baseDate), end: endOfYear(baseDate) };
       case 'month':
-        return { start: startOfMonth(now), end: endOfMonth(now) };
+        return { start: startOfMonth(baseDate), end: endOfMonth(baseDate) };
       case 'week':
-        return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+        return { start: startOfWeek(baseDate, { weekStartsOn: 1 }), end: endOfWeek(baseDate, { weekStartsOn: 1 }) };
       default:
         return getTaxYearRange(selectedTaxYearStart);
     }
-  }, [timeframe, selectedTaxYearStart]);
+  }, [timeframe, selectedTaxYearStart, baseDate]);
 
   const filteredIncome = useMemo(() => {
     return incomeTransactions.filter(tx => {
@@ -416,6 +419,11 @@ const Accounts: React.FC = () => {
     return [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
   }, []);
 
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
   if (isSessionLoading || isLoading) {
     return <div className="space-y-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div></div>;
   }
@@ -429,10 +437,10 @@ const Accounts: React.FC = () => {
             {timeframe === 'tax-year' 
               ? `Tax Year: 6th April ${selectedTaxYearStart} — 5th April ${selectedTaxYearStart + 1}`
               : timeframe === 'calendar-year'
-              ? `Calendar Year: ${new Date().getFullYear()}`
+              ? `Calendar Year: ${baseDate.getFullYear()}`
               : timeframe === 'month'
-              ? `Month: ${format(new Date(), "MMMM yyyy")}`
-              : `Week: ${format(startOfWeek(new Date(), { weekStartsOn: 1 }), "MMM d")} — ${format(endOfWeek(new Date(), { weekStartsOn: 1 }), "MMM d")}`
+              ? `Month: ${format(baseDate, "MMMM yyyy")}`
+              : `Week: ${format(startOfWeek(baseDate, { weekStartsOn: 1 }), "MMM d")} — ${format(endOfWeek(baseDate, { weekStartsOn: 1 }), "MMM d, yyyy")}`
             }
           </p>
         </div>
@@ -508,8 +516,8 @@ const Accounts: React.FC = () => {
             <SelectContent>
               <SelectItem value="tax-year">Tax Year</SelectItem>
               <SelectItem value="calendar-year">Calendar Year</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">Month</SelectItem>
+              <SelectItem value="week">Week</SelectItem>
             </SelectContent>
           </Select>
 
@@ -530,6 +538,66 @@ const Accounts: React.FC = () => {
                 ))}
               </SelectContent>
             </Select>
+          )}
+
+          {timeframe === 'calendar-year' && (
+            <Select 
+              value={baseDate.getFullYear().toString()} 
+              onValueChange={(val) => setBaseDate(setYear(baseDate, parseInt(val)))}
+            >
+              <SelectTrigger className="w-[140px] font-bold">
+                <Calendar className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()} className="font-medium">
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {timeframe === 'month' && (
+            <div className="flex gap-2">
+              <Select 
+                value={baseDate.getMonth().toString()} 
+                onValueChange={(val) => setBaseDate(setMonth(baseDate, parseInt(val)))}
+              >
+                <SelectTrigger className="w-[140px] font-bold">
+                  <SelectValue placeholder="Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((month, i) => (
+                    <SelectItem key={month} value={i.toString()}>{month}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select 
+                value={baseDate.getFullYear().toString()} 
+                onValueChange={(val) => setBaseDate(setYear(baseDate, parseInt(val)))}
+              >
+                <SelectTrigger className="w-[100px] font-bold">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {timeframe === 'week' && (
+            <div className="w-[200px]">
+              <DatePicker 
+                date={baseDate} 
+                setDate={(d) => d && setBaseDate(d)} 
+                placeholder="Select week starting..."
+              />
+            </div>
           )}
         </div>
       </div>
