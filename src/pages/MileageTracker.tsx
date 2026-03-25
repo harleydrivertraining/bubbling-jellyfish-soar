@@ -436,13 +436,13 @@ const MileageTracker: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">Mileage Tracker</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <Dialog open={isAddCarDialogOpen} onOpenChange={setIsAddCarDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <Car className="mr-2 h-4 w-4" /> Add New Car
+              <Button variant="outline" className="flex-1 sm:flex-none">
+                <Car className="mr-2 h-4 w-4" /> Add Car
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
@@ -455,8 +455,8 @@ const MileageTracker: React.FC = () => {
 
           <Dialog open={isAddEntryDialogOpen} onOpenChange={setIsAddEntryDialogOpen}>
             <DialogTrigger asChild>
-              <Button disabled={cars.length === 0}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Mileage Entry
+              <Button disabled={cars.length === 0} className="flex-1 sm:flex-none">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Entry
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
@@ -477,29 +477,31 @@ const MileageTracker: React.FC = () => {
         <p className="text-muted-foreground">No cars added yet. Please add a car to start tracking mileage.</p>
       ) : (
         <>
-          <div className="flex items-center gap-4">
-            <Label htmlFor="car-select">Select Car:</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-[200px] justify-between">
-                  {currentCar ? `${currentCar.make} ${currentCar.model} (${currentCar.year})` : "Select a car"}
-                  <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[200px]">
-                <DropdownMenuLabel>Your Cars</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {cars.map((car) => (
-                  <DropdownMenuItem key={car.id} onSelect={() => setSelectedCarId(car.id)}>
-                    {car.make} {car.model} ({car.year})
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              <Label htmlFor="car-select" className="shrink-0">Car:</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex-1 sm:w-[200px] justify-between">
+                    <span className="truncate">{currentCar ? `${currentCar.make} ${currentCar.model}` : "Select a car"}</span>
+                    <ChevronDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-[200px]">
+                  <DropdownMenuLabel>Your Cars</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {cars.map((car) => (
+                    <DropdownMenuItem key={car.id} onSelect={() => setSelectedCarId(car.id)}>
+                      {car.make} {car.model} ({car.year})
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             {currentCar && (
               <Dialog open={isEditCarDialogOpen} onOpenChange={setIsEditCarDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     <Pencil className="mr-2 h-4 w-4" /> Edit Car
                   </Button>
                 </DialogTrigger>
@@ -522,128 +524,119 @@ const MileageTracker: React.FC = () => {
             <>
               <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-5 mb-6">
                 <Card className="col-span-2 lg:col-span-1 lg:row-span-2 flex flex-col items-center justify-center p-4">
-                  <CardContent className="flex-1 flex flex-col items-center justify-center p-0">
-                    <Avatar className="h-full w-full rounded-lg">
+                  <CardContent className="flex-1 flex flex-col items-center justify-center p-0 w-full">
+                    <Avatar className="h-32 w-32 sm:h-full sm:w-full rounded-lg">
                       <AvatarImage src={currentCar.car_image_url || undefined} alt={`${currentCar.make} ${currentCar.model} image`} className="object-cover h-full w-full" />
                       <AvatarFallback className="rounded-lg flex flex-col items-center justify-center text-muted-foreground text-center p-2 h-full w-full">
-                        <Car className="h-16 w-16 mb-2" />
-                        <span className="text-base">{currentCar.make} {currentCar.model}</span>
+                        <Car className="h-12 w-12 sm:h-16 sm:w-16 mb-2" />
+                        <span className="text-sm sm:text-base">{currentCar.make} {currentCar.model}</span>
                       </AvatarFallback>
                     </Avatar>
                   </CardContent>
                 </Card>
 
-                <Card className="col-span-2 lg:col-span-1">
-                  <CardHeader>
-                    <CardTitle className="text-base">Current Total Mileage</CardTitle>
+                <Card className="col-span-1">
+                  <CardHeader className="p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-base">Total Mileage</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {currentTotalMileage.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
+                  <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+                    <p className="text-xl sm:text-3xl font-bold">
+                      {currentTotalMileage.toFixed(0)}
+                      <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">mi</span>
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Miles This Week</CardTitle>
+                <Card className="col-span-1">
+                  <CardHeader className="p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-base">This Week</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {totalMilesThisWeek.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
+                  <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+                    <p className="text-xl sm:text-3xl font-bold">
+                      {totalMilesThisWeek.toFixed(0)}
+                      <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">mi</span>
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Miles This Month</CardTitle>
+                <Card className="col-span-1">
+                  <CardHeader className="p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-base">This Month</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {totalMilesThisMonth.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
+                  <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+                    <p className="text-xl sm:text-3xl font-bold">
+                      {totalMilesThisMonth.toFixed(0)}
+                      <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">mi</span>
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Miles This Year</CardTitle>
+                <Card className="col-span-1">
+                  <CardHeader className="p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-base">This Year</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {totalMilesThisYear.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
+                  <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+                    <p className="text-xl sm:text-3xl font-bold">
+                      {totalMilesThisYear.toFixed(0)}
+                      <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">mi</span>
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Total Miles (Since Acquisition)</CardTitle>
+                
+                <Card className="col-span-1">
+                  <CardHeader className="p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-base">Avg. Weekly</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {totalMilesSinceAcquisition.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
+                  <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+                    <p className="text-xl sm:text-3xl font-bold">
+                      {averageWeeklyMiles.toFixed(0)}
+                      <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">mi</span>
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Avg. Weekly Miles</CardTitle>
+                <Card className="col-span-1">
+                  <CardHeader className="p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-base">Avg. Monthly</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {averageWeeklyMiles.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
+                  <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+                    <p className="text-xl sm:text-3xl font-bold">
+                      {averageMonthlyMiles.toFixed(0)}
+                      <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">mi</span>
                     </p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Avg. Monthly Miles</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {averageMonthlyMiles.toFixed(1)}
-                      <span className="text-lg text-muted-foreground ml-2">miles</span>
-                    </p>
-                  </CardContent>
-                </Card>
+
                 <Card className={cn(
                   "col-span-2 lg:col-span-2",
                   milesUntilNextService !== null && milesUntilNextService < 1000 ? "bg-orange-100 text-orange-800" : ""
                 )}>
-                  <CardHeader>
-                    <CardTitle className="text-base">Next Service Due</CardTitle>
+                  <CardHeader className="p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-base">Next Service Due</CardTitle>
                   </CardHeader>
-                  <CardContent className="flex flex-col sm:flex-row sm:items-center gap-6">
+                  <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0 flex flex-row items-center gap-4 sm:gap-6">
                     {milesUntilNextService !== null && currentCar.service_interval_miles ? (
                       <>
-                        <div className="space-y-1">
-                          <p className="text-xs font-bold uppercase text-muted-foreground flex items-center">
-                            <Gauge className="mr-1 h-3 w-3" /> Distance
+                        <div className="space-y-0.5">
+                          <p className="text-[8px] sm:text-xs font-bold uppercase text-muted-foreground flex items-center">
+                            <Gauge className="mr-1 h-2 w-2 sm:h-3 sm:w-3" /> Distance
                           </p>
-                          <p className="text-3xl font-bold">
+                          <p className="text-lg sm:text-3xl font-bold">
                             {milesUntilNextService.toFixed(0)}
-                            <span className="text-lg text-muted-foreground ml-2">miles</span>
+                            <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">mi</span>
                           </p>
                         </div>
                         {weeksUntilNextService !== null && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-bold uppercase text-muted-foreground flex items-center">
-                              <Clock className="mr-1 h-3 w-3" /> Estimated Time
+                          <div className="space-y-0.5">
+                            <p className="text-[8px] sm:text-xs font-bold uppercase text-muted-foreground flex items-center">
+                              <Clock className="mr-1 h-2 w-2 sm:h-3 sm:w-3" /> Time
                             </p>
-                            <p className="text-3xl font-bold text-primary">
+                            <p className="text-lg sm:text-3xl font-bold text-primary">
                               {Math.ceil(weeksUntilNextService)}
-                              <span className="text-lg text-muted-foreground ml-2">weeks</span>
+                              <span className="text-[10px] sm:text-lg text-muted-foreground ml-1">wks</span>
                             </p>
                           </div>
                         )}
                       </>
                     ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Set a <span className="font-medium">service interval</span> for this car to track.
+                      <p className="text-[10px] sm:text-sm text-muted-foreground">
+                        Set a <span className="font-medium">service interval</span> to track.
                       </p>
                     )}
                   </CardContent>
@@ -651,44 +644,44 @@ const MileageTracker: React.FC = () => {
               </div>
 
               <Input
-                placeholder="Search entries by date or notes..."
+                placeholder="Search entries..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="max-w-sm"
               />
 
               {groupedAndFilteredEntries.length === 0 && allMileageEntries.length > 0 ? (
-                <p className="text-muted-foreground col-span-full">No mileage entries match your search criteria for the selected car.</p>
+                <p className="text-muted-foreground col-span-full">No mileage entries match your search.</p>
               ) : allMileageEntries.length === 0 ? (
-                <p className="text-muted-foreground">No mileage entries recorded yet for this car. Click "Add Mileage Entry" to get started!</p>
+                <p className="text-muted-foreground">No mileage entries recorded yet. Click "Add Entry" to get started!</p>
               ) : (
-                <ScrollArea className="h-[600px] pr-4">
+                <ScrollArea className="h-[500px] pr-4">
                   <div className="space-y-6">
                     {groupedAndFilteredEntries.map((weeklySummary) => (
                       <Card key={weeklySummary.weekStart}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-xl font-semibold flex items-center">
-                            <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                            Week of {weeklySummary.weekStart} - {weeklySummary.weekEnd}
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                          <CardTitle className="text-sm sm:text-lg font-semibold flex items-center">
+                            <CalendarDays className="mr-2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                            Week of {weeklySummary.weekStart}
                           </CardTitle>
-                          <div className="flex items-center text-primary font-bold text-xl">
-                            <Gauge className="mr-2 h-5 w-5" />
-                            <span>{weeklySummary.totalMiles.toFixed(1)} miles</span>
+                          <div className="flex items-center text-primary font-bold text-base sm:text-xl">
+                            <Gauge className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                            <span>{weeklySummary.totalMiles.toFixed(0)} mi</span>
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-3 text-sm">
+                        <CardContent className="space-y-3 text-xs sm:text-sm p-4 pt-0">
                           {weeklySummary.entries.map((entry) => (
                             <div key={entry.id} className="border-t pt-3 first:border-t-0 first:pt-0">
                               <div className="flex justify-between items-center">
-                                <span className="font-medium">{format(parseISO(entry.entry_date), "PPP")}</span>
+                                <span className="font-medium">{format(parseISO(entry.entry_date), "MMM d, yyyy")}</span>
                                 <span className="text-muted-foreground">
-                                  {entry.current_mileage.toFixed(1)} miles ({(entry.miles_driven || 0).toFixed(1)} driven)
+                                  {entry.current_mileage.toFixed(0)} mi ({(entry.miles_driven || 0).toFixed(0)} driven)
                                 </span>
                               </div>
                               {entry.notes && (
-                                <CardDescription className="flex items-center text-muted-foreground italic mt-1">
+                                <CardDescription className="flex items-center text-muted-foreground italic mt-1 text-[10px] sm:text-xs">
                                   <MessageSquareText className="mr-1 h-3 w-3" />
-                                  Notes: {entry.notes}
+                                  {entry.notes}
                                 </CardDescription>
                               )}
                             </div>

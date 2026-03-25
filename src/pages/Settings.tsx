@@ -22,7 +22,7 @@ const Settings: React.FC = () => {
 
   const navItems = [
     { id: "profile", label: "Profile", icon: UserCog },
-    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "notifications", label: "Alerts", icon: Bell }, // Shortened label for mobile
     { id: "menu", label: "Menu", icon: LayoutList },
     { id: "account", label: "Security", icon: ShieldCheck },
   ];
@@ -31,25 +31,25 @@ const Settings: React.FC = () => {
     <div className="space-y-6 max-w-5xl mx-auto pb-20">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-black tracking-tight">Settings</h1>
-        <p className="text-muted-foreground font-medium">Manage your account, notifications, and app preferences.</p>
+        <p className="text-muted-foreground font-medium">Manage your account and app preferences.</p>
       </div>
       
       <div className="space-y-6">
-        {/* Top Navigation Tabs */}
+        {/* Top Navigation Tabs - Improved for mobile */}
         <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border w-full overflow-x-auto no-scrollbar">
           {navItems.map((item) => (
             <Button
               key={item.id}
               variant={activeTab === item.id ? "default" : "ghost"}
               className={cn(
-                "flex-1 min-w-[120px] font-bold h-10 rounded-lg transition-all",
+                "flex-1 min-w-[80px] sm:min-w-[120px] font-bold h-10 rounded-lg transition-all text-xs sm:text-sm px-2 sm:px-4",
                 activeTab === item.id 
                   ? "bg-background text-primary shadow-sm hover:bg-background" 
                   : "text-muted-foreground hover:bg-transparent hover:text-primary"
               )}
               onClick={() => setActiveTab(item.id as SettingsTab)}
             >
-              <item.icon className="h-4 w-4 mr-2 shrink-0" />
+              <item.icon className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" />
               {item.label}
             </Button>
           ))}
@@ -59,27 +59,29 @@ const Settings: React.FC = () => {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
           {activeTab === "profile" && (
             <Card className="border-none shadow-sm bg-card">
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle>Profile Settings</CardTitle>
                 <CardDescription>Update your personal information and instructor preferences.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                 <ProfileSettingsForm />
               </CardContent>
             </Card>
           )}
 
           {activeTab === "notifications" && (
-            <NotificationSettingsForm />
+            <div className="px-1 sm:px-0">
+              <NotificationSettingsForm />
+            </div>
           )}
 
           {activeTab === "menu" && (
             <Card className="border-none shadow-sm bg-card">
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle>Customise Menu</CardTitle>
                 <CardDescription>Rearrange or hide pages in your sidebar navigation.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                 <MenuCustomizer />
               </CardContent>
             </Card>
@@ -88,21 +90,21 @@ const Settings: React.FC = () => {
           {activeTab === "account" && (
             <div className="space-y-6">
               <Card className="border-none shadow-sm bg-card">
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle>Change Password</CardTitle>
                   <CardDescription>Update your login credentials to keep your account secure.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                   <ChangePasswordForm />
                 </CardContent>
               </Card>
 
               <Card className="border-destructive/20 bg-destructive/5 shadow-none">
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="text-destructive text-lg">Danger Zone</CardTitle>
                   <CardDescription>Actions that affect your current session.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                   <Button 
                     variant="destructive" 
                     className="w-full font-bold h-12" 

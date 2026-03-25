@@ -218,16 +218,16 @@ const Schedule: React.FC = () => {
 
   return (
     <div className="flex flex-col space-y-6 h-full">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">Schedule</h1>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           {isLoadingEvents && events.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse mr-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
               <RefreshCcw className="h-3 w-3 animate-spin" /> Updating...
             </div>
           )}
-          <Button onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Make New Booking
+          <Button onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))} className="shrink-0">
+            <PlusCircle className="mr-2 h-4 w-4" /> New Booking
           </Button>
         </div>
       </div>
@@ -235,7 +235,7 @@ const Schedule: React.FC = () => {
       <div className="flex-1 min-h-[600px]">
         <CalendarComponent
           events={events}
-          onEventsRefetch={(s, e) => fetchBookings(s, e, true)} // Always force refresh on refetch calls
+          onEventsRefetch={(s, e) => fetchBookings(s, e, true)}
           onSelectSlot={handleOpenAddBookingDialog}
           currentDate={currentCalendarDate}
           setCurrentDate={setCurrentCalendarDate}

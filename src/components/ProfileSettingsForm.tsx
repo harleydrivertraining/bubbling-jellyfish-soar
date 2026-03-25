@@ -174,7 +174,7 @@ const ProfileSettingsForm: React.FC = () => {
             </h3>
             <div className="space-y-1">
               <div className={cn(
-                "p-3 rounded-lg font-mono text-2xl tracking-[0.5em] text-center border bg-background",
+                "p-3 rounded-lg font-mono text-xl sm:text-2xl tracking-[0.3em] sm:tracking-[0.5em] text-center border bg-background",
                 !pinValue && "text-destructive border-destructive/20 bg-destructive/5"
               )}>
                 {pinValue || "NOT ASSIGNED"}
