@@ -218,18 +218,24 @@ const Schedule: React.FC = () => {
 
   return (
     <div className="flex flex-col space-y-6 h-full">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold">Schedule</h1>
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col">
+          <h1 className="text-2xl sm:text-3xl font-bold">Schedule</h1>
           {isLoadingEvents && events.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
-              <RefreshCcw className="h-3 w-3 animate-spin" /> Updating...
+            <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground animate-pulse uppercase tracking-wider">
+              <RefreshCcw className="h-2.5 w-2.5 animate-spin" /> Updating...
             </div>
           )}
-          <Button onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))} className="shrink-0">
-            <PlusCircle className="mr-2 h-4 w-4" /> New Booking
-          </Button>
         </div>
+        <Button 
+          onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))} 
+          className="shrink-0 h-9 sm:h-10 px-3 sm:px-4"
+          size={isMobile ? "sm" : "default"}
+        >
+          <PlusCircle className="mr-2 h-4 w-4" /> 
+          <span className="hidden sm:inline">New Booking</span>
+          <span className="sm:hidden">New</span>
+        </Button>
       </div>
       
       <div className="flex-1 min-h-[600px]">
