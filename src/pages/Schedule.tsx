@@ -233,8 +233,7 @@ const Schedule: React.FC = () => {
           size={isMobile ? "sm" : "default"}
         >
           <PlusCircle className="mr-2 h-4 w-4" /> 
-          <span className="hidden sm:inline">New Booking</span>
-          <span className="sm:hidden">New</span>
+          New Booking
         </Button>
       </div>
       
