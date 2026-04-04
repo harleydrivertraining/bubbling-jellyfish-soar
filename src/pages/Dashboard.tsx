@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 import OwnerDashboard from "./OwnerDashboard";
 import StudentDashboard from "./StudentDashboard";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 
 interface Booking {
   id: string;
@@ -54,6 +54,7 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 const Dashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const queryClient = useQueryClient();
+  const isFetching = useIsFetching();
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
   const [selectedWeekStartISO, setSelectedWeekStartISO] = useState<string>(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString());
   const [showAllLessons, setShowAllLessons] = useState(false);
@@ -333,6 +334,11 @@ const Dashboard: React.FC = () => {
       showSuccess("Booking rejected and slot returned to available.");
       queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
     }
+  };
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries();
+    showSuccess("Refreshing dashboard data...");
   };
 
   const getGreeting = useCallback(() => {
@@ -692,6 +698,15 @@ const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefresh} 
+            className="font-bold shadow-sm"
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", isFetching > 0 && "animate-spin")} />
+            Refresh Data
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
