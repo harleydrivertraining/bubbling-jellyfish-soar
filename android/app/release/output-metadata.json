@@ -4,7 +4,7 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "com.hdtstudent.app",
+  "applicationId": "com.hdt.app",
   "variantName": "release",
   "elements": [
     {
@@ -12,7 +12,7 @@
       "filters": [],
       "attributes": [],
       "versionCode": 6,
-      "versionName": "1.7",
+      "versionName": "1.8",
       "outputFile": "app-release.apk"
     }
   ],
