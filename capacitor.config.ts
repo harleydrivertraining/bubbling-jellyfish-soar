@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.hdt.app',
-  appName: 'bubbling-jellyfish-soar',
+  appName: 'Driving Instructor App',
   webDir: 'dist'
 };
 
