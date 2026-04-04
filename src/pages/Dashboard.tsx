@@ -691,22 +691,24 @@ const Dashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {profile?.first_name || "Instructor"}</h1>
-            {profile?.instructor_pin && (
-              <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
-                <Shield className="h-3.5 w-3.5" />
-                <span>Your Student PIN: <span className="font-mono tracking-widest">{profile.instructor_pin}</span></span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {profile?.instructor_pin && (
+                <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
+                  <Shield className="h-3.5 w-3.5" />
+                  <span>Your Student PIN: <span className="font-mono tracking-widest">{profile.instructor_pin}</span></span>
+                </div>
+              )}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleRefresh} 
+                className="h-8 w-8 rounded-full hover:bg-primary/10"
+                title="Refresh Data"
+              >
+                <RefreshCw className={cn("h-4 w-4", isFetching > 0 && "animate-spin")} />
+              </Button>
+            </div>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRefresh} 
-            className="font-bold shadow-sm"
-          >
-            <RefreshCw className={cn("mr-2 h-4 w-4", isFetching > 0 && "animate-spin")} />
-            Refresh Data
-          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
