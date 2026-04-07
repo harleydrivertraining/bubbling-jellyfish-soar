@@ -234,7 +234,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
       
       <Separator className="bg-sidebar-border" />
       <div className="p-4 text-center text-xs text-muted-foreground">
-        {!isCollapsed && "© 2025 Instructor App"}
+        {!isCollapsed && "© 2025 Driving Instructor App"}
       </div>
     </div>
   );

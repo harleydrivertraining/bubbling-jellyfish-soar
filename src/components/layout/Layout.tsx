@@ -100,7 +100,7 @@ const Layout = () => {
             "p-4 text-center text-sm text-gray-500 dark:text-gray-400",
             isMobile ? "pb-28" : "pb-4"
           )}>
-            Harley Driver Training
+            Driving Instructor App
           </footer>
         </div>
         

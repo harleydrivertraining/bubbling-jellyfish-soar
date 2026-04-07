@@ -37,7 +37,7 @@ export const sendBookingNotificationEmail = async ({
           <p style="margin: 0; color: #1e293b; font-size: 18px; font-weight: 700;">${format(startTime, "EEEE, MMMM do")}</p>
           <p style="margin: 4px 0 0 0; color: #475569; font-size: 16px;">${format(startTime, "p")} - ${format(endTime, "p")}</p>
         </div>
-        <p style="color: #94a3b8; font-size: 12px; text-align: center;">Harley Driver Training</p>
+        <p style="color: #94a3b8; font-size: 12px; text-align: center;">Driving Instructor App</p>
       </div>
     `,
   };
