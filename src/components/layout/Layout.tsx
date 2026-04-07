@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import MobileMenuButton from "./MobileMenuButton";
 import BottomNav from "./BottomNav";
@@ -16,6 +16,7 @@ import BookingRequestAlert from "@/components/BookingRequestAlert";
 
 const Layout = () => {
   const isMobile = useIsMobile();
+  const location = useLocation();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { user } = useSession();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -47,6 +48,37 @@ const Layout = () => {
     fetchLogo();
   }, [user]);
 
+  // Helper to get page title based on route
+  const getPageTitle = (pathname: string) => {
+    if (pathname === "/") return "Dashboard";
+    if (pathname.startsWith("/students/")) return "Student Profile";
+    if (pathname === "/students") return "Students";
+    if (pathname === "/schedule") return "Schedule";
+    if (pathname === "/lessons") return "Lessons";
+    if (pathname === "/lesson-notes") return "Lesson Notes";
+    if (pathname === "/student-targets") return "Student Targets";
+    if (pathname.startsWith("/progress/")) return "Progress Detail";
+    if (pathname === "/progress") return "Progress";
+    if (pathname === "/progress-report") return "Progress Report";
+    if (pathname === "/pupil-self-assessments") return "Self Assessments";
+    if (pathname === "/available-slots") return "Available Slots";
+    if (pathname === "/driving-test-bookings") return "Test Bookings";
+    if (pathname === "/driving-tests") return "Test Records";
+    if (pathname === "/test-statistics") return "Test Statistics";
+    if (pathname.startsWith("/pre-paid-hours/")) return "Package Details";
+    if (pathname === "/pre-paid-hours") return "Pre-Paid Hours";
+    if (pathname === "/manage-topics") return "Manage Topics";
+    if (pathname === "/admin/topics") return "Default Topics";
+    if (pathname === "/mileage-tracker") return "Mileage Tracker";
+    if (pathname === "/accounts") return "Accounts";
+    if (pathname === "/support") return "Support";
+    if (pathname === "/admin/support") return "Admin Support";
+    if (pathname === "/pending-requests") return "Pending Requests";
+    if (pathname === "/messages") return "Messages";
+    if (pathname === "/settings") return "Settings";
+    return "Instructor App";
+  };
+
   return (
     <React.Fragment>
       <div className="flex min-h-screen bg-background text-foreground">
@@ -71,7 +103,7 @@ const Layout = () => {
                   )}
                 </Button>
                 <h2 className="text-lg font-semibold">
-                  HDT Instructor App
+                  {getPageTitle(location.pathname)}
                 </h2>
               </div>
               
