@@ -185,20 +185,6 @@ const Login: React.FC = () => {
           </TabsContent>
         </Tabs>
 
-        <div className="text-center pt-4">
-          <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <a 
-              href="https://drivinginstructorapp.uk" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-primary font-bold hover:underline"
-            >
-              Visit drivinginstructorapp.uk to get started
-            </a>
-          </p>
-        </div>
-
         {isNative && (
           <style>{`
             .hide-signup-toggle .supabase-auth-ui_ui-anchor:last-child {
