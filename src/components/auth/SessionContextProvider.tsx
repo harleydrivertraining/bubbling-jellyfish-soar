@@ -78,7 +78,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     const getInitialSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        const publicRoutes = ["/login", "/signup"];
+        // Updated public routes to include the secret signup path
+        const publicRoutes = ["/login", "/74985", "/signup-success"];
         const isPublicRoute = publicRoutes.includes(location.pathname);
 
         if (initialSession) {
@@ -106,7 +107,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      const publicRoutes = ["/login", "/signup"];
+      const publicRoutes = ["/login", "/74985", "/signup-success"];
       const isPublicRoute = publicRoutes.includes(location.pathname);
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
