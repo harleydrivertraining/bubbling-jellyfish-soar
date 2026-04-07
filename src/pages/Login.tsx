@@ -13,7 +13,6 @@ import { Phone, Lock, Shield, GraduationCap, UserCog } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 
 const Login: React.FC = () => {
-  const isNative = Capacitor.isNativePlatform();
   const [isStudentLoading, setIsStudentLoading] = useState(false);
   
   // Student Login State
@@ -107,7 +106,7 @@ const Login: React.FC = () => {
           </TabsList>
 
           <TabsContent value="instructor" className="mt-6">
-            <div className={cn("bg-white p-8 rounded-xl shadow-sm border", isNative && "hide-signup-toggle")}>
+            <div className="bg-white p-8 rounded-xl shadow-sm border hide-signup-toggle">
               <Auth
                 supabaseClient={supabase}
                 providers={[]}
@@ -199,13 +198,11 @@ const Login: React.FC = () => {
           </p>
         </div>
 
-        {isNative && (
-          <style>{`
-            .hide-signup-toggle .supabase-auth-ui_ui-anchor:last-child {
-              display: none !important;
-            }
-          `}</style>
-        )}
+        <style>{`
+          .hide-signup-toggle .supabase-auth-ui_ui-anchor:last-child {
+            display: none !important;
+          }
+        `}</style>
       </div>
     </div>
   );
