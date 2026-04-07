@@ -107,7 +107,7 @@ const Login: React.FC = () => {
           </TabsList>
 
           <TabsContent value="instructor" className="mt-6">
-            <div className={cn("bg-white p-8 rounded-xl shadow-sm border", !isNative && "hide-signup-toggle")}>
+            <div className={cn("bg-white p-8 rounded-xl shadow-sm border", isNative && "hide-signup-toggle")}>
               <Auth
                 supabaseClient={supabase}
                 providers={[]}
@@ -185,7 +185,7 @@ const Login: React.FC = () => {
           </TabsContent>
         </Tabs>
 
-        {!isNative && (
+        {isNative && (
           <style>{`
             .hide-signup-toggle .supabase-auth-ui_ui-anchor:last-child {
               display: none !important;
