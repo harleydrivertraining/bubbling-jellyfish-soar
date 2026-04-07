@@ -75,7 +75,7 @@ const AppContent = () => {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/74985" element={<Signup />} />
         <Route path="/signup-success" element={<SignupSuccess />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
