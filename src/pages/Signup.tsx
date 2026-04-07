@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,15 +141,6 @@ const Signup: React.FC = () => {
             </form>
           </CardContent>
         </Card>
-
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link to="/login" className="text-primary font-bold hover:underline">
-              Sign in here
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );
