@@ -10,13 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Users, 
   Mail, 
-  Calendar, 
   ArrowLeft, 
   ShieldCheck, 
   Search,
   ExternalLink,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  User
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format, parseISO } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface InstructorProfile {
@@ -36,7 +35,6 @@ interface InstructorProfile {
   first_name: string;
   last_name: string;
   email: string;
-  created_at: string;
   logo_url: string | null;
   student_count: number;
 }
@@ -70,20 +68,19 @@ const AdminInstructors: React.FC = () => {
         return;
       }
 
-      // 2. Fetch all instructor profiles
-      // We select specific columns to avoid issues with restricted columns
+      // 2. Fetch all instructor profiles (removed created_at)
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, created_at, logo_url, role")
+        .select("id, first_name, last_name, email, logo_url, role")
         .ilike("role", "instructor")
-        .order("created_at", { ascending: false });
+        .order("last_name", { ascending: true });
 
       if (profilesError) {
         console.error("Profiles fetch error:", profilesError);
-        throw new Error("Database access denied. Have you applied the RLS policies in Supabase? Error: " + profilesError.message);
+        throw new Error("Database access denied. Error: " + profilesError.message);
       }
 
-      // 3. Fetch student counts (optional, don't fail the whole page if this fails)
+      // 3. Fetch student counts
       let countMap: Record<string, number> = {};
       try {
         const { data: studentCounts } = await supabase
@@ -102,7 +99,6 @@ const AdminInstructors: React.FC = () => {
         first_name: p.first_name || "",
         last_name: p.last_name || "",
         email: p.email || "",
-        created_at: p.created_at,
         logo_url: p.logo_url,
         student_count: countMap[p.id] || 0
       }));
@@ -148,16 +144,12 @@ const AdminInstructors: React.FC = () => {
               Connection Error
             </CardTitle>
             <CardDescription>
-              The app was unable to retrieve the instructor list from the database.
+              The app was unable to retrieve the instructor list.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-4 bg-background rounded border text-sm font-mono overflow-auto">
               {errorDetail}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              <p className="font-bold mb-2">Possible Solution:</p>
-              <p>This usually happens because the database permissions (RLS) haven't been set up to allow the 'owner' role to see other users. Please ensure you have run the SQL script provided in the chat.</p>
             </div>
             <Button onClick={fetchInstructors} className="font-bold">
               <RefreshCw className="mr-2 h-4 w-4" /> Try Again
@@ -211,14 +203,13 @@ const AdminInstructors: React.FC = () => {
                   <TableHead className="w-[300px]">Instructor</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead className="text-center">Students</TableHead>
-                  <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredInstructors.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
+                    <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
                       No instructors found matching your search.
                     </TableCell>
                   </TableRow>
@@ -249,12 +240,6 @@ const AdminInstructors: React.FC = () => {
                         <div className="flex flex-col items-center">
                           <span className="font-black text-lg">{instructor.student_count}</span>
                           <span className="text-[10px] font-bold text-muted-foreground uppercase">Active</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {format(parseISO(instructor.created_at), "MMM d, yyyy")}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
