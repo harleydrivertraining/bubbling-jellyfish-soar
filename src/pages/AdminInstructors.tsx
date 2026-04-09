@@ -16,9 +16,11 @@ import {
   ExternalLink,
   RefreshCw,
   AlertTriangle,
-  User
+  User,
+  X,
+  Activity
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -29,6 +31,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { startOfWeek } from "date-fns";
+import { Badge } from "@/components/ui/badge";
 
 interface InstructorProfile {
   id: string;
@@ -37,15 +41,19 @@ interface InstructorProfile {
   email: string;
   logo_url: string | null;
   student_count: number;
+  updated_at: string;
 }
 
 const AdminInstructors: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+
+  const filterType = searchParams.get("filter");
 
   const fetchInstructors = useCallback(async () => {
     if (!user) return;
@@ -68,12 +76,19 @@ const AdminInstructors: React.FC = () => {
         return;
       }
 
-      // 2. Fetch all instructor profiles (removed created_at)
-      const { data: profiles, error: profilesError } = await supabase
+      // 2. Build query
+      let query = supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, logo_url, role")
-        .ilike("role", "instructor")
-        .order("last_name", { ascending: true });
+        .select("id, first_name, last_name, email, logo_url, role, updated_at")
+        .ilike("role", "instructor");
+
+      // Apply "Active This Week" filter if requested
+      if (filterType === "active") {
+        const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+        query = query.gte("updated_at", weekStart.toISOString());
+      }
+
+      const { data: profiles, error: profilesError } = await query.order("last_name", { ascending: true });
 
       if (profilesError) {
         console.error("Profiles fetch error:", profilesError);
@@ -100,7 +115,8 @@ const AdminInstructors: React.FC = () => {
         last_name: p.last_name || "",
         email: p.email || "",
         logo_url: p.logo_url,
-        student_count: countMap[p.id] || 0
+        student_count: countMap[p.id] || 0,
+        updated_at: p.updated_at
       }));
 
       setInstructors(formatted);
@@ -111,7 +127,7 @@ const AdminInstructors: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user, navigate]);
+  }, [user, navigate, filterType]);
 
   useEffect(() => {
     if (!isSessionLoading) fetchInstructors();
@@ -121,6 +137,10 @@ const AdminInstructors: React.FC = () => {
     `${i.first_name} ${i.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     i.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const clearFilter = () => {
+    setSearchParams({});
+  };
 
   if (isSessionLoading || isLoading) {
     return (
@@ -172,17 +192,32 @@ const AdminInstructors: React.FC = () => {
             Instructors
           </h1>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchInstructors} className="font-bold">
-          <RefreshCw className="mr-2 h-4 w-4" /> Refresh List
-        </Button>
+        <div className="flex items-center gap-2">
+          {filterType === "active" && (
+            <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 border-indigo-200 px-3 py-1 flex items-center gap-2">
+              <Activity className="h-3 w-3" />
+              Active This Week
+              <button onClick={clearFilter} className="hover:text-indigo-900">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          <Button variant="outline" size="sm" onClick={fetchInstructors} className="font-bold">
+            <RefreshCw className="mr-2 h-4 w-4" /> Refresh List
+          </Button>
+        </div>
       </div>
 
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Platform Instructors</CardTitle>
-              <CardDescription>Overview of all teaching accounts registered on the app.</CardDescription>
+              <CardTitle>{filterType === "active" ? "Active Instructors" : "Platform Instructors"}</CardTitle>
+              <CardDescription>
+                {filterType === "active" 
+                  ? "Instructors who have used the app in the last 7 days." 
+                  : "Overview of all teaching accounts registered on the app."}
+              </CardDescription>
             </div>
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
