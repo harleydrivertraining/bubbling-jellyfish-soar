@@ -71,7 +71,8 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
 
   const handlePaymentClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isPaid) return;
+    // Disable click if already paid OR covered by credit
+    if (isPaid || isCovered) return;
     if (!event.resource?.student_id || !event.start || !event.end) return;
 
     onMarkAsPaid(
@@ -117,9 +118,9 @@ const CalendarEventWrapper: React.FC<CalendarEventWrapperProps> = ({ event, titl
             className={cn(
               "relative flex items-center justify-center h-6 w-6 rounded-full transition-all",
               isPaid ? "text-green-300" : isCovered ? "text-yellow-300" : "text-red-300",
-              !isPaid && "hover:scale-110 active:scale-95"
+              (!isPaid && !isCovered) && "hover:scale-110 active:scale-95"
             )}
-            title={isPaid ? "Paid" : isCovered ? "Covered by credit - Click to pay" : "Unpaid - Click to pay"}
+            title={isPaid ? "Paid" : isCovered ? "Covered by pre-paid credit" : "Unpaid - Click to pay"}
           >
             <PoundSterling className="h-3.5 w-3.5" />
             
