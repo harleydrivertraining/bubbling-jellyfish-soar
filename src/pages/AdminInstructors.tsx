@@ -9,15 +9,14 @@ import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Users, 
-  User, 
   Mail, 
   Calendar, 
   ArrowLeft, 
   ShieldCheck, 
   Search,
-  GraduationCap,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -48,53 +47,70 @@ const AdminInstructors: React.FC = () => {
   const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
   const fetchInstructors = useCallback(async () => {
     if (!user) return;
     
-    // Verify owner role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    
-    if (profile?.role !== 'owner') {
-      navigate("/");
-      return;
-    }
-
     setIsLoading(true);
+    setErrorDetail(null);
+
     try {
-      // 1. Fetch all instructor profiles
+      // 1. Verify owner role first
+      const { data: myProfile, error: roleError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      
+      if (roleError) throw new Error("Could not verify your user role: " + roleError.message);
+      
+      if (myProfile?.role !== 'owner') {
+        navigate("/");
+        return;
+      }
+
+      // 2. Fetch all instructor profiles
+      // We select specific columns to avoid issues with restricted columns
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, first_name, last_name, email, created_at, logo_url, role")
         .ilike("role", "instructor")
         .order("created_at", { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error("Profiles fetch error:", profilesError);
+        throw new Error("Database access denied. Have you applied the RLS policies in Supabase? Error: " + profilesError.message);
+      }
 
-      // 2. Fetch student counts for each instructor
-      const { data: studentCounts, error: countsError } = await supabase
-        .from("students")
-        .select("user_id");
-
-      if (countsError) throw countsError;
-
-      const countMap: Record<string, number> = {};
-      studentCounts?.forEach(s => {
-        countMap[s.user_id] = (countMap[s.user_id] || 0) + 1;
-      });
+      // 3. Fetch student counts (optional, don't fail the whole page if this fails)
+      let countMap: Record<string, number> = {};
+      try {
+        const { data: studentCounts } = await supabase
+          .from("students")
+          .select("user_id");
+        
+        studentCounts?.forEach(s => {
+          countMap[s.user_id] = (countMap[s.user_id] || 0) + 1;
+        });
+      } catch (e) {
+        console.warn("Could not fetch student counts:", e);
+      }
 
       const formatted: InstructorProfile[] = (profiles || []).map(p => ({
-        ...p,
+        id: p.id,
+        first_name: p.first_name || "",
+        last_name: p.last_name || "",
+        email: p.email || "",
+        created_at: p.created_at,
+        logo_url: p.logo_url,
         student_count: countMap[p.id] || 0
       }));
 
       setInstructors(formatted);
     } catch (error: any) {
       console.error("Error fetching instructors:", error);
+      setErrorDetail(error.message);
       showError("Failed to load instructor list.");
     } finally {
       setIsLoading(false);
@@ -115,6 +131,39 @@ const AdminInstructors: React.FC = () => {
       <div className="space-y-6 max-w-6xl mx-auto p-4">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (errorDetail) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto p-4">
+        <Button variant="ghost" asChild className="-ml-2">
+          <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+        </Button>
+        <Card className="border-destructive bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Connection Error
+            </CardTitle>
+            <CardDescription>
+              The app was unable to retrieve the instructor list from the database.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-background rounded border text-sm font-mono overflow-auto">
+              {errorDetail}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p className="font-bold mb-2">Possible Solution:</p>
+              <p>This usually happens because the database permissions (RLS) haven't been set up to allow the 'owner' role to see other users. Please ensure you have run the SQL script provided in the chat.</p>
+            </div>
+            <Button onClick={fetchInstructors} className="font-bold">
+              <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
