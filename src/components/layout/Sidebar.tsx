@@ -210,6 +210,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
               <div className={cn("px-4 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest", isCollapsed && "hidden")}>
                 Admin
               </div>
+              <NavLink to="/admin/instructors" icon={Users} label="All Instructors" isCollapsed={isCollapsed} onLinkClick={onLinkClick} />
               <NavLink to="/admin/topics" icon={ShieldCheck} label="Default Topics" isCollapsed={isCollapsed} onLinkClick={onLinkClick} />
               <NavLink to="/admin/support" icon={LifeBuoy} label="Support Center" isCollapsed={isCollapsed} onLinkClick={onLinkClick} />
             </>

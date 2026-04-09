@@ -146,16 +146,20 @@ const OwnerDashboard: React.FC = () => {
 
       {/* Primary Stats Row */}
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="border-l-4 border-l-primary shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Instructors</CardTitle>
-            <Users className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-black">{stats?.totalInstructors}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active teaching accounts</p>
-          </CardContent>
-        </Card>
+        <Link to="/admin/instructors" className="block group">
+          <Card className="border-l-4 border-l-primary shadow-sm group-hover:shadow-md transition-all">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Instructors</CardTitle>
+              <Users className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-black">{stats?.totalInstructors}</div>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                Active teaching accounts <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
         <Card className="border-l-4 border-l-blue-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -168,16 +172,20 @@ const OwnerDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className={cn("border-l-4 shadow-sm", stats?.openSupportRequests && stats.openSupportRequests > 0 ? "border-l-orange-500 bg-orange-50/30" : "border-l-green-500")}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Open Support</CardTitle>
-            <MessageSquare className={cn("h-5 w-5", stats?.openSupportRequests && stats.openSupportRequests > 0 ? "text-orange-500" : "text-green-500")} />
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-black">{stats?.openSupportRequests}</div>
-            <p className="text-xs text-muted-foreground mt-1">Requests needing attention</p>
-          </CardContent>
-        </Card>
+        <Link to="/admin/support" className="block group">
+          <Card className={cn("border-l-4 shadow-sm group-hover:shadow-md transition-all", stats?.openSupportRequests && stats.openSupportRequests > 0 ? "border-l-orange-500 bg-orange-50/30" : "border-l-green-500")}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Open Support</CardTitle>
+              <MessageSquare className={cn("h-5 w-5", stats?.openSupportRequests && stats.openSupportRequests > 0 ? "text-orange-500" : "text-green-500")} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-black">{stats?.openSupportRequests}</div>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                Requests needing attention <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Secondary Stats Row */}
@@ -255,7 +263,7 @@ const OwnerDashboard: React.FC = () => {
           </div>
           <div className="grid grid-cols-2 gap-3 w-full pt-4">
             <Button asChild variant="outline" className="font-bold">
-              <Link to="/admin/support">Support Center</Link>
+              <Link to="/admin/instructors">Instructor List</Link>
             </Button>
             <Button asChild variant="outline" className="font-bold">
               <Link to="/settings">Global Settings</Link>

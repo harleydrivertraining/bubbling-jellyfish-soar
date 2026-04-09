@@ -29,6 +29,7 @@ const PrePaidHours = lazy(() => import("./pages/PrePaidHours"));
 const PrePaidHoursDetails = lazy(() => import("./pages/PrePaidHoursDetails"));
 const ManageTopics = lazy(() => import("./pages/ManageTopics"));
 const AdminProgressTopics = lazy(() => import("./pages/AdminProgressTopics"));
+const AdminInstructors = lazy(() => import("./pages/AdminInstructors"));
 const MileageTracker = lazy(() => import("./pages/MileageTracker"));
 const TestStatistics = lazy(() => import("./pages/TestStatistics"));
 const Support = lazy(() => import("./pages/Support"));
@@ -97,6 +98,7 @@ const AppContent = () => {
           <Route path="pre-paid-hours/:packageId" element={<PrePaidHoursDetails />} />
           <Route path="manage-topics" element={<ManageTopics />} />
           <Route path="admin/topics" element={<AdminProgressTopics />} />
+          <Route path="admin/instructors" element={<AdminInstructors />} />
           <Route path="mileage-tracker" element={<MileageTracker />} />
           <Route path="accounts" element={<Accounts />} />
           <Route path="support" element={<Support />} />

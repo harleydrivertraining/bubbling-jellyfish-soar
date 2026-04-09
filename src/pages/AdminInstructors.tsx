@@ -1,0 +1,230 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/components/auth/SessionContextProvider";
+import { showError } from "@/utils/toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Users, 
+  User, 
+  Mail, 
+  Calendar, 
+  ArrowLeft, 
+  ShieldCheck, 
+  Search,
+  GraduationCap,
+  ExternalLink,
+  RefreshCw
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { format, parseISO } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+interface InstructorProfile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  created_at: string;
+  logo_url: string | null;
+  student_count: number;
+}
+
+const AdminInstructors: React.FC = () => {
+  const { user, isLoading: isSessionLoading } = useSession();
+  const navigate = useNavigate();
+  const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const fetchInstructors = useCallback(async () => {
+    if (!user) return;
+    
+    // Verify owner role
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    
+    if (profile?.role !== 'owner') {
+      navigate("/");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // 1. Fetch all instructor profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .ilike("role", "instructor")
+        .order("created_at", { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      // 2. Fetch student counts for each instructor
+      const { data: studentCounts, error: countsError } = await supabase
+        .from("students")
+        .select("user_id");
+
+      if (countsError) throw countsError;
+
+      const countMap: Record<string, number> = {};
+      studentCounts?.forEach(s => {
+        countMap[s.user_id] = (countMap[s.user_id] || 0) + 1;
+      });
+
+      const formatted: InstructorProfile[] = (profiles || []).map(p => ({
+        ...p,
+        student_count: countMap[p.id] || 0
+      }));
+
+      setInstructors(formatted);
+    } catch (error: any) {
+      console.error("Error fetching instructors:", error);
+      showError("Failed to load instructor list.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    if (!isSessionLoading) fetchInstructors();
+  }, [isSessionLoading, fetchInstructors]);
+
+  const filteredInstructors = instructors.filter(i => 
+    `${i.first_name} ${i.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    i.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (isSessionLoading || isLoading) {
+    return (
+      <div className="space-y-6 max-w-6xl mx-auto p-4">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" asChild className="-ml-2">
+            <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          </Button>
+          <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
+            <ShieldCheck className="h-8 w-8 text-primary" />
+            Instructors
+          </h1>
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchInstructors} className="font-bold">
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh List
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle>Platform Instructors</CardTitle>
+              <CardDescription>Overview of all teaching accounts registered on the app.</CardDescription>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search by name or email..." 
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="rounded-md border-t">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="w-[300px]">Instructor</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead className="text-center">Students</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredInstructors.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
+                      No instructors found matching your search.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredInstructors.map((instructor) => (
+                    <TableRow key={instructor.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 border">
+                            <AvatarImage src={instructor.logo_url || undefined} />
+                            <AvatarFallback className="bg-primary/5 text-primary font-bold">
+                              {instructor.first_name?.[0]}{instructor.last_name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono truncate uppercase">{instructor.id.split('-')[0]}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5" />
+                          <span className="truncate">{instructor.email || "No email"}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="font-black text-lg">{instructor.student_count}</span>
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase">Active</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {format(parseISO(instructor.created_at), "MMM d, yyyy")}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" className="font-bold text-primary" asChild>
+                          <Link to={`/admin/support`}>
+                            Support <ExternalLink className="ml-1.5 h-3 w-3" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default AdminInstructors;

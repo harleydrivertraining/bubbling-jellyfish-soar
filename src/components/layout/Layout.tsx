@@ -69,6 +69,7 @@ const Layout = () => {
     if (pathname === "/pre-paid-hours") return "Pre-Paid Hours";
     if (pathname === "/manage-topics") return "Manage Topics";
     if (pathname === "/admin/topics") return "Default Topics";
+    if (pathname === "/admin/instructors") return "All Instructors";
     if (pathname === "/mileage-tracker") return "Mileage Tracker";
     if (pathname === "/accounts") return "Accounts";
     if (pathname === "/support") return "Support";
