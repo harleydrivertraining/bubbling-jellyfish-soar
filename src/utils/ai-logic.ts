@@ -95,22 +95,29 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
     }
   }
 
-  // 2. TIME PARSING
+  // 2. TIME PARSING - Improved to avoid grabbing date numbers
   let finalTime = targetDate;
-  const timeMatch = input.match(/(?:at\s+)?(\d+)(?::(\d+))?\s*(am|pm)?/i);
   
-  const hasExplicitTime = timeMatch && (timeMatch[3] || input.includes("at " + timeMatch[1]) || timeMatch[2]);
+  // Look for "at 10", "10am", "10:30", etc.
+  const timeMatch = input.match(/(?:at\s+)(\d+)(?::(\d+))?\s*(am|pm)?/i) || 
+                    input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i) ||
+                    input.match(/(\d+):(\d+)/i);
 
-  if (hasExplicitTime) {
+  if (timeMatch) {
     timeProvided = true;
-    let hours = parseInt(timeMatch[1]);
-    const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-    const ampm = timeMatch[3]?.toLowerCase();
+    // The regex groups might vary depending on which pattern matched
+    let hoursStr = timeMatch[1] || timeMatch[4] || timeMatch[7];
+    let minsStr = timeMatch[2] || timeMatch[5] || timeMatch[8];
+    let ampm = (timeMatch[3] || timeMatch[6])?.toLowerCase();
+
+    let hours = parseInt(hoursStr);
+    const mins = minsStr ? parseInt(minsStr) : 0;
     
     if (ampm === "pm" && hours < 12) hours += 12;
     if (ampm === "am" && hours === 12) hours = 0;
     
-    if (!ampm && hours < 8) hours += 12; 
+    // Heuristic: if no AM/PM and hour is small (1-7), assume PM
+    if (!ampm && !minsStr && hours > 0 && hours < 8) hours += 12; 
     
     finalTime = setHours(setMinutes(targetDate, mins), hours);
   } else {
@@ -620,6 +627,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       if (input.includes("test")) {
         lessonType = "Driving Test";
+        // Default to 2 hours for tests if no duration was explicitly provided
         if (!durationMatch) durationMins = 120;
       }
       else if (input.includes("personal")) lessonType = "Personal";
@@ -646,16 +654,23 @@ export const processAICommand = async (text: string, userId: string, context?: a
       } else if (lessonType === "Personal") {
         titlePrefix = "Personal Appointment";
       } else {
+        // If it's not availability or personal, we need a student
         if (!input.includes("available") && !input.includes("gap") && !input.includes("space")) {
           return { success: false, message: "I couldn't find a student with that name in your list." };
         }
+        // Fallback for "add a lesson tomorrow" without student name -> assume availability
         lessonType = "Availability";
         status = "available";
         titlePrefix = "Available Slot";
       }
 
-      const { date: startTime } = parseDateTime(input);
+      const { date: startTime, timeProvided } = parseDateTime(input);
       
+      if (!timeProvided && !input.includes("available") && !input.includes("gap")) {
+        return { success: false, message: "I found the date, but could you tell me what time to book it for?" };
+      }
+
+      // Recurrence Parsing
       let repeatCount = 1;
       let intervalWeeks = 1; 
       
@@ -710,7 +725,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Message John saying hello', 'Add a 2 hour availability slot tomorrow at 10am', or 'Add £20 fuel expense'." 
+      message: "I'm not sure how to do that yet. Try: 'Add a 2 hour availability slot tomorrow at 10am', 'Delete John's lesson at 10am tomorrow', or 'Add £20 fuel expense'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { format, addMinutes, addWeeks } from "date-fns";
+import { format, addMinutes, addWeeks, differenceInMinutes } from "date-fns";
 import { Plus, Minus, Sparkles } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
@@ -78,13 +78,21 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
 
+  // Calculate initial duration from props
+  const initialDuration = useMemo(() => {
+    const diff = differenceInMinutes(initialEndTime, initialStartTime);
+    if (diff >= 120) return "120";
+    if (diff >= 90) return "90";
+    return "60";
+  }, [initialStartTime, initialEndTime]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       student_id: "",
       description: "",
       lesson_type: "Driving lesson",
-      lesson_length: "60",
+      lesson_length: initialDuration as "60" | "90" | "120",
       targets_for_next_session: "",
       repeat_booking: "none",
       repeat_count: 1,
@@ -102,14 +110,15 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
         .single();
 
       if (!error && data?.default_lesson_duration) {
-        if (form.getValues("lesson_type") !== "Driving Test") {
+        // Only apply profile default if we aren't explicitly overriding it (like for a test)
+        if (form.getValues("lesson_type") !== "Driving Test" && !defaultValues?.lesson_length) {
           form.setValue("lesson_length", data.default_lesson_duration as "60" | "90" | "120");
         }
       }
     };
 
     fetchDefaultDuration();
-  }, [user, form]);
+  }, [user, form, defaultValues]);
 
   useEffect(() => {
     if (defaultValues?.lesson_type) {
@@ -134,15 +143,11 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     }
   }, [selectedLessonType, form]);
 
-  const [calculatedEndTime, setCalculatedEndTime] = useState<Date>(initialEndTime);
-
-  useEffect(() => {
-    if (selectedStartTime && selectedLessonLength) {
-      const lengthInMinutes = parseInt(selectedLessonLength, 10);
-      const newEndTime = addMinutes(selectedStartTime, lengthInMinutes);
-      setCalculatedEndTime(newEndTime);
-    }
-  }, [selectedStartTime, selectedLessonLength]);
+  // Always calculate end time based on start time and length
+  const calculatedEndTime = useMemo(() => {
+    if (!selectedStartTime || !selectedLessonLength) return initialEndTime;
+    return addMinutes(selectedStartTime, parseInt(selectedLessonLength, 10));
+  }, [selectedStartTime, selectedLessonLength, initialEndTime]);
 
   useEffect(() => {
     const fetchStudents = async () => {
