@@ -9,6 +9,7 @@ import { Sparkles, Send, X, Bot, User, Loader2, Command } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { processAICommand } from "@/utils/ai-logic";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Message {
   role: 'assistant' | 'user';
@@ -18,6 +19,7 @@ interface Message {
 
 const AIAssistant: React.FC = () => {
   const { user } = useSession();
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -56,6 +58,11 @@ const AIAssistant: React.FC = () => {
     try {
       const response = await processAICommand(userMessage, user.id);
       
+      // If the command was successful, refresh all app data
+      if (response.success) {
+        queryClient.invalidateQueries();
+      }
+
       setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: response.message, 
