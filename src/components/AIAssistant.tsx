@@ -23,6 +23,7 @@ const AIAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [context, setContext] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
@@ -56,8 +57,11 @@ const AIAssistant: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const response = await processAICommand(userMessage, user.id);
+      const response = await processAICommand(userMessage, user.id, context);
       
+      // Update context based on response
+      setContext(response.newContext || null);
+
       // If the command was successful, refresh all app data
       if (response.success) {
         queryClient.invalidateQueries();

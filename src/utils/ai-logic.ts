@@ -23,6 +23,7 @@ export interface AIResponse {
   success: boolean;
   message: string;
   actionTaken?: string;
+  newContext?: any;
 }
 
 /**
@@ -78,9 +79,34 @@ const parseDateTime = (input: string): Date => {
  * This is a 'Smart Parser'. It scans the input for known entities (students, topics)
  * and patterns (amounts, dates, times) to perform actions.
  */
-export const processAICommand = async (text: string, userId: string): Promise<AIResponse> => {
+export const processAICommand = async (text: string, userId: string, context?: any): Promise<AIResponse> => {
   try {
     const input = text.toLowerCase();
+
+    // 0. CHECK CONTEXT FOR PENDING ACTIONS
+    if (context?.pendingNoteForLessonId) {
+      const { data: booking, error: fetchError } = await supabase
+        .from("bookings")
+        .select("id, title")
+        .eq("id", context.pendingNoteForLessonId)
+        .single();
+
+      if (!fetchError && booking) {
+        const { error: updateError } = await supabase
+          .from("bookings")
+          .update({ description: text.trim() })
+          .eq("id", booking.id);
+
+        if (!updateError) {
+          return { 
+            success: true, 
+            message: `Got it. I've added that note to ${booking.title}.`,
+            actionTaken: "lesson_note_followup",
+            newContext: null // Clear context
+          };
+        }
+      }
+    }
 
     // 1. FETCH ENTITIES FIRST (Students and Topics)
     const [studentsRes, topicsRes] = await Promise.all([
@@ -247,27 +273,29 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
-        if (noteParts.length > 1) {
-          const noteContent = noteParts[noteParts.length - 1].trim();
-          const searchArea = noteParts[0].toLowerCase();
+        const searchArea = noteParts[0].toLowerCase();
+        
+        const targetTime = parseDateTime(searchArea);
+        const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
+        
+        let query = supabase
+          .from("bookings")
+          .select("id, title, start_time")
+          .eq("user_id", userId)
+          .eq("start_time", targetTime.toISOString());
+
+        if (student) {
+          query = query.eq("student_id", student.id);
+        }
+
+        const { data: matches } = await query;
+
+        if (matches && matches.length > 0) {
+          const booking = matches[0];
           
-          const targetTime = parseDateTime(searchArea);
-          const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
-          
-          let query = supabase
-            .from("bookings")
-            .select("id, title, start_time")
-            .eq("user_id", userId)
-            .eq("start_time", targetTime.toISOString());
-
-          if (student) {
-            query = query.eq("student_id", student.id);
-          }
-
-          const { data: matches } = await query;
-
-          if (matches && matches.length > 0) {
-            const booking = matches[0];
+          // Check if content was provided
+          if (noteParts.length > 1 && noteParts[noteParts.length - 1].trim().length > 0) {
+            const noteContent = noteParts[noteParts.length - 1].trim();
             const { error } = await supabase
               .from("bookings")
               .update({ description: noteContent })
@@ -279,6 +307,13 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
               success: true, 
               message: `Added note to ${booking.title} at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}.`,
               actionTaken: "lesson_note" 
+            };
+          } else {
+            // No content provided, ask for it and store context
+            return {
+              success: true,
+              message: "What would you like me to add to the notes?",
+              newContext: { pendingNoteForLessonId: booking.id }
             };
           }
         }
