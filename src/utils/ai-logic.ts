@@ -13,7 +13,8 @@ import {
   setDate,
   startOfDay,
   isBefore,
-  addYears
+  addYears,
+  parseISO
 } from "date-fns";
 
 export interface AIResponse {
@@ -21,6 +22,55 @@ export interface AIResponse {
   message: string;
   actionTaken?: string;
 }
+
+/**
+ * Helper to parse date and time from natural language
+ */
+const parseDateTime = (input: string): Date => {
+  let targetDate = startOfDay(new Date());
+  
+  // Date Parsing
+  if (input.includes("tomorrow")) {
+    targetDate = startOfTomorrow();
+  } else {
+    const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const dayIndex = days.findIndex(d => input.includes(d));
+    if (dayIndex !== -1) {
+      targetDate = nextDay(new Date(), dayIndex as any);
+    } else {
+      const dateMatch = input.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+      if (dateMatch) {
+        const day = parseInt(dateMatch[1]);
+        const monthStr = dateMatch[2].toLowerCase();
+        let month = isNaN(parseInt(monthStr)) 
+          ? ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(monthStr.substring(0, 3)) 
+          : parseInt(monthStr) - 1;
+        
+        if (month !== -1) {
+          targetDate = setMonth(setDate(targetDate, day), month);
+          if (isBefore(targetDate, startOfDay(new Date()))) targetDate = addYears(targetDate, 1);
+        }
+      }
+    }
+  }
+
+  // Time Parsing
+  let finalTime = targetDate;
+  const timeMatch = input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1]);
+    const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    const ampm = timeMatch[3].toLowerCase();
+    if (ampm === "pm" && hours < 12) hours += 12;
+    if (ampm === "am" && hours === 12) hours = 0;
+    finalTime = setHours(setMinutes(targetDate, mins), hours);
+  } else {
+    // Default to 9am if no time specified
+    finalTime = setHours(setMinutes(targetDate, 0), 9);
+  }
+
+  return finalTime;
+};
 
 /**
  * This is a 'Smart Parser'. It scans the input for known entities (students, topics)
@@ -55,7 +105,51 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 3. PROGRESS UPDATE PATTERN (Smarter Entity Matching with Notes)
+    // 3. DELETE/CANCEL BOOKING PATTERN
+    if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
+      if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test")) {
+        const targetTime = parseDateTime(input);
+        const student = students.find(s => input.includes(s.name.toLowerCase()));
+        
+        let query = supabase
+          .from("bookings")
+          .select("id, title, start_time")
+          .eq("user_id", userId)
+          .eq("start_time", targetTime.toISOString());
+
+        if (student) {
+          query = query.eq("student_id", student.id);
+        }
+
+        const { data: matches, error: fetchError } = await query;
+
+        if (fetchError) return { success: false, message: "Error finding booking: " + fetchError.message };
+        
+        if (!matches || matches.length === 0) {
+          return { 
+            success: false, 
+            message: `I couldn't find a booking at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` 
+          };
+        }
+
+        // Delete the first match
+        const bookingToDelete = matches[0];
+        const { error: deleteError } = await supabase
+          .from("bookings")
+          .delete()
+          .eq("id", bookingToDelete.id);
+
+        if (deleteError) return { success: false, message: "Failed to delete: " + deleteError.message };
+
+        return { 
+          success: true, 
+          message: `Successfully deleted the booking: "${bookingToDelete.title}" at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}.`,
+          actionTaken: "delete_booking"
+        };
+      }
+    }
+
+    // 4. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -65,30 +159,24 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
                              input.includes("feedback");
 
     if (isProgressUpdate) {
-      // Extract Rating
       const ratingMatch = input.match(/([1-5])\s*star/i) || input.match(/rating (?:of )?([1-5])/i) || input.match(/mark (?:as )?([1-5])/i);
       const rating = ratingMatch ? parseInt(ratingMatch[1]) : null;
 
-      // Extract Note Content
       let noteContent = null;
       let isPrivate = input.includes("private") || input.includes("instructor note");
       
-      // Look for content after a colon or specific keywords
       const noteParts = text.split(/[:]|note:|comment:|feedback:|saying/i);
       if (noteParts.length > 1) {
         noteContent = noteParts[noteParts.length - 1].trim();
       }
 
-      // Find the student mentioned (search in the part BEFORE the note to avoid false matches)
       const searchArea = noteParts[0].toLowerCase();
       const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
       
-      // Find the topic mentioned
       const sortedTopics = [...topics].sort((a, b) => b.name.length - a.name.length);
       const topic = sortedTopics.find(t => searchArea.includes(t.name.toLowerCase()));
 
       if (student && topic) {
-        // If no rating was provided, we need to fetch the current rating to avoid overwriting with 0
         let finalRating = rating;
         if (finalRating === null) {
           const { data: existing } = await supabase
@@ -100,7 +188,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
             .limit(1)
             .maybeSingle();
           
-          finalRating = existing?.rating || 3; // Default to 3 if never rated
+          finalRating = existing?.rating || 3;
         }
 
         const { error } = await supabase.from("student_progress_entries").insert({
@@ -119,15 +207,11 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         if (rating) successMsg += ` Set to ${rating} stars.`;
         if (noteContent) successMsg += ` Added ${isPrivate ? 'private ' : ''}note.`;
         
-        return { 
-          success: true, 
-          message: successMsg, 
-          actionTaken: "progress" 
-        };
+        return { success: true, message: successMsg, actionTaken: "progress" };
       }
     }
 
-    // 4. BOOKING PATTERN
+    // 5. BOOKING PATTERN
     if (input.includes("book")) {
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
@@ -163,43 +247,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         return { success: false, message: "I couldn't find a student with that name in your list." };
       }
 
-      // Date Parsing
-      let targetDate = startOfDay(new Date());
-      if (input.includes("tomorrow")) {
-        targetDate = startOfTomorrow();
-      } else {
-        const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-        const dayIndex = days.findIndex(d => input.includes(d));
-        if (dayIndex !== -1) {
-          targetDate = nextDay(new Date(), dayIndex as any);
-        } else {
-          const dateMatch = input.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
-          if (dateMatch) {
-            const day = parseInt(dateMatch[1]);
-            const monthStr = dateMatch[2].toLowerCase();
-            let month = isNaN(parseInt(monthStr)) ? ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(monthStr.substring(0, 3)) : parseInt(monthStr) - 1;
-            if (month !== -1) {
-              targetDate = setMonth(setDate(targetDate, day), month);
-              if (isBefore(targetDate, startOfDay(new Date()))) targetDate = addYears(targetDate, 1);
-            }
-          }
-        }
-      }
-
-      // Time Parsing
-      let startTime = targetDate;
-      const timeMatch = input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
-      if (timeMatch) {
-        let hours = parseInt(timeMatch[1]);
-        const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-        const ampm = timeMatch[3].toLowerCase();
-        if (ampm === "pm" && hours < 12) hours += 12;
-        if (ampm === "am" && hours === 12) hours = 0;
-        startTime = setHours(setMinutes(targetDate, mins), hours);
-      } else {
-        startTime = setHours(setMinutes(targetDate, 0), 9);
-      }
-
+      const startTime = parseDateTime(input);
       const endTime = addMinutes(startTime, durationMins);
 
       const { error } = await supabase.from("bookings").insert({
@@ -224,7 +272,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
 
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Book a 2 hour test for [Name] at 10am on 25th Oct', 'Add £20 fuel expense', or 'Add 5 stars to cockpit drill for [Name]'." 
+      message: "I'm not sure how to do that yet. Try: 'Delete John's lesson at 10am tomorrow', 'Add £20 fuel expense', or 'Add 5 stars to cockpit drill for [Name]'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);
