@@ -55,38 +55,75 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 3. PROGRESS UPDATE PATTERN (Smarter Entity Matching)
-    // Look for "star", "rating", "mark", or "progress"
-    if (input.includes("star") || input.includes("rating") || input.includes("mark") || input.includes("progress")) {
+    // 3. PROGRESS UPDATE PATTERN (Smarter Entity Matching with Notes)
+    const isProgressUpdate = input.includes("star") || 
+                             input.includes("rating") || 
+                             input.includes("mark") || 
+                             input.includes("progress") ||
+                             input.includes("note") ||
+                             input.includes("comment") ||
+                             input.includes("feedback");
+
+    if (isProgressUpdate) {
+      // Extract Rating
       const ratingMatch = input.match(/([1-5])\s*star/i) || input.match(/rating (?:of )?([1-5])/i) || input.match(/mark (?:as )?([1-5])/i);
+      const rating = ratingMatch ? parseInt(ratingMatch[1]) : null;
+
+      // Extract Note Content
+      let noteContent = null;
+      let isPrivate = input.includes("private") || input.includes("instructor note");
       
-      if (ratingMatch) {
-        const rating = parseInt(ratingMatch[1]);
-        
-        // Find the student mentioned
-        const student = students.find(s => input.includes(s.name.toLowerCase()));
-        
-        // Find the topic mentioned (sort by length descending to match "Cockpit Drill" before "Drill")
-        const sortedTopics = [...topics].sort((a, b) => b.name.length - a.name.length);
-        const topic = sortedTopics.find(t => input.includes(t.name.toLowerCase()));
+      // Look for content after a colon or specific keywords
+      const noteParts = text.split(/[:]|note:|comment:|feedback:|saying/i);
+      if (noteParts.length > 1) {
+        noteContent = noteParts[noteParts.length - 1].trim();
+      }
 
-        if (student && topic) {
-          const { error } = await supabase.from("student_progress_entries").insert({
-            user_id: userId,
-            student_id: student.id,
-            topic_id: topic.id,
-            rating: rating,
-            comment: "Added via Instructor Assistant",
-            entry_date: new Date().toISOString()
-          });
+      // Find the student mentioned (search in the part BEFORE the note to avoid false matches)
+      const searchArea = noteParts[0].toLowerCase();
+      const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
+      
+      // Find the topic mentioned
+      const sortedTopics = [...topics].sort((a, b) => b.name.length - a.name.length);
+      const topic = sortedTopics.find(t => searchArea.includes(t.name.toLowerCase()));
 
-          if (error) return { success: false, message: "Failed to save progress: " + error.message };
-          return { 
-            success: true, 
-            message: `Updated ${student.name}'s progress for ${topic.name} to ${rating} stars.`, 
-            actionTaken: "progress" 
-          };
+      if (student && topic) {
+        // If no rating was provided, we need to fetch the current rating to avoid overwriting with 0
+        let finalRating = rating;
+        if (finalRating === null) {
+          const { data: existing } = await supabase
+            .from("student_progress_entries")
+            .select("rating")
+            .eq("student_id", student.id)
+            .eq("topic_id", topic.id)
+            .order("entry_date", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          finalRating = existing?.rating || 3; // Default to 3 if never rated
         }
+
+        const { error } = await supabase.from("student_progress_entries").insert({
+          user_id: userId,
+          student_id: student.id,
+          topic_id: topic.id,
+          rating: finalRating,
+          comment: isPrivate ? null : (noteContent || "Updated via Assistant"),
+          private_notes: isPrivate ? noteContent : null,
+          entry_date: new Date().toISOString()
+        });
+
+        if (error) return { success: false, message: "Failed to save progress: " + error.message };
+        
+        let successMsg = `Updated ${student.name}'s ${topic.name}.`;
+        if (rating) successMsg += ` Set to ${rating} stars.`;
+        if (noteContent) successMsg += ` Added ${isPrivate ? 'private ' : ''}note.`;
+        
+        return { 
+          success: true, 
+          message: successMsg, 
+          actionTaken: "progress" 
+        };
       }
     }
 
