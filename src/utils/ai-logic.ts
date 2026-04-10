@@ -177,9 +177,15 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       let topicName = "";
 
       if (markMatch) {
-        [_, studentName, rating, topicName] = markMatch;
+        const [_, sName, r, tName] = markMatch;
+        studentName = sName;
+        rating = r;
+        topicName = tName;
       } else if (addMatch) {
-        [_, rating, topicName, studentName] = addMatch;
+        const [_, r, tName, sName] = addMatch;
+        studentName = sName;
+        rating = r;
+        topicName = tName;
       }
       
       const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
