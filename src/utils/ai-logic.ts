@@ -581,7 +581,11 @@ export const processAICommand = async (text: string, userId: string, context?: a
       let status = "scheduled";
       let titlePrefix = "";
 
-      if (input.includes("test")) lessonType = "Driving Test";
+      if (input.includes("test")) {
+        lessonType = "Driving Test";
+        // Default to 2 hours for tests if no duration was explicitly provided
+        if (!durationMatch) durationMins = 120;
+      }
       else if (input.includes("personal")) lessonType = "Personal";
       else if (
         input.includes("available") || 
