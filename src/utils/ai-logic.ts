@@ -123,6 +123,30 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
+    if (context?.pendingTargetForLessonId) {
+      const { data: booking, error: fetchError } = await supabase
+        .from("bookings")
+        .select("id, title")
+        .eq("id", context.pendingTargetForLessonId)
+        .single();
+
+      if (!fetchError && booking) {
+        const { error: updateError } = await supabase
+          .from("bookings")
+          .update({ targets_for_next_session: text.trim() })
+          .eq("id", booking.id);
+
+        if (!updateError) {
+          return { 
+            success: true, 
+            message: `Got it. I've set that target for ${booking.title}.`,
+            actionTaken: "lesson_target_followup",
+            newContext: null // Clear context
+          };
+        }
+      }
+    }
+
     // 1. FETCH ENTITIES FIRST (Students and Topics)
     const [studentsRes, topicsRes] = await Promise.all([
       supabase.from("students").select("id, name").eq("user_id", userId),
@@ -148,7 +172,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 3. FIND BOOKING HELPER (Used by delete, complete, paid, note)
+    // 3. FIND BOOKING HELPER (Used by delete, complete, paid, note, target)
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
@@ -280,7 +304,34 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 7. PROGRESS UPDATE PATTERN
+    // 7. LESSON TARGET PATTERN
+    if (input.includes("target") || input.includes("goal") || input.includes("objective")) {
+      if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
+        const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
+        const searchArea = targetParts[0].toLowerCase();
+        
+        const { matches, timeProvided, student } = await findTargetBooking(searchArea);
+
+        if (matches.length > 0) {
+          if (matches.length > 1 && !timeProvided) {
+            const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
+            return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one should I set the target for?` };
+          }
+
+          const booking = matches[0];
+          
+          if (targetParts.length > 1 && targetParts[targetParts.length - 1].trim().length > 0) {
+            const targetContent = targetParts[targetParts.length - 1].trim();
+            await supabase.from("bookings").update({ targets_for_next_session: targetContent }).eq("id", booking.id);
+            return { success: true, message: `Set target for ${booking.title} on ${format(parseISO(booking.start_time), "MMM do")}.`, actionTaken: "lesson_target" };
+          } else {
+            return { success: true, message: "What target would you like to set for this student?", newContext: { pendingTargetForLessonId: booking.id } };
+          }
+        }
+      }
+    }
+
+    // 8. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -340,7 +391,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 8. BOOKING PATTERN
+    // 9. BOOKING PATTERN
     if (input.includes("book")) {
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
