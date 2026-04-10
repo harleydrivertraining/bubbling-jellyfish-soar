@@ -21,7 +21,12 @@ import {
   parseISO,
   addWeeks,
   isSameDay,
-  isToday
+  isToday,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  differenceInMinutes
 } from "date-fns";
 
 export interface AIResponse {
@@ -290,7 +295,59 @@ export const processAICommand = async (text: string, userId: string, context?: a
       };
     }
 
-    // 5. FIND BOOKING HELPER
+    // 5. SUMMARY / REPORT PATTERN
+    if (input.includes("summary") || input.includes("report") || input.includes("stats") || input.includes("how many lessons")) {
+      const { date: targetDate } = parseDateTime(input);
+      let start: Date, end: Date, label: string;
+
+      if (input.includes("week")) {
+        start = startOfWeek(targetDate, { weekStartsOn: 1 });
+        end = endOfWeek(targetDate, { weekStartsOn: 1 });
+        label = `the week of ${format(start, "MMM do")}`;
+      } else if (input.includes("month")) {
+        start = startOfMonth(targetDate);
+        end = endOfMonth(targetDate);
+        label = format(start, "MMMM yyyy");
+      } else {
+        start = startOfDay(targetDate);
+        end = endOfDay(targetDate);
+        label = isToday(targetDate) ? "today" : format(targetDate, "EEEE, MMM do");
+      }
+
+      const [profileRes, bookingsRes] = await Promise.all([
+        supabase.from("profiles").select("hourly_rate").eq("id", userId).single(),
+        supabase.from("bookings")
+          .select("status, lesson_type, start_time, end_time")
+          .eq("user_id", userId)
+          .gte("start_time", start.toISOString())
+          .lte("start_time", end.toISOString())
+      ]);
+
+      const rate = profileRes.data?.hourly_rate || 0;
+      const bookings = bookingsRes.data || [];
+
+      const delivered = bookings.filter(b => b.status === 'completed').length;
+      const booked = bookings.filter(b => b.status === 'scheduled').length;
+      const tests = bookings.filter(b => b.lesson_type === 'Driving Test' && b.status === 'completed').length;
+      
+      let totalMins = 0;
+      bookings.filter(b => b.status === 'completed').forEach(b => {
+        totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time));
+      });
+      const earned = (totalMins / 60) * rate;
+
+      return {
+        success: true,
+        message: `Here is your summary for **${label}**:\n\n` +
+                 `✅ **${delivered}** lessons delivered\n` +
+                 `📅 **${booked}** lessons currently booked\n` +
+                 `🚗 **${tests}** driving tests completed\n` +
+                 `💰 **£${earned.toFixed(2)}** earned (est.)`,
+        actionTaken: "summary"
+      };
+    }
+
+    // 6. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
@@ -315,7 +372,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { matches: matches || [], targetTime, timeProvided, student, error };
     };
 
-    // 6. DELETE/CANCEL BOOKING PATTERN
+    // 7. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
         const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
@@ -344,7 +401,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 7. UPDATE BOOKING STATUS
+    // 8. UPDATE BOOKING STATUS
     const isStatusUpdate = input.includes("complete") || 
                            input.includes("done") || 
                            input.includes("finished") || 
@@ -393,7 +450,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 8. LESSON NOTE PATTERN
+    // 9. LESSON NOTE PATTERN
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
@@ -420,7 +477,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 9. LESSON TARGET PATTERN
+    // 10. LESSON TARGET PATTERN
     if (input.includes("target") || input.includes("goal") || input.includes("objective")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
@@ -447,7 +504,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 10. PROGRESS UPDATE PATTERN
+    // 11. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -507,7 +564,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 11. BOOKING / SLOT PATTERN
+    // 12. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
 
