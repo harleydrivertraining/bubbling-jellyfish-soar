@@ -17,7 +17,6 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
     const input = text.toLowerCase();
 
     // 1. ADD EXPENSE PATTERN: "add [amount] [category] expense [description]"
-    // Example: "add £20 fuel expense"
     const expenseMatch = input.match(/add (?:£|\$)?(\d+(?:\.\d+)?) (\w+) expense(?: (.+))?/i);
     if (expenseMatch) {
       const [_, amount, category, description] = expenseMatch;
@@ -33,15 +32,54 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 2. BOOKING PATTERN: "book [student] for [time] [day]"
-    // Example: "book john for 10am tomorrow"
+    // 2. BOOKING PATTERN: "book [duration] [type] for [student] at [time] [day]"
+    // Examples: 
+    // "book 2 hours for john at 10am tomorrow"
+    // "book a 90 min test for sarah at 1pm"
+    // "book personal time at 3pm"
     if (input.includes("book")) {
-      // Fetch students to match name
-      const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
-      const student = students?.find(s => input.includes(s.name.toLowerCase()));
+      // Determine Duration (default 60 mins)
+      let durationMins = 60;
+      const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
+      if (durationMatch) {
+        const val = parseFloat(durationMatch[1]);
+        const unit = durationMatch[2].toLowerCase();
+        durationMins = (unit.startsWith('h')) ? val * 60 : val;
+      }
 
-      if (!student) return { success: false, message: "I couldn't find a student with that name in your list." };
+      // Determine Lesson Type
+      let lessonType = "Driving lesson";
+      let status = "scheduled";
+      let titlePrefix = "";
 
+      if (input.includes("test")) lessonType = "Driving Test";
+      else if (input.includes("personal")) lessonType = "Personal";
+      else if (input.includes("available") || input.includes("availability")) {
+        lessonType = "Availability";
+        status = "available";
+        titlePrefix = "Available Slot";
+      }
+
+      // Find Student (if not availability/personal)
+      let studentId = null;
+      let studentName = "Someone";
+
+      if (lessonType !== "Availability") {
+        const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
+        const student = students?.find(s => input.includes(s.name.toLowerCase()));
+        
+        if (student) {
+          studentId = student.id;
+          studentName = student.name;
+          titlePrefix = `${student.name} - ${lessonType}`;
+        } else if (lessonType !== "Personal") {
+          return { success: false, message: "I couldn't find a student with that name in your list." };
+        } else {
+          titlePrefix = "Personal Appointment";
+        }
+      }
+
+      // Determine Start Time
       let startTime = new Date();
       if (input.includes("tomorrow")) startTime = startOfTomorrow();
       
@@ -57,24 +95,29 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         startTime = setHours(setMinutes(startTime, mins), hours);
       }
 
-      const endTime = addMinutes(startTime, 60);
+      const endTime = addMinutes(startTime, durationMins);
 
       const { error } = await supabase.from("bookings").insert({
         user_id: userId,
-        student_id: student.id,
-        title: `${student.name} - Driving lesson`,
-        lesson_type: "Driving lesson",
+        student_id: studentId,
+        title: titlePrefix,
+        lesson_type: lessonType,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        status: "scheduled"
+        status: status
       });
 
       if (error) return { success: false, message: "Failed to create booking: " + error.message };
-      return { success: true, message: `Booked ${student.name} for ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, actionTaken: "booking" };
+      
+      const durationStr = durationMins >= 60 ? `${durationMins / 60} hour(s)` : `${durationMins} mins`;
+      return { 
+        success: true, 
+        message: `Booked a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, 
+        actionTaken: "booking" 
+      };
     }
 
     // 3. PROGRESS PATTERN: "mark [student] [rating] stars for [topic]"
-    // Example: "mark john 5 stars for parallel parking"
     const progressMatch = input.match(/mark (\w+ \w+|\w+) (\d) stars? for (.+)/i);
     if (progressMatch) {
       const [_, studentName, rating, topicName] = progressMatch;
@@ -92,7 +135,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         student_id: student.id,
         topic_id: topic.id,
         rating: parseInt(rating),
-        comment: "Added via AI Assistant",
+        comment: "Added via Instructor Assistant",
         entry_date: new Date().toISOString()
       });
 
@@ -102,7 +145,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
 
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Add £20 fuel expense', 'Book [Name] for 10am tomorrow', or 'Mark [Name] 5 stars for [Topic]'." 
+      message: "I'm not sure how to do that yet. Try: 'Book a 2 hour test for [Name] at 10am tomorrow' or 'Add £20 fuel expense'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);
