@@ -130,7 +130,12 @@ export const processAICommand = async (text: string, userId: string, context?: a
   try {
     const input = text.toLowerCase();
 
-    // 1. FETCH ENTITIES (Needed for context checks too)
+    // 0. GLOBAL CANCEL
+    if (input === "cancel" || input === "stop" || input === "nevermind") {
+      return { success: true, message: "Okay, I've cancelled that action.", newContext: null };
+    }
+
+    // 1. FETCH ENTITIES
     const [studentsRes, topicsRes, carsRes] = await Promise.all([
       supabase.from("students").select("id, name, auth_user_id").eq("user_id", userId),
       supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`),
@@ -171,7 +176,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
 
       if (step === 'dob') {
-        // Try to parse DOB
         const dobMatch = text.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(?:\/|\s+)(\d{2,4})/i);
         if (dobMatch) {
           const day = parseInt(dobMatch[1]);
@@ -215,7 +219,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (step === 'notes') {
         data.notes = (text.includes("skip") || text.includes("none") || text.includes("no")) ? null : text.trim();
         
-        // FINAL SAVE
         const { error } = await supabase.from("students").insert({
           user_id: userId,
           name: data.name,
@@ -237,7 +240,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // --- EXISTING CONTEXT CHECKS ---
     if (context?.pendingNoteForLessonId) {
       const { data: booking, error: fetchError } = await supabase.from("bookings").select("id, title").eq("id", context.pendingNoteForLessonId).single();
       if (!fetchError && booking) {
@@ -254,7 +256,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 3. MULTI-STEP TEST RESULT FLOW
+    // --- TEST RESULT FLOW ---
     if (context?.pendingTestResult) {
       const data = { ...context.pendingTestResult };
       const step = data.step;
@@ -304,7 +306,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
         const val = parseInt(input.match(/\d+/)?.[0] || "0");
         data.driving_faults = val;
         
-        // Final Save
         const { error } = await supabase.from("driving_tests").insert({
           user_id: userId,
           student_id: data.student_id,
@@ -328,7 +329,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 4. ADD STUDENT PATTERN
     if (input.includes("add") && input.includes("student")) {
-      // Check if name is provided
       const nameMatch = text.match(/add (?:a )?new student (?:called |named )?([a-z\s]+)/i);
       const name = nameMatch ? nameMatch[1].trim() : null;
 
@@ -349,7 +349,10 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const isPastStudentTarget = input.includes("past student") || input.includes("archive") || input.includes("finished student");
     
     if (isMarkPastAction && isPastStudentTarget) {
-      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      // Try to find a name in the string that ISN'T "past student"
+      const cleanInput = input.replace("past student", "").replace("archive", "").replace("mark", "").replace("set", "").trim();
+      const student = students.find(s => cleanInput.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(cleanInput) && cleanInput.length > 2);
+      
       if (student) {
         const { error } = await supabase.from("students").update({ is_past_student: true }).eq("id", student.id);
         if (error) return { success: false, message: "Failed to update student: " + error.message };
@@ -489,7 +492,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       const hasOutcome = input.includes("passed") || input.includes("failed");
 
       if (!student || !hasOutcome) {
-        // Start the multi-step flow
         return { 
           success: true, 
           message: "Sure! I can help you record a test result. Which student was the test for?",
@@ -504,7 +506,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
         };
       }
 
-      // If we have enough info, save immediately
       const passed = input.includes("passed");
       const drivingFaultsMatch = input.match(/(\d+)\s*(?:driving\s*)?faults?/i);
       const seriousFaultsMatch = input.match(/(\d+)\s*serious\s*faults?/i);
