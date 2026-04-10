@@ -199,23 +199,25 @@ export const processAICommand = async (text: string, userId: string, context?: a
     }
 
     // 3. MILEAGE ENTRY PATTERN
-    const mileageMatch = input.match(/(?:add|update|set)?\s*(?:mileage|miles)\s*(?:to|is|of)?\s*(\d+(?:\.\d+)?)\s*(?:for|to|on)?\s*(?:the)?\s*(.+)?/i);
-    if (mileageMatch && (input.includes("mileage") || input.includes("miles"))) {
-      const mileageValue = parseFloat(mileageMatch[1]);
-      const carHint = mileageMatch[2]?.trim().toLowerCase();
+    // Improved regex to catch "50000 miles" or "mileage 50000"
+    const mileageValueMatch = input.match(/(\d{3,7}(?:\.\d+)?)/); // Look for a number that looks like mileage (3-7 digits)
+    const hasMileageKeyword = input.includes("mileage") || input.includes("miles") || input.includes("odo");
+
+    if (mileageValueMatch && hasMileageKeyword) {
+      const mileageValue = parseFloat(mileageValueMatch[1]);
 
       if (cars.length === 0) {
         return { success: false, message: "You haven't added any cars to your mileage tracker yet. Please add a car in the Mileage Tracker page first." };
       }
 
       let targetCar = cars[0]; // Default to first car
-      if (carHint && cars.length > 1) {
-        const matchedCar = cars.find(c => 
-          carHint.includes(c.make.toLowerCase()) || 
-          carHint.includes(c.model.toLowerCase())
-        );
-        if (matchedCar) targetCar = matchedCar;
-      }
+      
+      // Try to find a specific car if mentioned
+      const matchedCar = cars.find(c => 
+        input.includes(c.make.toLowerCase()) || 
+        input.includes(c.model.toLowerCase())
+      );
+      if (matchedCar) targetCar = matchedCar;
 
       const { error } = await supabase.from("car_mileage_entries").insert({
         user_id: userId,
