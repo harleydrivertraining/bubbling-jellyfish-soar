@@ -31,6 +31,13 @@ const AIAssistant: React.FC = () => {
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Listen for global toggle event (from mobile bottom nav)
+  useEffect(() => {
+    const handleToggle = () => setIsOpen(prev => !prev);
+    window.addEventListener('toggle-instructor-assistant', handleToggle);
+    return () => window.removeEventListener('toggle-instructor-assistant', handleToggle);
+  }, []);
+
   useEffect(() => {
     if (scrollRef.current) {
       const viewport = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -143,11 +150,12 @@ const AIAssistant: React.FC = () => {
         </Card>
       )}
 
+      {/* Floating button only visible on desktop */}
       <Button 
         size="icon" 
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "h-14 w-14 rounded-full shadow-xl border-4 border-white transition-all duration-300",
+          "h-14 w-14 rounded-full shadow-xl border-4 border-white transition-all duration-300 hidden md:flex",
           isOpen ? "bg-destructive hover:bg-destructive/90 rotate-90" : "bg-primary hover:bg-primary/90"
         )}
       >

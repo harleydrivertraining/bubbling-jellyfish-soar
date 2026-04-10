@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, CalendarDays, Menu, Sparkles, Bell } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Menu, Sparkles, Bell, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./Sidebar";
@@ -28,6 +28,10 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
     };
     checkRole();
   }, [user]);
+
+  const toggleAssistant = () => {
+    window.dispatchEvent(new Event('toggle-instructor-assistant'));
+  };
 
   const navItemClasses = (isActive: boolean) => cn(
     "flex flex-col items-center justify-center flex-1 h-full transition-all duration-200",
@@ -60,6 +64,12 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
           <LayoutDashboard className="h-5 w-5" />
           <span className={labelClasses}>Home</span>
         </Link>
+
+        {/* AI Assistant Trigger */}
+        <button onClick={toggleAssistant} className={navItemClasses(false)}>
+          <Sparkles className="h-5 w-5 text-primary" />
+          <span className={labelClasses}>AI</span>
+        </button>
 
         {/* Calendar Link */}
         <Link
