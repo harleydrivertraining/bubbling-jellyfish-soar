@@ -1142,7 +1142,7 @@ const StudentProfile: React.FC = () => {
 
       <div className={cn(
         "fixed z-50",
-        isMobile ? "bottom-28 right-6" : "bottom-10 right-10"
+        isMobile ? "bottom-40 right-6" : "bottom-24 right-10"
       )}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
