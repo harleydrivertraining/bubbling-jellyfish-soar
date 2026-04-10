@@ -80,10 +80,8 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
         if (month !== -1) {
           targetDate = setMonth(setDate(targetDate, day), month);
           
-          // Only jump to next year if the date is more than 6 months in the past 
-          // AND the user is likely booking (not adding notes to a recent past lesson)
           const sixMonthsAgo = subDays(now, 180);
-          if (isBefore(targetDate, sixMonthsAgo) && input.includes("book")) {
+          if (isBefore(targetDate, sixMonthsAgo) && (input.includes("book") || input.includes("add") || input.includes("create"))) {
             targetDate = addYears(targetDate, 1);
           }
         }
@@ -93,7 +91,6 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
 
   // 2. TIME PARSING
   let finalTime = targetDate;
-  // Match "10am", "10:30pm", "at 10", "at 2:30"
   const timeMatch = input.match(/(?:at\s+)?(\d+)(?::(\d+))?\s*(am|pm)?/i);
   
   const hasExplicitTime = timeMatch && (timeMatch[3] || input.includes("at " + timeMatch[1]) || timeMatch[2]);
@@ -107,7 +104,7 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
     if (ampm === "pm" && hours < 12) hours += 12;
     if (ampm === "am" && hours === 12) hours = 0;
     
-    if (!ampm && hours < 8) hours += 12; // e.g. "at 2" -> 2pm
+    if (!ampm && hours < 8) hours += 12; 
     
     finalTime = setHours(setMinutes(targetDate, mins), hours);
   } else {
@@ -226,7 +223,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 4. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
-      if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test")) {
+      if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
         const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
         
         if (matches.length === 0) {
@@ -238,7 +235,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
         if (matches.length > 1 && !timeProvided) {
           const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
-          return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one should I delete?` };
+          return { success: false, message: `I found multiple lessons on that day (at ${times}). Which one should I delete?` };
         }
 
         const bookingToDelete = matches[0];
@@ -416,8 +413,11 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 9. BOOKING PATTERN
-    if (input.includes("book")) {
+    // 9. BOOKING / SLOT PATTERN
+    const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
+    const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
+
+    if (isBookingAction && isBookingTarget) {
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
       if (durationMatch) {
@@ -432,7 +432,13 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       if (input.includes("test")) lessonType = "Driving Test";
       else if (input.includes("personal")) lessonType = "Personal";
-      else if (input.includes("available") || input.includes("availability")) {
+      else if (
+        input.includes("available") || 
+        input.includes("availability") || 
+        input.includes("gap") || 
+        input.includes("space") || 
+        input.includes("bookable")
+      ) {
         lessonType = "Availability";
         status = "available";
         titlePrefix = "Available Slot";
@@ -449,7 +455,14 @@ export const processAICommand = async (text: string, userId: string, context?: a
       } else if (lessonType === "Personal") {
         titlePrefix = "Personal Appointment";
       } else {
-        return { success: false, message: "I couldn't find a student with that name in your list." };
+        // If it's not availability or personal, we need a student
+        if (!input.includes("available") && !input.includes("gap") && !input.includes("space")) {
+          return { success: false, message: "I couldn't find a student with that name in your list." };
+        }
+        // Fallback for "add a lesson tomorrow" without student name -> assume availability
+        lessonType = "Availability";
+        status = "available";
+        titlePrefix = "Available Slot";
       }
 
       const { date: startTime } = parseDateTime(input);
@@ -493,10 +506,14 @@ export const processAICommand = async (text: string, userId: string, context?: a
       await supabase.from("bookings").insert(bookingsToInsert);
       
       const durationStr = durationMins >= 60 ? `${durationMins / 60} hour(s)` : `${durationMins} mins`;
-      let successMsg = `Booked a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`;
+      let successMsg = `Added a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`;
       
+      if (lessonType === "Availability") {
+        successMsg = `Created a ${durationStr} availability slot at ${format(startTime, "p")} on ${format(startTime, "MMM do")}. Students can now book this space.`;
+      }
+
       if (repeatCount > 1) {
-        successMsg = `Booked ${repeatCount} ${intervalWeeks === 1 ? 'weekly' : 'fortnightly'} ${durationStr} ${lessonType.toLowerCase()}s ${studentId ? 'for ' + studentName : ''} starting ${format(startTime, "MMM do")} at ${format(startTime, "p")}.`;
+        successMsg = `Created ${repeatCount} ${intervalWeeks === 1 ? 'weekly' : 'fortnightly'} ${durationStr} ${lessonType.toLowerCase()}s starting ${format(startTime, "MMM do")} at ${format(startTime, "p")}.`;
       }
 
       return { success: true, message: successMsg, actionTaken: "booking" };
@@ -504,7 +521,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Delete John's lesson at 10am tomorrow', 'Add £20 fuel expense', or 'Add 5 stars to cockpit drill for [Name]'." 
+      message: "I'm not sure how to do that yet. Try: 'Add a 2 hour availability slot tomorrow at 10am', 'Delete John's lesson at 10am tomorrow', or 'Add £20 fuel expense'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);
