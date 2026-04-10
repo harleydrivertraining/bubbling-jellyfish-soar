@@ -175,7 +175,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const [studentsRes, topicsRes, carsRes] = await Promise.all([
       supabase.from("students").select("id, name").eq("user_id", userId),
       supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`),
-      supabase.from("cars").select("id, make, model").eq("user_id", userId)
+      supabase.from("cars").select("id, make, model, initial_mileage").eq("user_id", userId)
     ]);
 
     const students = studentsRes.data || [];
@@ -199,38 +199,62 @@ export const processAICommand = async (text: string, userId: string, context?: a
     }
 
     // 3. MILEAGE ENTRY PATTERN
-    // Improved regex to catch "50000 miles" or "mileage 50000"
-    const mileageValueMatch = input.match(/(\d{3,7}(?:\.\d+)?)/); // Look for a number that looks like mileage (3-7 digits)
+    const mileageValueMatch = input.match(/(\d+(?:\.\d+)?)/); 
     const hasMileageKeyword = input.includes("mileage") || input.includes("miles") || input.includes("odo");
 
     if (mileageValueMatch && hasMileageKeyword) {
-      const mileageValue = parseFloat(mileageValueMatch[1]);
+      const value = parseFloat(mileageValueMatch[1]);
 
       if (cars.length === 0) {
-        return { success: false, message: "You haven't added any cars to your mileage tracker yet. Please add a car in the Mileage Tracker page first." };
+        return { success: false, message: "You haven't added any cars to your mileage tracker yet." };
       }
 
-      let targetCar = cars[0]; // Default to first car
-      
-      // Try to find a specific car if mentioned
+      let targetCar = cars[0]; 
       const matchedCar = cars.find(c => 
         input.includes(c.make.toLowerCase()) || 
         input.includes(c.model.toLowerCase())
       );
       if (matchedCar) targetCar = matchedCar;
 
+      // Determine if we are ADDING or SETTING
+      const isAdditive = input.includes("add") || 
+                         input.includes("plus") || 
+                         input.includes("driven") || 
+                         input.includes("did") || 
+                         (value < 1000 && !input.includes("set") && !input.includes("is"));
+
+      let finalMileage = value;
+
+      if (isAdditive) {
+        // Fetch latest mileage
+        const { data: latestEntry } = await supabase
+          .from("car_mileage_entries")
+          .select("current_mileage")
+          .eq("car_id", targetCar.id)
+          .order("entry_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        const currentTotal = latestEntry?.current_mileage || targetCar.initial_mileage;
+        finalMileage = currentTotal + value;
+      }
+
       const { error } = await supabase.from("car_mileage_entries").insert({
         user_id: userId,
         car_id: targetCar.id,
-        current_mileage: mileageValue,
+        current_mileage: finalMileage,
         entry_date: format(new Date(), "yyyy-MM-dd"),
-        notes: "Added via AI Assistant"
+        notes: isAdditive ? `Added ${value} miles via AI` : "Updated total via AI"
       });
 
       if (error) return { success: false, message: "Failed to record mileage: " + error.message };
+      
       return { 
         success: true, 
-        message: `Recorded ${mileageValue} miles for your ${targetCar.make} ${targetCar.model}.`, 
+        message: isAdditive 
+          ? `Added ${value} miles to your ${targetCar.make}. New total is ${finalMileage.toFixed(0)}.` 
+          : `Updated total mileage for your ${targetCar.make} to ${finalMileage.toFixed(0)}.`, 
         actionTaken: "mileage" 
       };
     }
@@ -438,7 +462,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
           user_id: userId,
           student_id: student.id,
           topic_id: topic.id,
-          rating: finalRating,
+          rating: finalMileage,
           comment: isPrivate ? null : (noteContent || "Updated via Assistant"),
           private_notes: isPrivate ? noteContent : null,
           entry_date: new Date().toISOString()
