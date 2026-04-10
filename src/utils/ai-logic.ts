@@ -142,6 +142,86 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const cars = carsRes.data || [];
 
     // 2. CHECK CONTEXT FOR PENDING ACTIONS
+    
+    // --- NEW STUDENT FLOW ---
+    if (context?.pendingStudent) {
+      const data = { ...context.pendingStudent };
+      const step = data.step;
+
+      if (step === 'name') {
+        data.name = text.trim();
+        data.step = 'dob';
+        return { success: true, message: `Got it. What is **${data.name}**'s date of birth?`, newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'dob') {
+        // Try to parse DOB
+        const dobMatch = text.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(?:\/|\s+)(\d{2,4})/i);
+        if (dobMatch) {
+          const day = parseInt(dobMatch[1]);
+          const monthStr = dobMatch[2].toLowerCase();
+          const yearStr = dobMatch[3];
+          const year = yearStr.length === 2 ? 2000 + parseInt(yearStr) : parseInt(yearStr);
+          const month = isNaN(parseInt(monthStr)) 
+            ? ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(monthStr.substring(0, 3)) 
+            : parseInt(monthStr) - 1;
+          
+          if (month !== -1) {
+            data.date_of_birth = format(new Date(year, month, day), "yyyy-MM-dd");
+          }
+        } else if (text.includes("skip") || text.includes("don't know") || text.includes("none")) {
+          data.date_of_birth = null;
+        } else {
+          return { success: false, message: "I couldn't quite catch that date. Please use a format like DD/MM/YYYY or '15th March 2000'. You can also type 'skip'.", newContext: context };
+        }
+        data.step = 'license';
+        return { success: true, message: "What is their driving license number?", newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'license') {
+        data.driving_license_number = (text.includes("skip") || text.includes("none")) ? null : text.trim().toUpperCase();
+        data.step = 'phone';
+        return { success: true, message: "What is their phone number?", newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'phone') {
+        data.phone_number = (text.includes("skip") || text.includes("none")) ? null : text.trim();
+        data.step = 'address';
+        return { success: true, message: "What is their address?", newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'address') {
+        data.full_address = (text.includes("skip") || text.includes("none")) ? null : text.trim();
+        data.step = 'notes';
+        return { success: true, message: "Would you like to add any notes for this student?", newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'notes') {
+        data.notes = (text.includes("skip") || text.includes("none") || text.includes("no")) ? null : text.trim();
+        
+        // FINAL SAVE
+        const { error } = await supabase.from("students").insert({
+          user_id: userId,
+          name: data.name,
+          date_of_birth: data.date_of_birth,
+          driving_license_number: data.driving_license_number,
+          phone_number: data.phone_number,
+          full_address: data.full_address,
+          notes: data.notes,
+          status: "Beginner"
+        });
+
+        if (error) return { success: false, message: "Failed to add student: " + error.message };
+        return { 
+          success: true, 
+          message: `Success! **${data.name}** has been added to your student list.`, 
+          actionTaken: "add_student",
+          newContext: null 
+        };
+      }
+    }
+
+    // --- EXISTING CONTEXT CHECKS ---
     if (context?.pendingNoteForLessonId) {
       const { data: booking, error: fetchError } = await supabase.from("bookings").select("id, title").eq("id", context.pendingNoteForLessonId).single();
       if (!fetchError && booking) {
@@ -230,7 +310,25 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 4. ADD EXPENSE PATTERN
+    // 4. ADD STUDENT PATTERN
+    if (input.includes("add") && input.includes("student")) {
+      // Check if name is provided
+      const nameMatch = text.match(/add (?:a )?new student (?:called |named )?([a-z\s]+)/i);
+      const name = nameMatch ? nameMatch[1].trim() : null;
+
+      return {
+        success: true,
+        message: name ? `Sure! I'll help you add **${name}**. What is their date of birth?` : "Sure! I can help you add a new student. What is the student's name?",
+        newContext: {
+          pendingStudent: {
+            step: name ? 'dob' : 'name',
+            name: name
+          }
+        }
+      };
+    }
+
+    // 5. ADD EXPENSE PATTERN
     const expenseMatch = input.match(/add (?:£|\$)?(\d+(?:\.\d+)?) (\w+) expense(?: (.+))?/i);
     if (expenseMatch) {
       const [_, amount, category, description] = expenseMatch;
@@ -246,7 +344,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 5. MILEAGE ENTRY PATTERN
+    // 6. MILEAGE ENTRY PATTERN
     const mileageValueMatch = input.match(/(\d+(?:\.\d+)?)/); 
     const hasMileageKeyword = input.includes("mileage") || input.includes("miles") || input.includes("odo");
 
@@ -279,7 +377,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: isAdditive ? `Added ${value} miles to your ${targetCar.make}. New total is ${finalMileage.toFixed(0)}.` : `Updated total mileage for your ${targetCar.make} to ${finalMileage.toFixed(0)}.`, actionTaken: "mileage" };
     }
 
-    // 6. NEXT LESSON QUERY PATTERN
+    // 7. NEXT LESSON QUERY PATTERN
     if (input.includes("next") && (input.includes("lesson") || input.includes("booking") || input.includes("schedule") || input.includes("who"))) {
       const { data: nextBooking, error } = await supabase.from("bookings").select("id, title, start_time, lesson_type, students(name)").eq("user_id", userId).eq("status", "scheduled").gt("start_time", new Date().toISOString()).order("start_time", { ascending: true }).limit(1).maybeSingle();
       if (error) return { success: false, message: "Failed to check schedule: " + error.message };
@@ -293,7 +391,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Your next lesson is with **${studentName}** at **${timeStr}** ${dateStr}. It's a **${nextBooking.lesson_type}**.`, actionTaken: "query_next_lesson" };
     }
 
-    // 7. SUMMARY / REPORT PATTERN
+    // 8. SUMMARY / REPORT PATTERN
     if (input.includes("summary") || input.includes("report") || input.includes("stats") || input.includes("how many lessons")) {
       const { date: targetDate } = parseDateTime(input);
       let start: Date, end: Date, label: string;
@@ -330,7 +428,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Here is your summary for **${label}**:\n\n` + `✅ **${delivered}** lessons delivered\n` + `📅 **${booked}** lessons currently booked\n` + `🚗 **${tests}** driving tests completed\n` + `💰 **£${earned.toFixed(2)}** earned (est.)`, actionTaken: "summary" };
     }
 
-    // 8. MESSAGING PATTERN
+    // 9. MESSAGING PATTERN
     const isMessaging = input.includes("message") || input.includes("tell") || input.includes("send");
     if (isMessaging) {
       const msgParts = text.split(/[:]|saying|telling|that|message:/i);
@@ -349,7 +447,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 9. DRIVING TEST RESULT PATTERN
+    // 10. DRIVING TEST RESULT PATTERN
     if (input.includes("test") && (input.includes("result") || input.includes("passed") || input.includes("failed") || input.includes("record"))) {
       const student = students.find(s => input.includes(s.name.toLowerCase()));
       const { date: testDate } = parseDateTime(input);
@@ -394,7 +492,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Recorded test result for **${student.name}** on ${format(testDate, "MMM do")}. Result: **${passed ? 'PASSED' : 'FAILED'}** with ${drivingFaults} driving faults.`, actionTaken: "test_result" };
     }
 
-    // 10. FIND BOOKING HELPER
+    // 11. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
@@ -406,7 +504,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { matches: matches || [], targetTime, timeProvided, student, error };
     };
 
-    // 11. DELETE/CANCEL BOOKING PATTERN
+    // 12. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
         const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
@@ -421,7 +519,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 12. UPDATE BOOKING STATUS
+    // 13. UPDATE BOOKING STATUS
     const isStatusUpdate = input.includes("complete") || input.includes("done") || input.includes("finished") || input.includes("paid") || input.includes("settled");
     if (isStatusUpdate) {
       const isAll = input.includes("all") || input.includes("everything") || input.includes("every lesson");
@@ -451,7 +549,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 13. LESSON NOTE PATTERN
+    // 14. LESSON NOTE PATTERN
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
@@ -473,7 +571,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 14. LESSON TARGET PATTERN
+    // 15. LESSON TARGET PATTERN
     if (input.includes("target") || input.includes("goal") || input.includes("objective")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
@@ -495,7 +593,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 15. PROGRESS UPDATE PATTERN
+    // 16. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || input.includes("rating") || input.includes("mark") || input.includes("progress") || input.includes("note") || input.includes("comment") || input.includes("feedback");
     if (isProgressUpdate) {
       const ratingMatch = input.match(/([1-5])\s*star/i) || input.match(/rating (?:of )?([1-5])/i) || input.match(/mark (?:as )?([1-5])/i);
@@ -522,7 +620,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 16. BOOKING / SLOT PATTERN
+    // 17. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
     if (isBookingAction && isBookingTarget) {
