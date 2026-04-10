@@ -12,6 +12,7 @@ import {
   setMonth, 
   setDate,
   startOfDay,
+  endOfDay,
   isBefore,
   addYears,
   parseISO,
@@ -158,7 +159,43 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
                            input.includes("settled");
 
     if (isStatusUpdate) {
+      const isAll = input.includes("all") || input.includes("everything") || input.includes("every lesson");
       const targetTime = parseDateTime(input);
+      
+      // Bulk Completion Logic
+      if (isAll && (input.includes("complete") || input.includes("done") || input.includes("finished"))) {
+        const dayStart = startOfDay(targetTime);
+        const dayEnd = endOfDay(targetTime);
+        
+        const { data: toUpdate, error: fetchError } = await supabase
+          .from("bookings")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("status", "scheduled")
+          .gte("start_time", dayStart.toISOString())
+          .lte("start_time", dayEnd.toISOString());
+          
+        if (fetchError) return { success: false, message: "Error finding lessons: " + fetchError.message };
+        
+        if (!toUpdate || toUpdate.length === 0) {
+          return { success: false, message: `I couldn't find any scheduled lessons to complete on ${format(targetTime, "MMM do")}.` };
+        }
+        
+        const { error: updateError } = await supabase
+          .from("bookings")
+          .update({ status: "completed" })
+          .in("id", toUpdate.map(b => b.id));
+          
+        if (updateError) return { success: false, message: "Failed to update lessons: " + updateError.message };
+        
+        return { 
+          success: true, 
+          message: `Successfully marked all ${toUpdate.length} lessons on ${format(targetTime, "MMM do")} as completed.`,
+          actionTaken: "complete_all"
+        };
+      }
+
+      // Individual Status Update
       const student = students.find(s => input.includes(s.name.toLowerCase()));
       
       let query = supabase
