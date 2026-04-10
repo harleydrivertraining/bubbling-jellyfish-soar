@@ -150,7 +150,63 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       }
     }
 
-    // 4. PROGRESS UPDATE PATTERN
+    // 4. UPDATE BOOKING STATUS (Complete/Paid)
+    const isStatusUpdate = input.includes("complete") || 
+                           input.includes("done") || 
+                           input.includes("finished") || 
+                           input.includes("paid") || 
+                           input.includes("settled");
+
+    if (isStatusUpdate) {
+      const targetTime = parseDateTime(input);
+      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      
+      let query = supabase
+        .from("bookings")
+        .select("id, title, start_time, is_paid")
+        .eq("user_id", userId)
+        .eq("start_time", targetTime.toISOString());
+
+      if (student) {
+        query = query.eq("student_id", student.id);
+      }
+
+      const { data: matches } = await query;
+
+      if (!matches || matches.length === 0) {
+        return { 
+          success: false, 
+          message: `I couldn't find a booking at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` 
+        };
+      }
+
+      const booking = matches[0];
+      
+      if (input.includes("paid") || input.includes("settled")) {
+        // Check if covered by pre-paid credit
+        const { data: tx } = await supabase
+          .from("pre_paid_hours_transactions")
+          .select("id")
+          .eq("booking_id", booking.id)
+          .maybeSingle();
+        
+        if (tx) {
+          return { success: false, message: `This lesson for ${student?.name || 'the student'} is already covered by pre-paid credit, so it doesn't need to be marked as paid.` };
+        }
+
+        const { error } = await supabase.from("bookings").update({ is_paid: true }).eq("id", booking.id);
+        if (error) return { success: false, message: "Failed to mark as paid: " + error.message };
+        return { success: true, message: `Marked ${booking.title} as paid.`, actionTaken: "paid" };
+      }
+
+      if (input.includes("complete") || input.includes("done") || input.includes("finished")) {
+        const { error } = await supabase.from("bookings").update({ status: "completed" }).eq("id", booking.id);
+        if (error) return { success: false, message: "Failed to mark as complete: " + error.message };
+        return { success: true, message: `Marked ${booking.title} as completed.`, actionTaken: "complete" };
+      }
+    }
+
+    // 5. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -212,7 +268,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       }
     }
 
-    // 5. BOOKING PATTERN
+    // 6. BOOKING PATTERN
     if (input.includes("book")) {
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
