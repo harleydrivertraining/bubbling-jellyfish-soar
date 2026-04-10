@@ -24,7 +24,7 @@ const AIAssistant: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
-      content: "Hi! I'm your HDT Assistant. I can help you book lessons, add expenses, or update student progress. What can I do for you?", 
+      content: "Hi! I'm your Instructor Assistant. I can help you book lessons, add expenses, or update student progress. What can I do for you?", 
       timestamp: new Date() 
     }
   ]);
@@ -77,7 +77,7 @@ const AIAssistant: React.FC = () => {
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <CardTitle className="text-sm font-black uppercase tracking-tight">HDT Assistant</CardTitle>
+                <CardTitle className="text-sm font-black uppercase tracking-tight">Instructor Assistant</CardTitle>
                 <p className="text-[10px] opacity-70 font-bold">AI POWERED</p>
               </div>
             </div>
