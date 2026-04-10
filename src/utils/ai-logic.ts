@@ -179,7 +179,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 1. FETCH ENTITIES
     const [studentsRes, topicsRes, carsRes] = await Promise.all([
-      supabase.from("students").select("id, name").eq("user_id", userId),
+      supabase.from("students").select("id, name, auth_user_id").eq("user_id", userId),
       supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`),
       supabase.from("cars").select("id, make, model, initial_mileage").eq("user_id", userId)
     ]);
@@ -347,7 +347,44 @@ export const processAICommand = async (text: string, userId: string, context?: a
       };
     }
 
-    // 6. FIND BOOKING HELPER
+    // 6. MESSAGING PATTERN
+    const isMessaging = input.includes("message") || input.includes("tell") || input.includes("send");
+    if (isMessaging) {
+      const msgParts = text.split(/[:]|saying|telling|that|message:/i);
+      const searchArea = msgParts[0].toLowerCase();
+      const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
+
+      if (student && msgParts.length > 1) {
+        const content = msgParts[msgParts.length - 1].trim();
+        if (content.length > 0) {
+          const { error } = await supabase.from("instructor_messages").insert({
+            instructor_id: userId,
+            student_id: student.id,
+            content: content,
+            is_broadcast: false
+          });
+
+          if (error) return { success: false, message: "Failed to send message: " + error.message };
+
+          if (student.auth_user_id) {
+            await supabase.from("notifications").insert({
+              user_id: student.auth_user_id,
+              title: "New Message",
+              message: "Your instructor has sent you a private message.",
+              type: "instructor_message"
+            });
+          }
+
+          return { 
+            success: true, 
+            message: `I've sent that message to **${student.name}**.`, 
+            actionTaken: "send_message" 
+          };
+        }
+      }
+    }
+
+    // 7. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
@@ -372,7 +409,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { matches: matches || [], targetTime, timeProvided, student, error };
     };
 
-    // 7. DELETE/CANCEL BOOKING PATTERN
+    // 8. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
         const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
@@ -401,7 +438,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 8. UPDATE BOOKING STATUS
+    // 9. UPDATE BOOKING STATUS
     const isStatusUpdate = input.includes("complete") || 
                            input.includes("done") || 
                            input.includes("finished") || 
@@ -450,7 +487,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 9. LESSON NOTE PATTERN
+    // 10. LESSON NOTE PATTERN
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
@@ -477,7 +514,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 10. LESSON TARGET PATTERN
+    // 11. LESSON TARGET PATTERN
     if (input.includes("target") || input.includes("goal") || input.includes("objective")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
@@ -504,7 +541,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 11. PROGRESS UPDATE PATTERN
+    // 12. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -564,7 +601,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 12. BOOKING / SLOT PATTERN
+    // 13. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
 
@@ -583,7 +620,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       if (input.includes("test")) {
         lessonType = "Driving Test";
-        // Default to 2 hours for tests if no duration was explicitly provided
         if (!durationMatch) durationMins = 120;
       }
       else if (input.includes("personal")) lessonType = "Personal";
@@ -610,11 +646,9 @@ export const processAICommand = async (text: string, userId: string, context?: a
       } else if (lessonType === "Personal") {
         titlePrefix = "Personal Appointment";
       } else {
-        // If it's not availability or personal, we need a student
         if (!input.includes("available") && !input.includes("gap") && !input.includes("space")) {
           return { success: false, message: "I couldn't find a student with that name in your list." };
         }
-        // Fallback for "add a lesson tomorrow" without student name -> assume availability
         lessonType = "Availability";
         status = "available";
         titlePrefix = "Available Slot";
@@ -622,14 +656,12 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       const { date: startTime } = parseDateTime(input);
       
-      // Recurrence Parsing - More strict to avoid catching durations
       let repeatCount = 1;
       let intervalWeeks = 1; 
       
       const isWeekly = input.includes("weekly") || input.includes("every week");
       const isFortnightly = input.includes("fortnightly") || input.includes("every 2 weeks") || input.includes("every two weeks");
       
-      // Only consider it repeating if it has explicit keywords OR a specific "for X weeks" pattern
       const repeatMatch = input.match(/(?:repeat|for)\s+(\d+)\s*(?:weeks|times|occurrences)/i);
       const isRepeating = isWeekly || isFortnightly || !!repeatMatch;
 
@@ -641,7 +673,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
         repeatCount = parseInt(repeatMatch[1]);
         if (intervalWeeks === 0) intervalWeeks = 1;
       } else if (isWeekly || isFortnightly) {
-        repeatCount = 4; // Default to 4 weeks if not specified
+        repeatCount = 4; 
       }
 
       const bookingsToInsert = [];
@@ -678,7 +710,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Add a 2 hour availability slot tomorrow at 10am', 'Delete John's lesson at 10am tomorrow', or 'Add £20 fuel expense'." 
+      message: "I'm not sure how to do that yet. Try: 'Message John saying hello', 'Add a 2 hour availability slot tomorrow at 10am', or 'Add £20 fuel expense'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);
