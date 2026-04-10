@@ -23,15 +23,23 @@ export interface AIResponse {
 }
 
 /**
- * This is a 'Smart Parser'. In a production app, you would send the text 
- * to an OpenAI/Claude API via a Supabase Edge Function. 
- * For now, this handles common patterns locally.
+ * This is a 'Smart Parser'. It scans the input for known entities (students, topics)
+ * and patterns (amounts, dates, times) to perform actions.
  */
 export const processAICommand = async (text: string, userId: string): Promise<AIResponse> => {
   try {
     const input = text.toLowerCase();
 
-    // 1. ADD EXPENSE PATTERN: "add [amount] [category] expense [description]"
+    // 1. FETCH ENTITIES FIRST (Students and Topics)
+    const [studentsRes, topicsRes] = await Promise.all([
+      supabase.from("students").select("id, name").eq("user_id", userId),
+      supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`)
+    ]);
+
+    const students = studentsRes.data || [];
+    const topics = topicsRes.data || [];
+
+    // 2. ADD EXPENSE PATTERN
     const expenseMatch = input.match(/add (?:£|\$)?(\d+(?:\.\d+)?) (\w+) expense(?: (.+))?/i);
     if (expenseMatch) {
       const [_, amount, category, description] = expenseMatch;
@@ -47,9 +55,43 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 2. BOOKING PATTERN: "book [duration] [type] for [student] at [time] [day]"
+    // 3. PROGRESS UPDATE PATTERN (Smarter Entity Matching)
+    // Look for "star", "rating", "mark", or "progress"
+    if (input.includes("star") || input.includes("rating") || input.includes("mark") || input.includes("progress")) {
+      const ratingMatch = input.match(/([1-5])\s*star/i) || input.match(/rating (?:of )?([1-5])/i) || input.match(/mark (?:as )?([1-5])/i);
+      
+      if (ratingMatch) {
+        const rating = parseInt(ratingMatch[1]);
+        
+        // Find the student mentioned
+        const student = students.find(s => input.includes(s.name.toLowerCase()));
+        
+        // Find the topic mentioned (sort by length descending to match "Cockpit Drill" before "Drill")
+        const sortedTopics = [...topics].sort((a, b) => b.name.length - a.name.length);
+        const topic = sortedTopics.find(t => input.includes(t.name.toLowerCase()));
+
+        if (student && topic) {
+          const { error } = await supabase.from("student_progress_entries").insert({
+            user_id: userId,
+            student_id: student.id,
+            topic_id: topic.id,
+            rating: rating,
+            comment: "Added via Instructor Assistant",
+            entry_date: new Date().toISOString()
+          });
+
+          if (error) return { success: false, message: "Failed to save progress: " + error.message };
+          return { 
+            success: true, 
+            message: `Updated ${student.name}'s progress for ${topic.name} to ${rating} stars.`, 
+            actionTaken: "progress" 
+          };
+        }
+      }
+    }
+
+    // 4. BOOKING PATTERN
     if (input.includes("book")) {
-      // Determine Duration (default 60 mins)
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
       if (durationMatch) {
@@ -58,7 +100,6 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         durationMins = (unit.startsWith('h')) ? val * 60 : val;
       }
 
-      // Determine Lesson Type
       let lessonType = "Driving lesson";
       let status = "scheduled";
       let titlePrefix = "";
@@ -71,75 +112,54 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         titlePrefix = "Available Slot";
       }
 
-      // Find Student (if not availability/personal)
-      let studentId = null;
-      let studentName = "Someone";
+      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      let studentId = student?.id || null;
+      let studentName = student?.name || "Someone";
 
-      if (lessonType !== "Availability") {
-        const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
-        const student = students?.find(s => input.includes(s.name.toLowerCase()));
-        
-        if (student) {
-          studentId = student.id;
-          studentName = student.name;
-          titlePrefix = `${student.name} - ${lessonType}`;
-        } else if (lessonType !== "Personal") {
-          return { success: false, message: "I couldn't find a student with that name in your list." };
-        } else {
-          titlePrefix = "Personal Appointment";
-        }
+      if (lessonType === "Availability") {
+        titlePrefix = "Available Slot";
+      } else if (student) {
+        titlePrefix = `${student.name} - ${lessonType}`;
+      } else if (lessonType === "Personal") {
+        titlePrefix = "Personal Appointment";
+      } else {
+        return { success: false, message: "I couldn't find a student with that name in your list." };
       }
 
-      // --- IMPROVED DATE PARSING ---
+      // Date Parsing
       let targetDate = startOfDay(new Date());
-      
       if (input.includes("tomorrow")) {
         targetDate = startOfTomorrow();
       } else {
-        // Check for days of the week
         const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
         const dayIndex = days.findIndex(d => input.includes(d));
         if (dayIndex !== -1) {
           targetDate = nextDay(new Date(), dayIndex as any);
         } else {
-          // Check for specific date like "25th Oct" or "25/10"
           const dateMatch = input.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
           if (dateMatch) {
             const day = parseInt(dateMatch[1]);
             const monthStr = dateMatch[2].toLowerCase();
-            let month;
-            if (isNaN(parseInt(monthStr))) {
-              const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-              month = months.indexOf(monthStr.substring(0, 3));
-            } else {
-              month = parseInt(monthStr) - 1;
-            }
-            
+            let month = isNaN(parseInt(monthStr)) ? ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(monthStr.substring(0, 3)) : parseInt(monthStr) - 1;
             if (month !== -1) {
               targetDate = setMonth(setDate(targetDate, day), month);
-              // If the date is in the past, assume next year
-              if (isBefore(targetDate, startOfDay(new Date()))) {
-                targetDate = addYears(targetDate, 1);
-              }
+              if (isBefore(targetDate, startOfDay(new Date()))) targetDate = addYears(targetDate, 1);
             }
           }
         }
       }
 
-      // --- IMPROVED TIME PARSING ---
+      // Time Parsing
       let startTime = targetDate;
       const timeMatch = input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
       if (timeMatch) {
         let hours = parseInt(timeMatch[1]);
         const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
         const ampm = timeMatch[3].toLowerCase();
-        
         if (ampm === "pm" && hours < 12) hours += 12;
         if (ampm === "am" && hours === 12) hours = 0;
-        
         startTime = setHours(setMinutes(targetDate, mins), hours);
       } else {
-        // Default to 9am if no time specified
         startTime = setHours(setMinutes(targetDate, 0), 9);
       }
 
@@ -162,59 +182,6 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         success: true, 
         message: `Booked a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, 
         actionTaken: "booking" 
-      };
-    }
-
-    // 3. PROGRESS PATTERN: 
-    // "mark [student] [rating] stars for [topic]"
-    // "add [rating] stars to [topic] for [student]"
-    const markMatch = input.match(/mark (.+) (\d) stars? for (.+)/i);
-    const addMatch = input.match(/add (\d) stars? to (.+) for (.+)/i);
-    
-    if (markMatch || addMatch) {
-      let studentName = "";
-      let rating = "";
-      let topicName = "";
-
-      if (markMatch) {
-        const [_, sName, r, tName] = markMatch;
-        studentName = sName;
-        rating = r;
-        topicName = tName;
-      } else if (addMatch) {
-        const [_, r, tName, sName] = addMatch;
-        studentName = sName;
-        rating = r;
-        topicName = tName;
-      }
-      
-      const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
-      const student = students?.find(s => s.name.toLowerCase().includes(studentName.toLowerCase().trim()));
-      
-      const { data: topics } = await supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`);
-      const topic = topics?.find(t => t.name.toLowerCase().includes(topicName.toLowerCase().trim()));
-
-      if (!student || !topic) {
-        return { 
-          success: false, 
-          message: `I couldn't find ${!student ? 'that student' : 'that topic'}. Make sure the name is correct.` 
-        };
-      }
-
-      const { error } = await supabase.from("student_progress_entries").insert({
-        user_id: userId,
-        student_id: student.id,
-        topic_id: topic.id,
-        rating: parseInt(rating),
-        comment: "Added via Instructor Assistant",
-        entry_date: new Date().toISOString()
-      });
-
-      if (error) return { success: false, message: "Failed to save progress: " + error.message };
-      return { 
-        success: true, 
-        message: `Updated ${student.name}'s progress for ${topic.name} to ${rating} stars.`, 
-        actionTaken: "progress" 
       };
     }
 
