@@ -95,17 +95,14 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
     }
   }
 
-  // 2. TIME PARSING - Improved to avoid grabbing date numbers
+  // 2. TIME PARSING
   let finalTime = targetDate;
-  
-  // Look for "at 10", "10am", "10:30", etc.
   const timeMatch = input.match(/(?:at\s+)(\d+)(?::(\d+))?\s*(am|pm)?/i) || 
                     input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i) ||
                     input.match(/(\d+):(\d+)/i);
 
   if (timeMatch) {
     timeProvided = true;
-    // The regex groups might vary depending on which pattern matched
     let hoursStr = timeMatch[1] || timeMatch[4] || timeMatch[7];
     let minsStr = timeMatch[2] || timeMatch[5] || timeMatch[8];
     let ampm = (timeMatch[3] || timeMatch[6])?.toLowerCase();
@@ -115,8 +112,6 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
     
     if (ampm === "pm" && hours < 12) hours += 12;
     if (ampm === "am" && hours === 12) hours = 0;
-    
-    // Heuristic: if no AM/PM and hour is small (1-7), assume PM
     if (!ampm && !minsStr && hours > 0 && hours < 8) hours += 12; 
     
     finalTime = setHours(setMinutes(targetDate, mins), hours);
@@ -135,56 +130,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
   try {
     const input = text.toLowerCase();
 
-    // 0. CHECK CONTEXT FOR PENDING ACTIONS
-    if (context?.pendingNoteForLessonId) {
-      const { data: booking, error: fetchError } = await supabase
-        .from("bookings")
-        .select("id, title")
-        .eq("id", context.pendingNoteForLessonId)
-        .single();
-
-      if (!fetchError && booking) {
-        const { error: updateError } = await supabase
-          .from("bookings")
-          .update({ description: text.trim() })
-          .eq("id", booking.id);
-
-        if (!updateError) {
-          return { 
-            success: true, 
-            message: `Got it. I've added that note to ${booking.title}.`,
-            actionTaken: "lesson_note_followup",
-            newContext: null 
-          };
-        }
-      }
-    }
-
-    if (context?.pendingTargetForLessonId) {
-      const { data: booking, error: fetchError } = await supabase
-        .from("bookings")
-        .select("id, title")
-        .eq("id", context.pendingTargetForLessonId)
-        .single();
-
-      if (!fetchError && booking) {
-        const { error: updateError } = await supabase
-          .from("bookings")
-          .update({ targets_for_next_session: text.trim() })
-          .eq("id", booking.id);
-
-        if (!updateError) {
-          return { 
-            success: true, 
-            message: `Got it. I've set that target for ${booking.title}.`,
-            actionTaken: "lesson_target_followup",
-            newContext: null 
-          };
-        }
-      }
-    }
-
-    // 1. FETCH ENTITIES
+    // 1. FETCH ENTITIES (Needed for context checks too)
     const [studentsRes, topicsRes, carsRes] = await Promise.all([
       supabase.from("students").select("id, name, auth_user_id").eq("user_id", userId),
       supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`),
@@ -195,7 +141,96 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const topics = topicsRes.data || [];
     const cars = carsRes.data || [];
 
-    // 2. ADD EXPENSE PATTERN
+    // 2. CHECK CONTEXT FOR PENDING ACTIONS
+    if (context?.pendingNoteForLessonId) {
+      const { data: booking, error: fetchError } = await supabase.from("bookings").select("id, title").eq("id", context.pendingNoteForLessonId).single();
+      if (!fetchError && booking) {
+        await supabase.from("bookings").update({ description: text.trim() }).eq("id", booking.id);
+        return { success: true, message: `Got it. I've added that note to ${booking.title}.`, actionTaken: "lesson_note_followup", newContext: null };
+      }
+    }
+
+    if (context?.pendingTargetForLessonId) {
+      const { data: booking, error: fetchError } = await supabase.from("bookings").select("id, title").eq("id", context.pendingTargetForLessonId).single();
+      if (!fetchError && booking) {
+        await supabase.from("bookings").update({ targets_for_next_session: text.trim() }).eq("id", booking.id);
+        return { success: true, message: `Got it. I've set that target for ${booking.title}.`, actionTaken: "lesson_target_followup", newContext: null };
+      }
+    }
+
+    // 3. MULTI-STEP TEST RESULT FLOW
+    if (context?.pendingTestResult) {
+      const data = { ...context.pendingTestResult };
+      const step = data.step;
+
+      if (step === 'student') {
+        const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
+        if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        data.student_id = student.id;
+        data.student_name = student.name;
+        data.step = 'date';
+        return { success: true, message: `Got it, ${student.name}. What date was the test?`, newContext: { pendingTestResult: data } };
+      }
+
+      if (step === 'date') {
+        const { date } = parseDateTime(input);
+        data.test_date = format(date, "yyyy-MM-dd");
+        data.step = 'outcome';
+        return { success: true, message: `And did they pass?`, newContext: { pendingTestResult: data } };
+      }
+
+      if (step === 'outcome') {
+        const passed = input.includes("yes") || input.includes("pass") || input.includes("yeah");
+        data.passed = passed;
+        if (passed) {
+          data.step = 'faults';
+          return { success: true, message: `Great! How many driving faults did they have?`, newContext: { pendingTestResult: data } };
+        } else {
+          data.step = 'interaction';
+          return { success: true, message: `Sorry to hear that. Was there any examiner interaction (intervention)?`, newContext: { pendingTestResult: data } };
+        }
+      }
+
+      if (step === 'interaction') {
+        data.examiner_action = input.includes("yes") || input.includes("yeah") || input.includes("did");
+        data.step = 'serious';
+        return { success: true, message: `How many serious faults were recorded?`, newContext: { pendingTestResult: data } };
+      }
+
+      if (step === 'serious') {
+        const val = parseInt(input.match(/\d+/)?.[0] || "0");
+        data.serious_faults = val;
+        data.step = 'faults';
+        return { success: true, message: `And how many driving faults?`, newContext: { pendingTestResult: data } };
+      }
+
+      if (step === 'faults') {
+        const val = parseInt(input.match(/\d+/)?.[0] || "0");
+        data.driving_faults = val;
+        
+        // Final Save
+        const { error } = await supabase.from("driving_tests").insert({
+          user_id: userId,
+          student_id: data.student_id,
+          test_date: data.test_date,
+          passed: data.passed,
+          driving_faults: data.driving_faults,
+          serious_faults: data.serious_faults || 0,
+          examiner_action: data.examiner_action || false,
+          notes: `Recorded via AI Assistant conversation.`
+        });
+
+        if (error) return { success: false, message: "Failed to save: " + error.message };
+        return { 
+          success: true, 
+          message: `Test result recorded for **${data.student_name}**! Result: **${data.passed ? 'PASSED' : 'FAILED'}** with ${data.driving_faults} driving faults.`,
+          actionTaken: "test_result",
+          newContext: null
+        };
+      }
+    }
+
+    // 4. ADD EXPENSE PATTERN
     const expenseMatch = input.match(/add (?:£|\$)?(\d+(?:\.\d+)?) (\w+) expense(?: (.+))?/i);
     if (expenseMatch) {
       const [_, amount, category, description] = expenseMatch;
@@ -211,44 +246,23 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 3. MILEAGE ENTRY PATTERN
+    // 5. MILEAGE ENTRY PATTERN
     const mileageValueMatch = input.match(/(\d+(?:\.\d+)?)/); 
     const hasMileageKeyword = input.includes("mileage") || input.includes("miles") || input.includes("odo");
 
     if (mileageValueMatch && hasMileageKeyword) {
       const value = parseFloat(mileageValueMatch[1]);
-
-      if (cars.length === 0) {
-        return { success: false, message: "You haven't added any cars to your mileage tracker yet." };
-      }
+      if (cars.length === 0) return { success: false, message: "You haven't added any cars to your mileage tracker yet." };
 
       let targetCar = cars[0]; 
-      const matchedCar = cars.find(c => 
-        input.includes(c.make.toLowerCase()) || 
-        input.includes(c.model.toLowerCase())
-      );
+      const matchedCar = cars.find(c => input.includes(c.make.toLowerCase()) || input.includes(c.model.toLowerCase()));
       if (matchedCar) targetCar = matchedCar;
 
-      // Determine if we are ADDING or SETTING
-      const isAdditive = input.includes("add") || 
-                         input.includes("plus") || 
-                         input.includes("driven") || 
-                         input.includes("did") || 
-                         (value < 1000 && !input.includes("set") && !input.includes("is"));
-
+      const isAdditive = input.includes("add") || input.includes("plus") || input.includes("driven") || input.includes("did") || (value < 1000 && !input.includes("set") && !input.includes("is"));
       let finalMileage = value;
 
       if (isAdditive) {
-        // Fetch latest mileage
-        const { data: latestEntry } = await supabase
-          .from("car_mileage_entries")
-          .select("current_mileage")
-          .eq("car_id", targetCar.id)
-          .order("entry_date", { ascending: false })
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
+        const { data: latestEntry } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", targetCar.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(1).maybeSingle();
         const currentTotal = latestEntry?.current_mileage || targetCar.initial_mileage;
         finalMileage = currentTotal + value;
       }
@@ -262,47 +276,24 @@ export const processAICommand = async (text: string, userId: string, context?: a
       });
 
       if (error) return { success: false, message: "Failed to record mileage: " + error.message };
-      
-      return { 
-        success: true, 
-        message: isAdditive 
-          ? `Added ${value} miles to your ${targetCar.make}. New total is ${finalMileage.toFixed(0)}.` 
-          : `Updated total mileage for your ${targetCar.make} to ${finalMileage.toFixed(0)}.`, 
-        actionTaken: "mileage" 
-      };
+      return { success: true, message: isAdditive ? `Added ${value} miles to your ${targetCar.make}. New total is ${finalMileage.toFixed(0)}.` : `Updated total mileage for your ${targetCar.make} to ${finalMileage.toFixed(0)}.`, actionTaken: "mileage" };
     }
 
-    // 4. NEXT LESSON QUERY PATTERN
+    // 6. NEXT LESSON QUERY PATTERN
     if (input.includes("next") && (input.includes("lesson") || input.includes("booking") || input.includes("schedule") || input.includes("who"))) {
-      const { data: nextBooking, error } = await supabase
-        .from("bookings")
-        .select("id, title, start_time, lesson_type, students(name)")
-        .eq("user_id", userId)
-        .eq("status", "scheduled")
-        .gt("start_time", new Date().toISOString())
-        .order("start_time", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
+      const { data: nextBooking, error } = await supabase.from("bookings").select("id, title, start_time, lesson_type, students(name)").eq("user_id", userId).eq("status", "scheduled").gt("start_time", new Date().toISOString()).order("start_time", { ascending: true }).limit(1).maybeSingle();
       if (error) return { success: false, message: "Failed to check schedule: " + error.message };
-      
-      if (!nextBooking) {
-        return { success: true, message: "You don't have any more lessons scheduled for today or in the future." };
-      }
+      if (!nextBooking) return { success: true, message: "You don't have any more lessons scheduled for today or in the future." };
 
       const startTime = parseISO(nextBooking.start_time);
       const studentName = (nextBooking.students as any)?.name || "a student";
       const timeStr = format(startTime, "p");
       const dateStr = isToday(startTime) ? "today" : isSameDay(startTime, startOfTomorrow()) ? "tomorrow" : `on ${format(startTime, "EEEE, MMM do")}`;
 
-      return { 
-        success: true, 
-        message: `Your next lesson is with **${studentName}** at **${timeStr}** ${dateStr}. It's a **${nextBooking.lesson_type}**.`,
-        actionTaken: "query_next_lesson"
-      };
+      return { success: true, message: `Your next lesson is with **${studentName}** at **${timeStr}** ${dateStr}. It's a **${nextBooking.lesson_type}**.`, actionTaken: "query_next_lesson" };
     }
 
-    // 5. SUMMARY / REPORT PATTERN
+    // 7. SUMMARY / REPORT PATTERN
     if (input.includes("summary") || input.includes("report") || input.includes("stats") || input.includes("how many lessons")) {
       const { date: targetDate } = parseDateTime(input);
       let start: Date, end: Date, label: string;
@@ -323,38 +314,23 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       const [profileRes, bookingsRes] = await Promise.all([
         supabase.from("profiles").select("hourly_rate").eq("id", userId).single(),
-        supabase.from("bookings")
-          .select("status, lesson_type, start_time, end_time")
-          .eq("user_id", userId)
-          .gte("start_time", start.toISOString())
-          .lte("start_time", end.toISOString())
+        supabase.from("bookings").select("status, lesson_type, start_time, end_time").eq("user_id", userId).gte("start_time", start.toISOString()).lte("start_time", end.toISOString())
       ]);
 
       const rate = profileRes.data?.hourly_rate || 0;
       const bookings = bookingsRes.data || [];
-
       const delivered = bookings.filter(b => b.status === 'completed').length;
       const booked = bookings.filter(b => b.status === 'scheduled').length;
       const tests = bookings.filter(b => b.lesson_type === 'Driving Test' && b.status === 'completed').length;
       
       let totalMins = 0;
-      bookings.filter(b => b.status === 'completed').forEach(b => {
-        totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time));
-      });
+      bookings.filter(b => b.status === 'completed').forEach(b => { totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)); });
       const earned = (totalMins / 60) * rate;
 
-      return {
-        success: true,
-        message: `Here is your summary for **${label}**:\n\n` +
-                 `✅ **${delivered}** lessons delivered\n` +
-                 `📅 **${booked}** lessons currently booked\n` +
-                 `🚗 **${tests}** driving tests completed\n` +
-                 `💰 **£${earned.toFixed(2)}** earned (est.)`,
-        actionTaken: "summary"
-      };
+      return { success: true, message: `Here is your summary for **${label}**:\n\n` + `✅ **${delivered}** lessons delivered\n` + `📅 **${booked}** lessons currently booked\n` + `🚗 **${tests}** driving tests completed\n` + `💰 **£${earned.toFixed(2)}** earned (est.)`, actionTaken: "summary" };
     }
 
-    // 6. MESSAGING PATTERN
+    // 8. MESSAGING PATTERN
     const isMessaging = input.includes("message") || input.includes("tell") || input.includes("send");
     if (isMessaging) {
       const msgParts = text.split(/[:]|saying|telling|that|message:/i);
@@ -364,155 +340,131 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (student && msgParts.length > 1) {
         const content = msgParts[msgParts.length - 1].trim();
         if (content.length > 0) {
-          const { error } = await supabase.from("instructor_messages").insert({
-            instructor_id: userId,
-            student_id: student.id,
-            content: content,
-            is_broadcast: false
-          });
-
-          if (error) return { success: false, message: "Failed to send message: " + error.message };
-
+          await supabase.from("instructor_messages").insert({ instructor_id: userId, student_id: student.id, content: content, is_broadcast: false });
           if (student.auth_user_id) {
-            await supabase.from("notifications").insert({
-              user_id: student.auth_user_id,
-              title: "New Message",
-              message: "Your instructor has sent you a private message.",
-              type: "instructor_message"
-            });
+            await supabase.from("notifications").insert({ user_id: student.auth_user_id, title: "New Message", message: "Your instructor has sent you a private message.", type: "instructor_message" });
           }
-
-          return { 
-            success: true, 
-            message: `I've sent that message to **${student.name}**.`, 
-            actionTaken: "send_message" 
-          };
+          return { success: true, message: `I've sent that message to **${student.name}**.`, actionTaken: "send_message" };
         }
       }
     }
 
-    // 7. FIND BOOKING HELPER
+    // 9. DRIVING TEST RESULT PATTERN
+    if (input.includes("test") && (input.includes("result") || input.includes("passed") || input.includes("failed") || input.includes("record"))) {
+      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      const { date: testDate } = parseDateTime(input);
+      const hasOutcome = input.includes("passed") || input.includes("failed");
+
+      if (!student || !hasOutcome) {
+        // Start the multi-step flow
+        return { 
+          success: true, 
+          message: "Sure! I can help you record a test result. Which student was the test for?",
+          newContext: { 
+            pendingTestResult: { 
+              step: student ? 'date' : 'student',
+              student_id: student?.id,
+              student_name: student?.name,
+              test_date: student ? format(testDate, "yyyy-MM-dd") : null
+            } 
+          } 
+        };
+      }
+
+      // If we have enough info, save immediately
+      const passed = input.includes("passed");
+      const drivingFaultsMatch = input.match(/(\d+)\s*(?:driving\s*)?faults?/i);
+      const seriousFaultsMatch = input.match(/(\d+)\s*serious\s*faults?/i);
+      const drivingFaults = drivingFaultsMatch ? parseInt(drivingFaultsMatch[1]) : 0;
+      const seriousFaults = seriousFaultsMatch ? parseInt(seriousFaultsMatch[1]) : 0;
+      const examinerAction = input.includes("examiner action") || input.includes("intervention");
+
+      const { error } = await supabase.from("driving_tests").insert({
+        user_id: userId,
+        student_id: student.id,
+        test_date: format(testDate, "yyyy-MM-dd"),
+        passed: passed,
+        driving_faults: drivingFaults,
+        serious_faults: seriousFaults,
+        examiner_action: examinerAction,
+        notes: `Recorded via AI Assistant: ${text}`
+      });
+
+      if (error) return { success: false, message: "Failed to record test result: " + error.message };
+      return { success: true, message: `Recorded test result for **${student.name}** on ${format(testDate, "MMM do")}. Result: **${passed ? 'PASSED' : 'FAILED'}** with ${drivingFaults} driving faults.`, actionTaken: "test_result" };
+    }
+
+    // 10. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
-      
-      let query = supabase
-        .from("bookings")
-        .select("id, title, start_time, status")
-        .eq("user_id", userId);
-
-      if (timeProvided) {
-        query = query.eq("start_time", targetTime.toISOString());
-      } else {
-        query = query.gte("start_time", startOfDay(targetTime).toISOString())
-                     .lte("start_time", endOfDay(targetTime).toISOString());
-      }
-
-      if (student) {
-        query = query.eq("student_id", student.id);
-      }
-
+      let query = supabase.from("bookings").select("id, title, start_time, status").eq("user_id", userId);
+      if (timeProvided) query = query.eq("start_time", targetTime.toISOString());
+      else query = query.gte("start_time", startOfDay(targetTime).toISOString()).lte("start_time", endOfDay(targetTime).toISOString());
+      if (student) query = query.eq("student_id", student.id);
       const { data: matches, error } = await query;
       return { matches: matches || [], targetTime, timeProvided, student, error };
     };
 
-    // 8. DELETE/CANCEL BOOKING PATTERN
+    // 11. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
         const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
-        
-        if (matches.length === 0) {
-          return { 
-            success: false, 
-            message: `I couldn't find a booking on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` 
-          };
-        }
-
+        if (matches.length === 0) return { success: false, message: `I couldn't find a booking on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` };
         if (matches.length > 1 && !timeProvided) {
           const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
           return { success: false, message: `I found multiple lessons on that day (at ${times}). Which one should I delete?` };
         }
-
         const bookingToDelete = matches[0];
-        const { error: deleteError } = await supabase.from("bookings").delete().eq("id", bookingToDelete.id);
-
-        if (deleteError) return { success: false, message: "Failed to delete: " + deleteError.message };
-        return { 
-          success: true, 
-          message: `Deleted the booking: "${bookingToDelete.title}" at ${format(parseISO(bookingToDelete.start_time), "p")} on ${format(parseISO(bookingToDelete.start_time), "MMM do")}.`,
-          actionTaken: "delete_booking"
-        };
+        await supabase.from("bookings").delete().eq("id", bookingToDelete.id);
+        return { success: true, message: `Deleted the booking: "${bookingToDelete.title}" at ${format(parseISO(bookingToDelete.start_time), "p")} on ${format(parseISO(bookingToDelete.start_time), "MMM do")}.`, actionTaken: "delete_booking" };
       }
     }
 
-    // 9. UPDATE BOOKING STATUS
-    const isStatusUpdate = input.includes("complete") || 
-                           input.includes("done") || 
-                           input.includes("finished") || 
-                           input.includes("paid") || 
-                           input.includes("settled");
-
+    // 12. UPDATE BOOKING STATUS
+    const isStatusUpdate = input.includes("complete") || input.includes("done") || input.includes("finished") || input.includes("paid") || input.includes("settled");
     if (isStatusUpdate) {
       const isAll = input.includes("all") || input.includes("everything") || input.includes("every lesson");
       const { date: targetTime } = parseDateTime(input);
-      
       if (isAll && (input.includes("complete") || input.includes("done") || input.includes("finished"))) {
-        const { data: toUpdate } = await supabase
-          .from("bookings")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("status", "scheduled")
-          .gte("start_time", startOfDay(targetTime).toISOString())
-          .lte("start_time", endOfDay(targetTime).toISOString());
-          
+        const { data: toUpdate } = await supabase.from("bookings").select("id").eq("user_id", userId).eq("status", "scheduled").gte("start_time", startOfDay(targetTime).toISOString()).lte("start_time", endOfDay(targetTime).toISOString());
         if (!toUpdate || toUpdate.length === 0) return { success: false, message: `No scheduled lessons found on ${format(targetTime, "MMM do")}.` };
-        
         await supabase.from("bookings").update({ status: "completed" }).in("id", toUpdate.map(b => b.id));
         return { success: true, message: `Marked all ${toUpdate.length} lessons on ${format(targetTime, "MMM do")} as completed.`, actionTaken: "complete_all" };
       }
-
       const { matches, timeProvided, student } = await findTargetBooking(input);
-
       if (matches.length === 0) return { success: false, message: `I couldn't find that lesson.` };
       if (matches.length > 1 && !timeProvided) {
         const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
         return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one do you mean?` };
       }
-
       const booking = matches[0];
-      
       if (input.includes("paid") || input.includes("settled")) {
         const { data: tx } = await supabase.from("pre_paid_hours_transactions").select("id").eq("booking_id", booking.id).maybeSingle();
         if (tx) return { success: false, message: `This lesson is already covered by pre-paid credit.` };
         await supabase.from("bookings").update({ is_paid: true }).eq("id", booking.id);
         return { success: true, message: `Marked ${booking.title} as paid.`, actionTaken: "paid" };
       }
-
       if (input.includes("complete") || input.includes("done") || input.includes("finished")) {
         await supabase.from("bookings").update({ status: "completed" }).eq("id", booking.id);
         return { success: true, message: `Marked ${booking.title} as completed.`, actionTaken: "complete" };
       }
     }
 
-    // 10. LESSON NOTE PATTERN
+    // 13. LESSON NOTE PATTERN
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
         const searchArea = noteParts[0].toLowerCase();
-        
         const { matches, timeProvided, student } = await findTargetBooking(searchArea);
-
         if (matches.length > 0) {
           if (matches.length > 1 && !timeProvided) {
             const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
             return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one should I add the note to?` };
           }
-
           const booking = matches[0];
-          
           if (noteParts.length > 1 && noteParts[noteParts.length - 1].trim().length > 0) {
-            const noteContent = noteParts[noteParts.length - 1].trim();
-            await supabase.from("bookings").update({ description: noteContent }).eq("id", booking.id);
+            await supabase.from("bookings").update({ description: noteParts[noteParts.length - 1].trim() }).eq("id", booking.id);
             return { success: true, message: `Added note to ${booking.title} on ${format(parseISO(booking.start_time), "MMM do")}.`, actionTaken: "lesson_note" };
           } else {
             return { success: true, message: "What would you like me to add to the notes?", newContext: { pendingNoteForLessonId: booking.id } };
@@ -521,25 +473,20 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 11. LESSON TARGET PATTERN
+    // 14. LESSON TARGET PATTERN
     if (input.includes("target") || input.includes("goal") || input.includes("objective")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
         const searchArea = targetParts[0].toLowerCase();
-        
         const { matches, timeProvided, student } = await findTargetBooking(searchArea);
-
         if (matches.length > 0) {
           if (matches.length > 1 && !timeProvided) {
             const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
             return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one should I set the target for?` };
           }
-
           const booking = matches[0];
-          
           if (targetParts.length > 1 && targetParts[targetParts.length - 1].trim().length > 0) {
-            const targetContent = targetParts[targetParts.length - 1].trim();
-            await supabase.from("bookings").update({ targets_for_next_session: targetContent }).eq("id", booking.id);
+            await supabase.from("bookings").update({ targets_for_next_session: targetParts[targetParts.length - 1].trim() }).eq("id", booking.id);
             return { success: true, message: `Set target for ${booking.title} on ${format(parseISO(booking.start_time), "MMM do")}.`, actionTaken: "lesson_target" };
           } else {
             return { success: true, message: "What target would you like to set for this student?", newContext: { pendingTargetForLessonId: booking.id } };
@@ -548,106 +495,36 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 12. DRIVING TEST RESULT PATTERN
-    if (input.includes("test") && (input.includes("result") || input.includes("passed") || input.includes("failed") || input.includes("record"))) {
-      const student = students.find(s => input.includes(s.name.toLowerCase()));
-      if (student) {
-        const { date: testDate } = parseDateTime(input);
-        const passed = input.includes("passed");
-        
-        // Extract faults
-        const drivingFaultsMatch = input.match(/(\d+)\s*(?:driving\s*)?faults?/i);
-        const seriousFaultsMatch = input.match(/(\d+)\s*serious\s*faults?/i);
-        
-        const drivingFaults = drivingFaultsMatch ? parseInt(drivingFaultsMatch[1]) : 0;
-        const seriousFaults = seriousFaultsMatch ? parseInt(seriousFaultsMatch[1]) : 0;
-        const examinerAction = input.includes("examiner action") || input.includes("intervention");
-
-        const { error } = await supabase.from("driving_tests").insert({
-          user_id: userId,
-          student_id: student.id,
-          test_date: format(testDate, "yyyy-MM-dd"),
-          passed: passed,
-          driving_faults: drivingFaults,
-          serious_faults: seriousFaults,
-          examiner_action: examinerAction,
-          notes: `Recorded via AI Assistant: ${text}`
-        });
-
-        if (error) return { success: false, message: "Failed to record test result: " + error.message };
-        
-        return { 
-          success: true, 
-          message: `Recorded test result for **${student.name}** on ${format(testDate, "MMM do")}. Result: **${passed ? 'PASSED' : 'FAILED'}** with ${drivingFaults} driving faults and ${seriousFaults} serious faults.`,
-          actionTaken: "test_result"
-        };
-      }
-    }
-
-    // 13. PROGRESS UPDATE PATTERN
-    const isProgressUpdate = input.includes("star") || 
-                             input.includes("rating") || 
-                             input.includes("mark") || 
-                             input.includes("progress") ||
-                             input.includes("note") ||
-                             input.includes("comment") ||
-                             input.includes("feedback");
-
+    // 15. PROGRESS UPDATE PATTERN
+    const isProgressUpdate = input.includes("star") || input.includes("rating") || input.includes("mark") || input.includes("progress") || input.includes("note") || input.includes("comment") || input.includes("feedback");
     if (isProgressUpdate) {
       const ratingMatch = input.match(/([1-5])\s*star/i) || input.match(/rating (?:of )?([1-5])/i) || input.match(/mark (?:as )?([1-5])/i);
       const rating = ratingMatch ? parseInt(ratingMatch[1]) : null;
-
       let noteContent = null;
       let isPrivate = input.includes("private") || input.includes("instructor note");
-      
       const noteParts = text.split(/[:]|note:|comment:|feedback:|saying/i);
-      if (noteParts.length > 1) {
-        noteContent = noteParts[noteParts.length - 1].trim();
-      }
-
+      if (noteParts.length > 1) noteContent = noteParts[noteParts.length - 1].trim();
       const searchArea = noteParts[0].toLowerCase();
       const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
-      
       const sortedTopics = [...topics].sort((a, b) => b.name.length - a.name.length);
       const topic = sortedTopics.find(t => searchArea.includes(t.name.toLowerCase()));
-
       if (student && topic) {
         let finalRating = rating;
         if (finalRating === null) {
-          const { data: existing } = await supabase
-            .from("student_progress_entries")
-            .select("rating")
-            .eq("student_id", student.id)
-            .eq("topic_id", topic.id)
-            .order("entry_date", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
+          const { data: existing } = await supabase.from("student_progress_entries").select("rating").eq("student_id", student.id).eq("topic_id", topic.id).order("entry_date", { ascending: false }).limit(1).maybeSingle();
           finalRating = existing?.rating || 3;
         }
-
-        await supabase.from("student_progress_entries").insert({
-          user_id: userId,
-          student_id: student.id,
-          topic_id: topic.id,
-          rating: finalRating,
-          comment: isPrivate ? null : (noteContent || "Updated via Assistant"),
-          private_notes: isPrivate ? noteContent : null,
-          entry_date: new Date().toISOString()
-        });
-
+        await supabase.from("student_progress_entries").insert({ user_id: userId, student_id: student.id, topic_id: topic.id, rating: finalRating, comment: isPrivate ? null : (noteContent || "Updated via Assistant"), private_notes: isPrivate ? noteContent : null, entry_date: new Date().toISOString() });
         let successMsg = `Updated ${student.name}'s ${topic.name}.`;
         if (rating) successMsg += ` Set to ${rating} stars.`;
         if (noteContent) successMsg += ` Added ${isPrivate ? 'private ' : ''}note.`;
-        
         return { success: true, message: successMsg, actionTaken: "progress" };
       }
     }
 
-    // 14. BOOKING / SLOT PATTERN
+    // 16. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
-
     if (isBookingAction && isBookingTarget) {
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
@@ -656,106 +533,46 @@ export const processAICommand = async (text: string, userId: string, context?: a
         const unit = durationMatch[2].toLowerCase();
         durationMins = (unit.startsWith('h')) ? val * 60 : val;
       }
-
       let lessonType = "Driving lesson";
       let status = "scheduled";
       let titlePrefix = "";
-
-      if (input.includes("test")) {
-        lessonType = "Driving Test";
-        // Default to 2 hours for tests if no duration was explicitly provided
-        if (!durationMatch) durationMins = 120;
-      }
+      if (input.includes("test")) { lessonType = "Driving Test"; if (!durationMatch) durationMins = 120; }
       else if (input.includes("personal")) lessonType = "Personal";
-      else if (
-        input.includes("available") || 
-        input.includes("availability") || 
-        input.includes("gap") || 
-        input.includes("space") || 
-        input.includes("bookable")
-      ) {
-        lessonType = "Availability";
-        status = "available";
-        titlePrefix = "Available Slot";
-      }
-
+      else if (input.includes("available") || input.includes("availability") || input.includes("gap") || input.includes("space") || input.includes("bookable")) { lessonType = "Availability"; status = "available"; titlePrefix = "Available Slot"; }
       const student = students.find(s => input.includes(s.name.toLowerCase()));
       let studentId = student?.id || null;
       let studentName = student?.name || "Someone";
-
-      if (lessonType === "Availability") {
-        titlePrefix = "Available Slot";
-      } else if (student) {
-        titlePrefix = `${student.name} - ${lessonType}`;
-      } else if (lessonType === "Personal") {
-        titlePrefix = "Personal Appointment";
-      } else {
-        // If it's not availability or personal, we need a student
-        if (!input.includes("available") && !input.includes("gap") && !input.includes("space")) {
-          return { success: false, message: "I couldn't find a student with that name in your list." };
-        }
-        // Fallback for "add a lesson tomorrow" without student name -> assume availability
-        lessonType = "Availability";
-        status = "available";
-        titlePrefix = "Available Slot";
+      if (lessonType === "Availability") titlePrefix = "Available Slot";
+      else if (student) titlePrefix = `${student.name} - ${lessonType}`;
+      else if (lessonType === "Personal") titlePrefix = "Personal Appointment";
+      else {
+        if (!input.includes("available") && !input.includes("gap") && !input.includes("space")) return { success: false, message: "I couldn't find a student with that name in your list." };
+        lessonType = "Availability"; status = "available"; titlePrefix = "Available Slot";
       }
-
       const { date: startTime, timeProvided } = parseDateTime(input);
-      
-      if (!timeProvided && !input.includes("available") && !input.includes("gap")) {
-        return { success: false, message: "I found the date, but could you tell me what time to book it for?" };
-      }
-
-      // Recurrence Parsing
+      if (!timeProvided && !input.includes("available") && !input.includes("gap")) return { success: false, message: "I found the date, but could you tell me what time to book it for?" };
       let repeatCount = 1;
       let intervalWeeks = 1; 
-      
       const isWeekly = input.includes("weekly") || input.includes("every week");
       const isFortnightly = input.includes("fortnightly") || input.includes("every 2 weeks") || input.includes("every two weeks");
-      
       const repeatMatch = input.match(/(?:repeat|for)\s+(\d+)\s*(?:weeks|times|occurrences)/i);
       const isRepeating = isWeekly || isFortnightly || !!repeatMatch;
-
       if (isFortnightly) intervalWeeks = 2;
       else if (isWeekly) intervalWeeks = 1;
       else if (!isRepeating) intervalWeeks = 0;
-
-      if (repeatMatch) {
-        repeatCount = parseInt(repeatMatch[1]);
-        if (intervalWeeks === 0) intervalWeeks = 1;
-      } else if (isWeekly || isFortnightly) {
-        repeatCount = 4; 
-      }
-
+      if (repeatMatch) { repeatCount = parseInt(repeatMatch[1]); if (intervalWeeks === 0) intervalWeeks = 1; }
+      else if (isWeekly || isFortnightly) repeatCount = 4; 
       const bookingsToInsert = [];
       for (let i = 0; i < repeatCount; i++) {
         const currentStart = addWeeks(startTime, i * intervalWeeks);
         const currentEnd = addMinutes(currentStart, durationMins);
-        
-        bookingsToInsert.push({
-          user_id: userId,
-          student_id: studentId,
-          title: titlePrefix,
-          lesson_type: lessonType,
-          start_time: currentStart.toISOString(),
-          end_time: currentEnd.toISOString(),
-          status: status
-        });
+        bookingsToInsert.push({ user_id: userId, student_id: studentId, title: titlePrefix, lesson_type: lessonType, start_time: currentStart.toISOString(), end_time: currentEnd.toISOString(), status: status });
       }
-
       await supabase.from("bookings").insert(bookingsToInsert);
-      
       const durationStr = durationMins >= 60 ? `${durationMins / 60} hour(s)` : `${durationMins} mins`;
       let successMsg = `Added a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`;
-      
-      if (lessonType === "Availability") {
-        successMsg = `Created a ${durationStr} availability slot at ${format(startTime, "p")} on ${format(startTime, "MMM do")}. Students can now book this space.`;
-      }
-
-      if (repeatCount > 1) {
-        successMsg = `Created ${repeatCount} ${intervalWeeks === 1 ? 'weekly' : 'fortnightly'} ${durationStr} ${lessonType.toLowerCase()}s starting ${format(startTime, "MMM do")} at ${format(startTime, "p")}.`;
-      }
-
+      if (lessonType === "Availability") successMsg = `Created a ${durationStr} availability slot at ${format(startTime, "p")} on ${format(startTime, "MMM do")}. Students can now book this space.`;
+      if (repeatCount > 1) successMsg = `Created ${repeatCount} ${intervalWeeks === 1 ? 'weekly' : 'fortnightly'} ${durationStr} ${lessonType.toLowerCase()}s starting ${format(startTime, "MMM do")} at ${format(startTime, "p")}.`;
       return { success: true, message: successMsg, actionTaken: "booking" };
     }
 
