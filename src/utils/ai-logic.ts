@@ -220,6 +220,44 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
+    // --- GUIDED PRE-PAID HOURS FLOW ---
+    if (context?.pendingPrePaidHours) {
+      const data = { ...context.pendingPrePaidHours };
+      const step = data.step;
+
+      if (step === 'student') {
+        const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
+        if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        data.student_id = student.id;
+        data.student_name = student.name;
+        data.step = 'amount';
+        return { success: true, message: `Got it, adding hours for **${student.name}**. How many would you like to add?`, newContext: { pendingPrePaidHours: data } };
+      }
+
+      if (step === 'amount') {
+        const amountMatch = input.match(/(\d+(?:\.\d+)?)/);
+        if (!amountMatch) return { success: false, message: "I didn't catch the number of hours. How many would you like to add?", newContext: context };
+        const hours = parseFloat(amountMatch[1]);
+        
+        const { error } = await supabase.from("pre_paid_hours").insert({
+          user_id: userId,
+          student_id: data.student_id,
+          package_hours: hours,
+          remaining_hours: hours,
+          purchase_date: format(new Date(), "yyyy-MM-dd"),
+          notes: "Added via AI Assistant"
+        });
+
+        if (error) return { success: false, message: "Failed to add hours: " + error.message };
+        return { 
+          success: true, 
+          message: `Success! I've added **${hours} hours** of credit to **${data.student_name}**'s account.`, 
+          actionTaken: "add_prepaid_hours",
+          newContext: null 
+        };
+      }
+    }
+
     // --- MARK PAST STUDENT FLOW ---
     if (context?.pendingMarkPastStudent) {
       const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
@@ -727,7 +765,42 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 18. BOOKING / SLOT PATTERN
+    // 18. PRE-PAID HOURS PATTERN
+    if (input.includes("add") && (input.includes("hour") || input.includes("credit") || input.includes("prepaid") || input.includes("pre-paid"))) {
+      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      const amountMatch = input.match(/(\d+(?:\.\d+)?)\s*(?:hour|hr|credit)s?/i);
+      const amount = amountMatch ? parseFloat(amountMatch[1]) : null;
+
+      if (!student || !amount) {
+        return {
+          success: true,
+          message: "Sure! I can help you add pre-paid hours. " + (!student ? "Who would you like to add hours for?" : "How many would you like to add?"),
+          newContext: {
+            pendingPrePaidHours: {
+              step: !student ? 'student' : 'amount',
+              student_id: student?.id,
+              student_name: student?.name,
+              amount: amount
+            }
+          }
+        };
+      }
+
+      // Direct add if both provided
+      const { error } = await supabase.from("pre_paid_hours").insert({
+        user_id: userId,
+        student_id: student.id,
+        package_hours: amount,
+        remaining_hours: amount,
+        purchase_date: format(new Date(), "yyyy-MM-dd"),
+        notes: "Added via AI Assistant"
+      });
+
+      if (error) return { success: false, message: "Failed to add hours: " + error.message };
+      return { success: true, message: `Success! I've added **${amount} hours** of credit to **${student.name}**'s account.`, actionTaken: "add_prepaid_hours" };
+    }
+
+    // 19. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
     if (isBookingAction && isBookingTarget) {
