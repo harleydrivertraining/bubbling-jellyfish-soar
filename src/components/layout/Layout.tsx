@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/components/NotificationBell";
 import BookingRequestAlert from "@/components/BookingRequestAlert";
+import AIAssistant from "@/components/AIAssistant";
 
 const Layout = () => {
   const isMobile = useIsMobile();
@@ -139,6 +140,9 @@ const Layout = () => {
         
         {/* Mobile Bottom Navigation */}
         <BottomNav logoUrl={logoUrl} />
+
+        {/* AI Assistant */}
+        <AIAssistant />
       </div>
     </React.Fragment>
   );
