@@ -243,7 +243,49 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       }
     }
 
-    // 5. PROGRESS UPDATE PATTERN
+    // 5. LESSON NOTE PATTERN
+    if (input.includes("note") || input.includes("comment") || input.includes("description")) {
+      if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
+        const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
+        if (noteParts.length > 1) {
+          const noteContent = noteParts[noteParts.length - 1].trim();
+          const searchArea = noteParts[0].toLowerCase();
+          
+          const targetTime = parseDateTime(searchArea);
+          const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
+          
+          let query = supabase
+            .from("bookings")
+            .select("id, title, start_time")
+            .eq("user_id", userId)
+            .eq("start_time", targetTime.toISOString());
+
+          if (student) {
+            query = query.eq("student_id", student.id);
+          }
+
+          const { data: matches } = await query;
+
+          if (matches && matches.length > 0) {
+            const booking = matches[0];
+            const { error } = await supabase
+              .from("bookings")
+              .update({ description: noteContent })
+              .eq("id", booking.id);
+
+            if (error) return { success: false, message: "Failed to add note: " + error.message };
+            
+            return { 
+              success: true, 
+              message: `Added note to ${booking.title} at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}.`,
+              actionTaken: "lesson_note" 
+            };
+          }
+        }
+      }
+    }
+
+    // 6. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -305,7 +347,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       }
     }
 
-    // 6. BOOKING PATTERN
+    // 7. BOOKING PATTERN
     if (input.includes("book")) {
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
