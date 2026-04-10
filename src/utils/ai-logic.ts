@@ -467,24 +467,26 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       const { date: startTime } = parseDateTime(input);
       
-      // Recurrence Parsing
+      // Recurrence Parsing - More strict to avoid catching durations
       let repeatCount = 1;
       let intervalWeeks = 1; 
       
       const isWeekly = input.includes("weekly") || input.includes("every week");
       const isFortnightly = input.includes("fortnightly") || input.includes("every 2 weeks") || input.includes("every two weeks");
-      const isRepeating = input.includes("repeat") || input.includes("recurring") || input.includes("for") && input.match(/for \d+ weeks/i);
+      
+      // Only consider it repeating if it has explicit keywords OR a specific "for X weeks" pattern
+      const repeatMatch = input.match(/(?:repeat|for)\s+(\d+)\s*(?:weeks|times|occurrences)/i);
+      const isRepeating = isWeekly || isFortnightly || !!repeatMatch;
 
       if (isFortnightly) intervalWeeks = 2;
       else if (isWeekly) intervalWeeks = 1;
       else if (!isRepeating) intervalWeeks = 0;
 
-      const repeatMatch = input.match(/(?:for|repeat)\s+(\d+)\s*(?:weeks|times|occurrences)?/i);
       if (repeatMatch) {
         repeatCount = parseInt(repeatMatch[1]);
         if (intervalWeeks === 0) intervalWeeks = 1;
       } else if (isWeekly || isFortnightly) {
-        repeatCount = 4;
+        repeatCount = 4; // Default to 4 weeks if not specified
       }
 
       const bookingsToInsert = [];
