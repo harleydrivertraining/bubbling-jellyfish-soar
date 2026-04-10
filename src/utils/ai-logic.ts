@@ -16,7 +16,8 @@ import {
   isBefore,
   addYears,
   parseISO,
-  addWeeks
+  addWeeks,
+  isSameDay
 } from "date-fns";
 
 export interface AIResponse {
@@ -29,8 +30,9 @@ export interface AIResponse {
 /**
  * Helper to parse date and time from natural language
  */
-const parseDateTime = (input: string): Date => {
+const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => {
   let targetDate = startOfDay(new Date());
+  let timeProvided = false;
   
   // Date Parsing
   if (input.includes("tomorrow")) {
@@ -59,20 +61,33 @@ const parseDateTime = (input: string): Date => {
 
   // Time Parsing
   let finalTime = targetDate;
-  const timeMatch = input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
-  if (timeMatch) {
+  // Match "10am", "10:30pm", "at 10", "at 2:30"
+  const timeMatch = input.match(/(?:at\s+)?(\d+)(?::(\d+))?\s*(am|pm)?/i);
+  
+  // We only consider it a time match if it has am/pm OR follows the word "at" OR has a colon
+  const hasExplicitTime = timeMatch && (timeMatch[3] || input.includes("at " + timeMatch[1]) || timeMatch[2]);
+
+  if (hasExplicitTime) {
+    timeProvided = true;
     let hours = parseInt(timeMatch[1]);
     const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-    const ampm = timeMatch[3].toLowerCase();
+    const ampm = timeMatch[3]?.toLowerCase();
+    
     if (ampm === "pm" && hours < 12) hours += 12;
     if (ampm === "am" && hours === 12) hours = 0;
+    
+    // If no am/pm, guess based on business hours (8am-8pm)
+    if (!ampm) {
+      if (hours < 8) hours += 12; // e.g. "at 2" -> 2pm
+    }
+    
     finalTime = setHours(setMinutes(targetDate, mins), hours);
   } else {
-    // Default to 9am if no time specified
-    finalTime = setHours(setMinutes(targetDate, 0), 9);
+    // Default to start of day for searching
+    finalTime = startOfDay(targetDate);
   }
 
-  return finalTime;
+  return { date: finalTime, timeProvided };
 };
 
 /**
@@ -133,51 +148,63 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 3. DELETE/CANCEL BOOKING PATTERN
+    // 3. FIND BOOKING HELPER (Used by delete, complete, paid, note)
+    const findTargetBooking = async (searchStr: string) => {
+      const { date: targetTime, timeProvided } = parseDateTime(searchStr);
+      const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
+      
+      let query = supabase
+        .from("bookings")
+        .select("id, title, start_time, status")
+        .eq("user_id", userId);
+
+      if (timeProvided) {
+        // Strict match if time was given
+        query = query.eq("start_time", targetTime.toISOString());
+      } else {
+        // Range match for the whole day if no time given
+        query = query.gte("start_time", startOfDay(targetTime).toISOString())
+                     .lte("start_time", endOfDay(targetTime).toISOString());
+      }
+
+      if (student) {
+        query = query.eq("student_id", student.id);
+      }
+
+      const { data: matches, error } = await query;
+      return { matches: matches || [], targetTime, timeProvided, student, error };
+    };
+
+    // 4. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test")) {
-        const targetTime = parseDateTime(input);
-        const student = students.find(s => input.includes(s.name.toLowerCase()));
+        const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
         
-        let query = supabase
-          .from("bookings")
-          .select("id, title, start_time")
-          .eq("user_id", userId)
-          .eq("start_time", targetTime.toISOString());
-
-        if (student) {
-          query = query.eq("student_id", student.id);
-        }
-
-        const { data: matches, error: fetchError } = await query;
-
-        if (fetchError) return { success: false, message: "Error finding booking: " + fetchError.message };
-        
-        if (!matches || matches.length === 0) {
+        if (matches.length === 0) {
           return { 
             success: false, 
-            message: `I couldn't find a booking at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` 
+            message: `I couldn't find a booking on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` 
           };
         }
 
-        // Delete the first match
+        if (matches.length > 1 && !timeProvided) {
+          const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
+          return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one should I delete?` };
+        }
+
         const bookingToDelete = matches[0];
-        const { error: deleteError } = await supabase
-          .from("bookings")
-          .delete()
-          .eq("id", bookingToDelete.id);
+        const { error: deleteError } = await supabase.from("bookings").delete().eq("id", bookingToDelete.id);
 
         if (deleteError) return { success: false, message: "Failed to delete: " + deleteError.message };
-
         return { 
           success: true, 
-          message: `Successfully deleted the booking: "${bookingToDelete.title}" at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}.`,
+          message: `Deleted the booking: "${bookingToDelete.title}" at ${format(parseISO(bookingToDelete.start_time), "p")} on ${format(parseISO(bookingToDelete.start_time), "MMM do")}.`,
           actionTaken: "delete_booking"
         };
       }
     }
 
-    // 4. UPDATE BOOKING STATUS (Complete/Paid)
+    // 5. UPDATE BOOKING STATUS (Complete/Paid)
     const isStatusUpdate = input.includes("complete") || 
                            input.includes("done") || 
                            input.includes("finished") || 
@@ -186,141 +213,74 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     if (isStatusUpdate) {
       const isAll = input.includes("all") || input.includes("everything") || input.includes("every lesson");
-      const targetTime = parseDateTime(input);
+      const { date: targetTime } = parseDateTime(input);
       
-      // Bulk Completion Logic
       if (isAll && (input.includes("complete") || input.includes("done") || input.includes("finished"))) {
-        const dayStart = startOfDay(targetTime);
-        const dayEnd = endOfDay(targetTime);
-        
-        const { data: toUpdate, error: fetchError } = await supabase
+        const { data: toUpdate } = await supabase
           .from("bookings")
           .select("id")
           .eq("user_id", userId)
           .eq("status", "scheduled")
-          .gte("start_time", dayStart.toISOString())
-          .lte("start_time", dayEnd.toISOString());
+          .gte("start_time", startOfDay(targetTime).toISOString())
+          .lte("start_time", endOfDay(targetTime).toISOString());
           
-        if (fetchError) return { success: false, message: "Error finding lessons: " + fetchError.message };
+        if (!toUpdate || toUpdate.length === 0) return { success: false, message: `No scheduled lessons found on ${format(targetTime, "MMM do")}.` };
         
-        if (!toUpdate || toUpdate.length === 0) {
-          return { success: false, message: `I couldn't find any scheduled lessons to complete on ${format(targetTime, "MMM do")}.` };
-        }
-        
-        const { error: updateError } = await supabase
-          .from("bookings")
-          .update({ status: "completed" })
-          .in("id", toUpdate.map(b => b.id));
-          
-        if (updateError) return { success: false, message: "Failed to update lessons: " + updateError.message };
-        
-        return { 
-          success: true, 
-          message: `Successfully marked all ${toUpdate.length} lessons on ${format(targetTime, "MMM do")} as completed.`,
-          actionTaken: "complete_all"
-        };
+        await supabase.from("bookings").update({ status: "completed" }).in("id", toUpdate.map(b => b.id));
+        return { success: true, message: `Marked all ${toUpdate.length} lessons on ${format(targetTime, "MMM do")} as completed.`, actionTaken: "complete_all" };
       }
 
-      // Individual Status Update
-      const student = students.find(s => input.includes(s.name.toLowerCase()));
-      
-      let query = supabase
-        .from("bookings")
-        .select("id, title, start_time, is_paid")
-        .eq("user_id", userId)
-        .eq("start_time", targetTime.toISOString());
+      const { matches, timeProvided, student } = await findTargetBooking(input);
 
-      if (student) {
-        query = query.eq("student_id", student.id);
-      }
-
-      const { data: matches } = await query;
-
-      if (!matches || matches.length === 0) {
-        return { 
-          success: false, 
-          message: `I couldn't find a booking at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` 
-        };
+      if (matches.length === 0) return { success: false, message: `I couldn't find that lesson.` };
+      if (matches.length > 1 && !timeProvided) {
+        const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
+        return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one do you mean?` };
       }
 
       const booking = matches[0];
       
       if (input.includes("paid") || input.includes("settled")) {
-        // Check if covered by pre-paid credit
-        const { data: tx } = await supabase
-          .from("pre_paid_hours_transactions")
-          .select("id")
-          .eq("booking_id", booking.id)
-          .maybeSingle();
-        
-        if (tx) {
-          return { success: false, message: `This lesson for ${student?.name || 'the student'} is already covered by pre-paid credit, so it doesn't need to be marked as paid.` };
-        }
-
-        const { error } = await supabase.from("bookings").update({ is_paid: true }).eq("id", booking.id);
-        if (error) return { success: false, message: "Failed to mark as paid: " + error.message };
+        const { data: tx } = await supabase.from("pre_paid_hours_transactions").select("id").eq("booking_id", booking.id).maybeSingle();
+        if (tx) return { success: false, message: `This lesson is already covered by pre-paid credit.` };
+        await supabase.from("bookings").update({ is_paid: true }).eq("id", booking.id);
         return { success: true, message: `Marked ${booking.title} as paid.`, actionTaken: "paid" };
       }
 
       if (input.includes("complete") || input.includes("done") || input.includes("finished")) {
-        const { error } = await supabase.from("bookings").update({ status: "completed" }).eq("id", booking.id);
-        if (error) return { success: false, message: "Failed to mark as complete: " + error.message };
+        await supabase.from("bookings").update({ status: "completed" }).eq("id", booking.id);
         return { success: true, message: `Marked ${booking.title} as completed.`, actionTaken: "complete" };
       }
     }
 
-    // 5. LESSON NOTE PATTERN
+    // 6. LESSON NOTE PATTERN
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
         const searchArea = noteParts[0].toLowerCase();
         
-        const targetTime = parseDateTime(searchArea);
-        const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
-        
-        let query = supabase
-          .from("bookings")
-          .select("id, title, start_time")
-          .eq("user_id", userId)
-          .eq("start_time", targetTime.toISOString());
+        const { matches, timeProvided, student } = await findTargetBooking(searchArea);
 
-        if (student) {
-          query = query.eq("student_id", student.id);
-        }
+        if (matches.length > 0) {
+          if (matches.length > 1 && !timeProvided) {
+            const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
+            return { success: false, message: `I found multiple lessons for ${student?.name} on that day (at ${times}). Which one should I add the note to?` };
+          }
 
-        const { data: matches } = await query;
-
-        if (matches && matches.length > 0) {
           const booking = matches[0];
           
-          // Check if content was provided
           if (noteParts.length > 1 && noteParts[noteParts.length - 1].trim().length > 0) {
             const noteContent = noteParts[noteParts.length - 1].trim();
-            const { error } = await supabase
-              .from("bookings")
-              .update({ description: noteContent })
-              .eq("id", booking.id);
-
-            if (error) return { success: false, message: "Failed to add note: " + error.message };
-            
-            return { 
-              success: true, 
-              message: `Added note to ${booking.title} at ${format(targetTime, "p")} on ${format(targetTime, "MMM do")}.`,
-              actionTaken: "lesson_note" 
-            };
+            await supabase.from("bookings").update({ description: noteContent }).eq("id", booking.id);
+            return { success: true, message: `Added note to ${booking.title} on ${format(parseISO(booking.start_time), "MMM do")}.`, actionTaken: "lesson_note" };
           } else {
-            // No content provided, ask for it and store context
-            return {
-              success: true,
-              message: "What would you like me to add to the notes?",
-              newContext: { pendingNoteForLessonId: booking.id }
-            };
+            return { success: true, message: "What would you like me to add to the notes?", newContext: { pendingNoteForLessonId: booking.id } };
           }
         }
       }
     }
 
-    // 6. PROGRESS UPDATE PATTERN
+    // 7. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -362,7 +322,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
           finalRating = existing?.rating || 3;
         }
 
-        const { error } = await supabase.from("student_progress_entries").insert({
+        await supabase.from("student_progress_entries").insert({
           user_id: userId,
           student_id: student.id,
           topic_id: topic.id,
@@ -372,8 +332,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
           entry_date: new Date().toISOString()
         });
 
-        if (error) return { success: false, message: "Failed to save progress: " + error.message };
-        
         let successMsg = `Updated ${student.name}'s ${topic.name}.`;
         if (rating) successMsg += ` Set to ${rating} stars.`;
         if (noteContent) successMsg += ` Added ${isPrivate ? 'private ' : ''}note.`;
@@ -382,7 +340,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 7. BOOKING PATTERN
+    // 8. BOOKING PATTERN
     if (input.includes("book")) {
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
@@ -418,30 +376,25 @@ export const processAICommand = async (text: string, userId: string, context?: a
         return { success: false, message: "I couldn't find a student with that name in your list." };
       }
 
-      const startTime = parseDateTime(input);
+      const { date: startTime } = parseDateTime(input);
       
       // Recurrence Parsing
       let repeatCount = 1;
-      let intervalWeeks = 1; // Default to weekly if repeating
+      let intervalWeeks = 1; 
       
       const isWeekly = input.includes("weekly") || input.includes("every week");
       const isFortnightly = input.includes("fortnightly") || input.includes("every 2 weeks") || input.includes("every two weeks");
       const isRepeating = input.includes("repeat") || input.includes("recurring") || input.includes("for") && input.match(/for \d+ weeks/i);
 
-      if (isFortnightly) {
-        intervalWeeks = 2;
-      } else if (isWeekly) {
-        intervalWeeks = 1;
-      } else if (!isRepeating) {
-        intervalWeeks = 0; // Not repeating
-      }
+      if (isFortnightly) intervalWeeks = 2;
+      else if (isWeekly) intervalWeeks = 1;
+      else if (!isRepeating) intervalWeeks = 0;
 
       const repeatMatch = input.match(/(?:for|repeat)\s+(\d+)\s*(?:weeks|times|occurrences)?/i);
       if (repeatMatch) {
         repeatCount = parseInt(repeatMatch[1]);
-        if (intervalWeeks === 0) intervalWeeks = 1; // Default to weekly if repeat count specified
+        if (intervalWeeks === 0) intervalWeeks = 1;
       } else if (isWeekly || isFortnightly) {
-        // Default to 4 repeats if frequency specified but no count
         repeatCount = 4;
       }
 
@@ -461,9 +414,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
         });
       }
 
-      const { error } = await supabase.from("bookings").insert(bookingsToInsert);
-
-      if (error) return { success: false, message: "Failed to create booking(s): " + error.message };
+      await supabase.from("bookings").insert(bookingsToInsert);
       
       const durationStr = durationMins >= 60 ? `${durationMins / 60} hour(s)` : `${durationMins} mins`;
       let successMsg = `Booked a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`;
@@ -472,11 +423,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
         successMsg = `Booked ${repeatCount} ${intervalWeeks === 1 ? 'weekly' : 'fortnightly'} ${durationStr} ${lessonType.toLowerCase()}s ${studentId ? 'for ' + studentName : ''} starting ${format(startTime, "MMM do")} at ${format(startTime, "p")}.`;
       }
 
-      return { 
-        success: true, 
-        message: successMsg, 
-        actionTaken: "booking" 
-      };
+      return { success: true, message: successMsg, actionTaken: "booking" };
     }
 
     return { 
