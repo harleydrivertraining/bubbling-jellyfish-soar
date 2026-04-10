@@ -541,11 +541,6 @@ const StudentProfile: React.FC = () => {
           </Link>
         </Button>
         <div className="flex gap-2">
-          {!student.auth_user_id && (
-            <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => setIsEnableLoginDialogOpen(true)}>
-              <KeyRound className="mr-2 h-4 w-4" /> Enable Login
-            </Button>
-          )}
           <Button onClick={() => setIsEditDialogOpen(true)}>
             <Edit className="mr-2 h-4 w-4" /> Edit Profile
           </Button>
@@ -554,7 +549,7 @@ const StudentProfile: React.FC = () => {
 
       <div className="grid gap-6 lg:grid-cols-3 items-stretch">
         <div className="lg:col-span-1 bg-card p-6 rounded-xl border shadow-sm flex flex-col justify-center">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h1 className="text-3xl font-black tracking-tight">{student.name}</h1>
             <div className="flex flex-wrap gap-2">
               <Badge variant={
@@ -571,6 +566,18 @@ const StudentProfile: React.FC = () => {
                 </Badge>
               )}
             </div>
+            
+            {/* Enable Login Button - Moved here for better mobile layout */}
+            {!student.auth_user_id && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="w-full sm:w-auto border-blue-200 text-blue-700 hover:bg-blue-50 font-bold" 
+                onClick={() => setIsEnableLoginDialogOpen(true)}
+              >
+                <KeyRound className="mr-2 h-4 w-4" /> Enable Student Login
+              </Button>
+            )}
             
             <div className="lg:hidden pt-1">
               <div className={cn(
