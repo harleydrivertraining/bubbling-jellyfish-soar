@@ -172,13 +172,15 @@ export const processAICommand = async (text: string, userId: string, context?: a
     }
 
     // 1. FETCH ENTITIES
-    const [studentsRes, topicsRes] = await Promise.all([
+    const [studentsRes, topicsRes, carsRes] = await Promise.all([
       supabase.from("students").select("id, name").eq("user_id", userId),
-      supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`)
+      supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`),
+      supabase.from("cars").select("id, make, model").eq("user_id", userId)
     ]);
 
     const students = studentsRes.data || [];
     const topics = topicsRes.data || [];
+    const cars = carsRes.data || [];
 
     // 2. ADD EXPENSE PATTERN
     const expenseMatch = input.match(/add (?:£|\$)?(\d+(?:\.\d+)?) (\w+) expense(?: (.+))?/i);
@@ -196,7 +198,42 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 3. FIND BOOKING HELPER
+    // 3. MILEAGE ENTRY PATTERN
+    const mileageMatch = input.match(/(?:add|update|set)?\s*(?:mileage|miles)\s*(?:to|is|of)?\s*(\d+(?:\.\d+)?)\s*(?:for|to|on)?\s*(?:the)?\s*(.+)?/i);
+    if (mileageMatch && (input.includes("mileage") || input.includes("miles"))) {
+      const mileageValue = parseFloat(mileageMatch[1]);
+      const carHint = mileageMatch[2]?.trim().toLowerCase();
+
+      if (cars.length === 0) {
+        return { success: false, message: "You haven't added any cars to your mileage tracker yet. Please add a car in the Mileage Tracker page first." };
+      }
+
+      let targetCar = cars[0]; // Default to first car
+      if (carHint && cars.length > 1) {
+        const matchedCar = cars.find(c => 
+          carHint.includes(c.make.toLowerCase()) || 
+          carHint.includes(c.model.toLowerCase())
+        );
+        if (matchedCar) targetCar = matchedCar;
+      }
+
+      const { error } = await supabase.from("car_mileage_entries").insert({
+        user_id: userId,
+        car_id: targetCar.id,
+        current_mileage: mileageValue,
+        entry_date: format(new Date(), "yyyy-MM-dd"),
+        notes: "Added via AI Assistant"
+      });
+
+      if (error) return { success: false, message: "Failed to record mileage: " + error.message };
+      return { 
+        success: true, 
+        message: `Recorded ${mileageValue} miles for your ${targetCar.make} ${targetCar.model}.`, 
+        actionTaken: "mileage" 
+      };
+    }
+
+    // 4. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
@@ -221,7 +258,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { matches: matches || [], targetTime, timeProvided, student, error };
     };
 
-    // 4. DELETE/CANCEL BOOKING PATTERN
+    // 5. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
         const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
@@ -250,7 +287,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 5. UPDATE BOOKING STATUS
+    // 6. UPDATE BOOKING STATUS
     const isStatusUpdate = input.includes("complete") || 
                            input.includes("done") || 
                            input.includes("finished") || 
@@ -299,7 +336,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 6. LESSON NOTE PATTERN
+    // 7. LESSON NOTE PATTERN
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
@@ -326,7 +363,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 7. LESSON TARGET PATTERN
+    // 8. LESSON TARGET PATTERN
     if (input.includes("target") || input.includes("goal") || input.includes("objective")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
@@ -353,7 +390,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 8. PROGRESS UPDATE PATTERN
+    // 9. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -413,7 +450,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 9. BOOKING / SLOT PATTERN
+    // 10. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
 
