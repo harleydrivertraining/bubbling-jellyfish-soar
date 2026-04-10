@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import CalendarComponent from "@/components/Calendar";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, RefreshCcw, AlertCircle, ClipboardCheck } from "lucide-react";
+import { PlusCircle, RefreshCcw, ClipboardCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
-import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid, isWithinInterval } from "date-fns";
+import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -15,20 +15,19 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import CalendarLegend from "@/components/CalendarLegend";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const Schedule: React.FC = () => {
-  const { user, isLoading: isSessionLoading, initialBookings } = useSession();
+  const { user, isLoading: isSessionLoading } = useSession();
+  const queryClient = useQueryClient();
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
-  const [events, setEvents] = useState<BigCalendarEvent[]>([]);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
   const [pendingCount, setPendingCount] = useState(0);
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [currentCalendarView, _setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
   
-  const lastFetchedRange = useRef<string>("");
   const isMobile = useIsMobile();
 
   const handleSetCurrentCalendarView = useCallback((view: 'month' | 'week' | 'day' | 'agenda') => {
@@ -142,45 +141,24 @@ const Schedule: React.FC = () => {
     }));
   }, [user]);
 
-  const fetchBookings = useCallback(async (startDate: Date, endDate: Date, force = false) => {
-    if (!user) {
-      setIsLoadingEvents(false);
-      return;
-    }
-
-    const rangeKey = `${startDate.toISOString()}-${endDate.toISOString()}`;
-    if (!force && rangeKey === lastFetchedRange.current) return;
-    
-    lastFetchedRange.current = rangeKey;
-    setIsLoadingEvents(true);
-    
-    try {
+  const { data: events = [], isLoading: isLoadingEvents, refetch } = useQuery({
+    queryKey: ['schedule-events', user?.id, currentCalendarDate.toISOString().slice(0, 7)],
+    queryFn: async () => {
+      const start = startOfMonth(subMonths(currentCalendarDate, 1));
+      const end = endOfMonth(addMonths(currentCalendarDate, 2));
+      
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, is_paid, students(name)")
-        .eq("user_id", user.id)
-        .gte("start_time", startDate.toISOString())
-        .lte("end_time", endDate.toISOString());
+        .eq("user_id", user!.id)
+        .gte("start_time", start.toISOString())
+        .lte("end_time", end.toISOString());
 
       if (bookingsError) throw bookingsError;
-
-      const processed = await processBookings(bookings || []);
-      setEvents(processed);
-    } catch (error: any) {
-      console.error("Fetch error:", error);
-      showError("Failed to load schedule.");
-    } finally {
-      setIsLoadingEvents(false);
-    }
-  }, [user, processBookings]);
-
-  useEffect(() => {
-    if (!isSessionLoading && user) {
-      const start = startOfMonth(subMonths(currentCalendarDate, 1));
-      const end = endOfMonth(addMonths(currentCalendarDate, 2));
-      fetchBookings(start, end);
-    }
-  }, [isSessionLoading, user, currentCalendarDate, fetchBookings]);
+      return processBookings(bookings || []);
+    },
+    enabled: !!user && !isSessionLoading,
+  });
 
   const handleMarkAsPaid = async (bookingId: string) => {
     if (!user) return;
@@ -188,9 +166,7 @@ const Schedule: React.FC = () => {
     if (error) showError("Failed to mark as paid.");
     else {
       showSuccess("Lesson marked as paid.");
-      const start = startOfMonth(subMonths(currentCalendarDate, 1));
-      const end = endOfMonth(addMonths(currentCalendarDate, 2));
-      fetchBookings(start, end, true);
+      refetch();
     }
   };
 
@@ -200,12 +176,10 @@ const Schedule: React.FC = () => {
   }, []);
 
   const handleBookingAdded = useCallback(async () => {
-    const start = startOfMonth(subMonths(currentCalendarDate, 1));
-    const end = endOfMonth(addMonths(currentCalendarDate, 2));
-    await fetchBookings(start, end, true);
+    queryClient.invalidateQueries({ queryKey: ['schedule-events'] });
     setIsAddBookingDialogOpen(false);
     setSelectedSlot(null);
-  }, [currentCalendarDate, fetchBookings]);
+  }, [queryClient]);
 
   if (isSessionLoading || (isLoadingEvents && events.length === 0)) {
     return (
@@ -240,7 +214,7 @@ const Schedule: React.FC = () => {
       <div className="flex-1 min-h-[600px]">
         <CalendarComponent
           events={events}
-          onEventsRefetch={(s, e) => fetchBookings(s, e, true)}
+          onEventsRefetch={() => refetch()}
           onSelectSlot={handleOpenAddBookingDialog}
           currentDate={currentCalendarDate}
           setCurrentDate={setCurrentCalendarDate}
