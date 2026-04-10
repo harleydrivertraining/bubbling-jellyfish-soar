@@ -452,7 +452,7 @@ const Accounts: React.FC = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Income
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Additional Income</DialogTitle>
               </DialogHeader>
@@ -466,7 +466,7 @@ const Accounts: React.FC = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Expenditure
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Business Expenditure</DialogTitle>
               </DialogHeader>
