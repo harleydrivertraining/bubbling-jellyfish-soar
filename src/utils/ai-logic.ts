@@ -14,7 +14,8 @@ import {
   startOfDay,
   isBefore,
   addYears,
-  parseISO
+  parseISO,
+  addWeeks
 } from "date-fns";
 
 export interface AIResponse {
@@ -248,24 +249,55 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       }
 
       const startTime = parseDateTime(input);
-      const endTime = addMinutes(startTime, durationMins);
+      
+      // Recurrence Parsing
+      let repeatCount = 1;
+      let intervalWeeks = 0;
+      
+      if (input.includes("weekly") || input.includes("every week")) {
+        intervalWeeks = 1;
+      } else if (input.includes("fortnightly") || input.includes("every 2 weeks") || input.includes("every two weeks")) {
+        intervalWeeks = 2;
+      }
 
-      const { error } = await supabase.from("bookings").insert({
-        user_id: userId,
-        student_id: studentId,
-        title: titlePrefix,
-        lesson_type: lessonType,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        status: status
-      });
+      const repeatMatch = input.match(/(?:for|repeat)\s+(\d+)\s*(?:weeks|times|occurrences)?/i);
+      if (repeatMatch) {
+        repeatCount = parseInt(repeatMatch[1]);
+      } else if (intervalWeeks > 0) {
+        // Default to 4 repeats if interval specified but no count
+        repeatCount = 4;
+      }
 
-      if (error) return { success: false, message: "Failed to create booking: " + error.message };
+      const bookingsToInsert = [];
+      for (let i = 0; i < repeatCount; i++) {
+        const currentStart = addWeeks(startTime, i * intervalWeeks);
+        const currentEnd = addMinutes(currentStart, durationMins);
+        
+        bookingsToInsert.push({
+          user_id: userId,
+          student_id: studentId,
+          title: titlePrefix,
+          lesson_type: lessonType,
+          start_time: currentStart.toISOString(),
+          end_time: currentEnd.toISOString(),
+          status: status
+        });
+      }
+
+      const { error } = await supabase.from("bookings").insert(bookingsToInsert);
+
+      if (error) return { success: false, message: "Failed to create booking(s): " + error.message };
       
       const durationStr = durationMins >= 60 ? `${durationMins / 60} hour(s)` : `${durationMins} mins`;
+      let successMsg = `Booked a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`;
+      
+      if (repeatCount > 1) {
+        successMsg = `Booked ${repeatCount} ${intervalWeeks === 1 ? 'weekly' : 'fortnightly'} ${durationStr} ${lessonType.toLowerCase()}s ${studentId ? 'for ' + studentName : ''} starting ${format(startTime, "MMM do")} at ${format(startTime, "p")}.`;
+      }
+
       return { 
         success: true, 
-        message: `Booked a ${durationStr} ${lessonType.toLowerCase()} ${studentId ? 'for ' + studentName : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, 
+        message: successMsg, 
         actionTaken: "booking" 
       };
     }
