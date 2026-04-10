@@ -148,6 +148,78 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 2. CHECK CONTEXT FOR PENDING ACTIONS
     
+    // --- GUIDED BOOKING FLOW ---
+    if (context?.pendingBooking) {
+      const data = { ...context.pendingBooking };
+      const step = data.step;
+
+      if (step === 'student') {
+        const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
+        if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        data.student_id = student.id;
+        data.student_name = student.name;
+        data.step = 'date';
+        return { success: true, message: `Got it, a lesson for **${student.name}**. What date would you like to make the booking for?`, newContext: { pendingBooking: data } };
+      }
+
+      if (step === 'date') {
+        const { date } = parseDateTime(input);
+        data.date = format(date, "yyyy-MM-dd");
+        data.step = 'type_length';
+        return { success: true, message: `Understood, for **${format(date, "do MMMM")}**. What lesson type or length is it? (e.g., '1 hour lesson' or '2 hour driving test')`, newContext: { pendingBooking: data } };
+      }
+
+      if (step === 'type_length') {
+        let durationMins = 60;
+        const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
+        if (durationMatch) {
+          const val = parseFloat(durationMatch[1]);
+          const unit = durationMatch[2].toLowerCase();
+          durationMins = (unit.startsWith('h')) ? val * 60 : val;
+        }
+
+        let lessonType = "Driving lesson";
+        if (input.includes("test")) lessonType = "Driving Test";
+        else if (input.includes("personal")) lessonType = "Personal";
+
+        data.lesson_type = lessonType;
+        data.duration_mins = durationMins;
+        data.step = 'time';
+        return { success: true, message: `Okay, a **${durationMins >= 60 ? (durationMins/60) + ' hour' : durationMins + ' min'} ${lessonType.toLowerCase()}**. And what time would you like the booking to start?`, newContext: { pendingBooking: data } };
+      }
+
+      if (step === 'time') {
+        const { date, timeProvided } = parseDateTime(input);
+        if (!timeProvided) return { success: false, message: "I didn't catch a specific time. Could you please tell me what time the lesson starts?", newContext: context };
+        
+        // Combine the previously stored date with the new time
+        const finalStart = new Date(data.date);
+        finalStart.setHours(date.getHours());
+        finalStart.setMinutes(date.getMinutes());
+        
+        const finalEnd = addMinutes(finalStart, data.duration_mins);
+
+        const { error } = await supabase.from("bookings").insert({
+          user_id: userId,
+          student_id: data.student_id,
+          title: `${data.student_name} - ${data.lesson_type}`,
+          lesson_type: data.lesson_type,
+          start_time: finalStart.toISOString(),
+          end_time: finalEnd.toISOString(),
+          status: "scheduled"
+        });
+
+        if (error) return { success: false, message: "Failed to create booking: " + error.message };
+        
+        return { 
+          success: true, 
+          message: `Success! I've booked a **${data.lesson_type}** for **${data.student_name}** on **${format(finalStart, "do MMMM")}** at **${format(finalStart, "p")}**.`, 
+          actionTaken: "booking",
+          newContext: null 
+        };
+      }
+    }
+
     // --- MARK PAST STUDENT FLOW ---
     if (context?.pendingMarkPastStudent) {
       const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
@@ -349,7 +421,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const isPastStudentTarget = input.includes("past student") || input.includes("archive") || input.includes("finished student");
     
     if (isMarkPastAction && isPastStudentTarget) {
-      // Try to find a name in the string that ISN'T "past student"
       const cleanInput = input.replace("past student", "").replace("archive", "").replace("mark", "").replace("set", "").trim();
       const student = students.find(s => cleanInput.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(cleanInput) && cleanInput.length > 2);
       
@@ -660,6 +731,38 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
     if (isBookingAction && isBookingTarget) {
+      // Check if we have enough info for a direct booking
+      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      const { date: startTime, timeProvided } = parseDateTime(input);
+      
+      // If it's a vague "book a lesson" request, start the guided flow
+      if (!student && !timeProvided && !input.includes("available")) {
+        return {
+          success: true,
+          message: "Sure! I can help you book a lesson. What is the student's name?",
+          newContext: {
+            pendingBooking: {
+              step: 'student'
+            }
+          }
+        };
+      }
+
+      // If we have some info but not all, start the flow from the right step
+      if (!student && !input.includes("available")) {
+        return {
+          success: true,
+          message: "I've got the time, but who is the lesson for?",
+          newContext: {
+            pendingBooking: {
+              step: 'student',
+              date: format(startTime, "yyyy-MM-dd"),
+              start_time: startTime.toISOString()
+            }
+          }
+        };
+      }
+
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
       if (durationMatch) {
@@ -673,7 +776,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (input.includes("test")) { lessonType = "Driving Test"; if (!durationMatch) durationMins = 120; }
       else if (input.includes("personal")) lessonType = "Personal";
       else if (input.includes("available") || input.includes("availability") || input.includes("gap") || input.includes("space") || input.includes("bookable")) { lessonType = "Availability"; status = "available"; titlePrefix = "Available Slot"; }
-      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      
       let studentId = student?.id || null;
       let studentName = student?.name || "Someone";
       if (lessonType === "Availability") titlePrefix = "Available Slot";
@@ -683,8 +786,23 @@ export const processAICommand = async (text: string, userId: string, context?: a
         if (!input.includes("available") && !input.includes("gap") && !input.includes("space")) return { success: false, message: "I couldn't find a student with that name in your list." };
         lessonType = "Availability"; status = "available"; titlePrefix = "Available Slot";
       }
-      const { date: startTime, timeProvided } = parseDateTime(input);
-      if (!timeProvided && !input.includes("available") && !input.includes("gap")) return { success: false, message: "I found the date, but could you tell me what time to book it for?" };
+
+      if (!timeProvided && !input.includes("available") && !input.includes("gap")) {
+        return {
+          success: true,
+          message: `I've got the student, but what date and time would you like to book for **${studentName}**?`,
+          newContext: {
+            pendingBooking: {
+              step: 'date',
+              student_id: studentId,
+              student_name: studentName,
+              lesson_type: lessonType,
+              duration_mins: durationMins
+            }
+          }
+        };
+      }
+
       let repeatCount = 1;
       let intervalWeeks = 1; 
       const isWeekly = input.includes("weekly") || input.includes("every week");
