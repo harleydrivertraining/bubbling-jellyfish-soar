@@ -2,11 +2,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   format, 
   addDays, 
+  subDays,
   startOfTomorrow, 
+  startOfYesterday,
   setHours, 
   setMinutes, 
   addMinutes, 
   nextDay, 
+  previousDay,
   parse, 
   isValid, 
   setMonth, 
@@ -31,40 +34,68 @@ export interface AIResponse {
  * Helper to parse date and time from natural language
  */
 const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => {
-  let targetDate = startOfDay(new Date());
+  const now = new Date();
+  let targetDate = startOfDay(now);
   let timeProvided = false;
   
-  // Date Parsing
+  // 1. DATE PARSING
   if (input.includes("tomorrow")) {
     targetDate = startOfTomorrow();
+  } else if (input.includes("yesterday")) {
+    targetDate = startOfYesterday();
+  } else if (input.includes("last ")) {
+    const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const dayIndex = days.findIndex(d => input.includes("last " + d));
+    if (dayIndex !== -1) {
+      targetDate = previousDay(now, dayIndex as any);
+    }
   } else {
     const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
     const dayIndex = days.findIndex(d => input.includes(d));
     if (dayIndex !== -1) {
-      targetDate = nextDay(new Date(), dayIndex as any);
+      targetDate = nextDay(now, dayIndex as any);
     } else {
-      const dateMatch = input.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+      // Match "9th March", "March 9", "09/03"
+      const dateMatch = input.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i) ||
+                        input.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})/i);
+      
       if (dateMatch) {
-        const day = parseInt(dateMatch[1]);
-        const monthStr = dateMatch[2].toLowerCase();
+        let day: number;
+        let monthStr: string;
+
+        if (isNaN(parseInt(dateMatch[1]))) {
+          // Format: March 9
+          monthStr = dateMatch[1].toLowerCase();
+          day = parseInt(dateMatch[2]);
+        } else {
+          // Format: 9th March
+          day = parseInt(dateMatch[1]);
+          monthStr = dateMatch[2].toLowerCase();
+        }
+
         let month = isNaN(parseInt(monthStr)) 
           ? ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(monthStr.substring(0, 3)) 
           : parseInt(monthStr) - 1;
         
         if (month !== -1) {
           targetDate = setMonth(setDate(targetDate, day), month);
-          if (isBefore(targetDate, startOfDay(new Date()))) targetDate = addYears(targetDate, 1);
+          
+          // Only jump to next year if the date is more than 6 months in the past 
+          // AND the user is likely booking (not adding notes to a recent past lesson)
+          const sixMonthsAgo = subDays(now, 180);
+          if (isBefore(targetDate, sixMonthsAgo) && input.includes("book")) {
+            targetDate = addYears(targetDate, 1);
+          }
         }
       }
     }
   }
 
-  // Time Parsing
+  // 2. TIME PARSING
   let finalTime = targetDate;
   // Match "10am", "10:30pm", "at 10", "at 2:30"
   const timeMatch = input.match(/(?:at\s+)?(\d+)(?::(\d+))?\s*(am|pm)?/i);
   
-  // We only consider it a time match if it has am/pm OR follows the word "at" OR has a colon
   const hasExplicitTime = timeMatch && (timeMatch[3] || input.includes("at " + timeMatch[1]) || timeMatch[2]);
 
   if (hasExplicitTime) {
@@ -76,14 +107,10 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
     if (ampm === "pm" && hours < 12) hours += 12;
     if (ampm === "am" && hours === 12) hours = 0;
     
-    // If no am/pm, guess based on business hours (8am-8pm)
-    if (!ampm) {
-      if (hours < 8) hours += 12; // e.g. "at 2" -> 2pm
-    }
+    if (!ampm && hours < 8) hours += 12; // e.g. "at 2" -> 2pm
     
     finalTime = setHours(setMinutes(targetDate, mins), hours);
   } else {
-    // Default to start of day for searching
     finalTime = startOfDay(targetDate);
   }
 
@@ -117,7 +144,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
             success: true, 
             message: `Got it. I've added that note to ${booking.title}.`,
             actionTaken: "lesson_note_followup",
-            newContext: null // Clear context
+            newContext: null 
           };
         }
       }
@@ -141,13 +168,13 @@ export const processAICommand = async (text: string, userId: string, context?: a
             success: true, 
             message: `Got it. I've set that target for ${booking.title}.`,
             actionTaken: "lesson_target_followup",
-            newContext: null // Clear context
+            newContext: null 
           };
         }
       }
     }
 
-    // 1. FETCH ENTITIES FIRST (Students and Topics)
+    // 1. FETCH ENTITIES
     const [studentsRes, topicsRes] = await Promise.all([
       supabase.from("students").select("id, name").eq("user_id", userId),
       supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`)
@@ -172,7 +199,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    // 3. FIND BOOKING HELPER (Used by delete, complete, paid, note, target)
+    // 3. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
@@ -183,10 +210,8 @@ export const processAICommand = async (text: string, userId: string, context?: a
         .eq("user_id", userId);
 
       if (timeProvided) {
-        // Strict match if time was given
         query = query.eq("start_time", targetTime.toISOString());
       } else {
-        // Range match for the whole day if no time given
         query = query.gte("start_time", startOfDay(targetTime).toISOString())
                      .lte("start_time", endOfDay(targetTime).toISOString());
       }
@@ -228,7 +253,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 5. UPDATE BOOKING STATUS (Complete/Paid)
+    // 5. UPDATE BOOKING STATUS
     const isStatusUpdate = input.includes("complete") || 
                            input.includes("done") || 
                            input.includes("finished") || 
