@@ -165,18 +165,35 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       };
     }
 
-    // 3. PROGRESS PATTERN: "mark [student] [rating] stars for [topic]"
-    const progressMatch = input.match(/mark (\w+ \w+|\w+) (\d) stars? for (.+)/i);
-    if (progressMatch) {
-      const [_, studentName, rating, topicName] = progressMatch;
+    // 3. PROGRESS PATTERN: 
+    // "mark [student] [rating] stars for [topic]"
+    // "add [rating] stars to [topic] for [student]"
+    const markMatch = input.match(/mark (.+) (\d) stars? for (.+)/i);
+    const addMatch = input.match(/add (\d) stars? to (.+) for (.+)/i);
+    
+    if (markMatch || addMatch) {
+      let studentName = "";
+      let rating = "";
+      let topicName = "";
+
+      if (markMatch) {
+        [_, studentName, rating, topicName] = markMatch;
+      } else if (addMatch) {
+        [_, rating, topicName, studentName] = addMatch;
+      }
       
       const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
-      const student = students?.find(s => s.name.toLowerCase().includes(studentName.toLowerCase()));
+      const student = students?.find(s => s.name.toLowerCase().includes(studentName.toLowerCase().trim()));
       
       const { data: topics } = await supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`);
-      const topic = topics?.find(t => t.name.toLowerCase().includes(topicName.toLowerCase()));
+      const topic = topics?.find(t => t.name.toLowerCase().includes(topicName.toLowerCase().trim()));
 
-      if (!student || !topic) return { success: false, message: `I couldn't find ${!student ? 'that student' : 'that topic'}.` };
+      if (!student || !topic) {
+        return { 
+          success: false, 
+          message: `I couldn't find ${!student ? 'that student' : 'that topic'}. Make sure the name is correct.` 
+        };
+      }
 
       const { error } = await supabase.from("student_progress_entries").insert({
         user_id: userId,
@@ -188,12 +205,16 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       });
 
       if (error) return { success: false, message: "Failed to save progress: " + error.message };
-      return { success: true, message: `Updated ${student.name}'s progress for ${topic.name} to ${rating} stars.`, actionTaken: "progress" };
+      return { 
+        success: true, 
+        message: `Updated ${student.name}'s progress for ${topic.name} to ${rating} stars.`, 
+        actionTaken: "progress" 
+      };
     }
 
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Book a 2 hour test for [Name] at 10am on 25th Oct' or 'Add £20 fuel expense'." 
+      message: "I'm not sure how to do that yet. Try: 'Book a 2 hour test for [Name] at 10am on 25th Oct', 'Add £20 fuel expense', or 'Add 5 stars to cockpit drill for [Name]'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);
