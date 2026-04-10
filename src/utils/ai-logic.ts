@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, parse, isValid, startOfTomorrow, setHours, setMinutes } from "date-fns";
+import { format, addDays, parse, isValid, startOfTomorrow, setHours, setMinutes, addMinutes } from "date-fns";
 
 export interface AIResponse {
   success: boolean;
@@ -13,94 +13,99 @@ export interface AIResponse {
  * For now, this handles common patterns locally.
  */
 export const processAICommand = async (text: string, userId: string): Promise<AIResponse> => {
-  const input = text.toLowerCase();
+  try {
+    const input = text.toLowerCase();
 
-  // 1. ADD EXPENSE PATTERN: "add [amount] [category] expense [description]"
-  // Example: "add £20 fuel expense"
-  const expenseMatch = input.match(/add (?:£|\$)?(\d+(?:\.\d+)?) (\w+) expense(?: (.+))?/i);
-  if (expenseMatch) {
-    const [_, amount, category, description] = expenseMatch;
-    const { error } = await supabase.from("expenditures").insert({
-      user_id: userId,
-      amount: parseFloat(amount),
-      category: category.charAt(0).toUpperCase() + category.slice(1),
-      description: description || `AI Added: ${category}`,
-      date: format(new Date(), "yyyy-MM-dd")
-    });
+    // 1. ADD EXPENSE PATTERN: "add [amount] [category] expense [description]"
+    // Example: "add £20 fuel expense"
+    const expenseMatch = input.match(/add (?:£|\$)?(\d+(?:\.\d+)?) (\w+) expense(?: (.+))?/i);
+    if (expenseMatch) {
+      const [_, amount, category, description] = expenseMatch;
+      const { error } = await supabase.from("expenditures").insert({
+        user_id: userId,
+        amount: parseFloat(amount),
+        category: category.charAt(0).toUpperCase() + category.slice(1),
+        description: description || `AI Added: ${category}`,
+        date: format(new Date(), "yyyy-MM-dd")
+      });
 
-    if (error) return { success: false, message: "Failed to add expense: " + error.message };
-    return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
-  }
-
-  // 2. BOOKING PATTERN: "book [student] for [time] [day]"
-  // Example: "book john for 10am tomorrow"
-  if (input.includes("book")) {
-    // Fetch students to match name
-    const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
-    const student = students?.find(s => input.includes(s.name.toLowerCase()));
-
-    if (!student) return { success: false, message: "I couldn't find a student with that name in your list." };
-
-    let startTime = new Date();
-    if (input.includes("tomorrow")) startTime = startOfTomorrow();
-    
-    const timeMatch = input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
-    if (timeMatch) {
-      let hours = parseInt(timeMatch[1]);
-      const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-      const ampm = timeMatch[3].toLowerCase();
-      
-      if (ampm === "pm" && hours < 12) hours += 12;
-      if (ampm === "am" && hours === 12) hours = 0;
-      
-      startTime = setHours(setMinutes(startTime, mins), hours);
+      if (error) return { success: false, message: "Failed to add expense: " + error.message };
+      return { success: true, message: `Added £${amount} expense for ${category}.`, actionTaken: "expense" };
     }
 
-    const endTime = addMinutes(startTime, 60);
+    // 2. BOOKING PATTERN: "book [student] for [time] [day]"
+    // Example: "book john for 10am tomorrow"
+    if (input.includes("book")) {
+      // Fetch students to match name
+      const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
+      const student = students?.find(s => input.includes(s.name.toLowerCase()));
 
-    const { error } = await supabase.from("bookings").insert({
-      user_id: userId,
-      student_id: student.id,
-      title: `${student.name} - Driving lesson`,
-      lesson_type: "Driving lesson",
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
-      status: "scheduled"
-    });
+      if (!student) return { success: false, message: "I couldn't find a student with that name in your list." };
 
-    if (error) return { success: false, message: "Failed to create booking: " + error.message };
-    return { success: true, message: `Booked ${student.name} for ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, actionTaken: "booking" };
+      let startTime = new Date();
+      if (input.includes("tomorrow")) startTime = startOfTomorrow();
+      
+      const timeMatch = input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+        const ampm = timeMatch[3].toLowerCase();
+        
+        if (ampm === "pm" && hours < 12) hours += 12;
+        if (ampm === "am" && hours === 12) hours = 0;
+        
+        startTime = setHours(setMinutes(startTime, mins), hours);
+      }
+
+      const endTime = addMinutes(startTime, 60);
+
+      const { error } = await supabase.from("bookings").insert({
+        user_id: userId,
+        student_id: student.id,
+        title: `${student.name} - Driving lesson`,
+        lesson_type: "Driving lesson",
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        status: "scheduled"
+      });
+
+      if (error) return { success: false, message: "Failed to create booking: " + error.message };
+      return { success: true, message: `Booked ${student.name} for ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, actionTaken: "booking" };
+    }
+
+    // 3. PROGRESS PATTERN: "mark [student] [rating] stars for [topic]"
+    // Example: "mark john 5 stars for parallel parking"
+    const progressMatch = input.match(/mark (\w+ \w+|\w+) (\d) stars? for (.+)/i);
+    if (progressMatch) {
+      const [_, studentName, rating, topicName] = progressMatch;
+      
+      const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
+      const student = students?.find(s => s.name.toLowerCase().includes(studentName.toLowerCase()));
+      
+      const { data: topics } = await supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`);
+      const topic = topics?.find(t => t.name.toLowerCase().includes(topicName.toLowerCase()));
+
+      if (!student || !topic) return { success: false, message: `I couldn't find ${!student ? 'that student' : 'that topic'}.` };
+
+      const { error } = await supabase.from("student_progress_entries").insert({
+        user_id: userId,
+        student_id: student.id,
+        topic_id: topic.id,
+        rating: parseInt(rating),
+        comment: "Added via AI Assistant",
+        entry_date: new Date().toISOString()
+      });
+
+      if (error) return { success: false, message: "Failed to save progress: " + error.message };
+      return { success: true, message: `Updated ${student.name}'s progress for ${topic.name} to ${rating} stars.`, actionTaken: "progress" };
+    }
+
+    return { 
+      success: false, 
+      message: "I'm not sure how to do that yet. Try: 'Add £20 fuel expense', 'Book [Name] for 10am tomorrow', or 'Mark [Name] 5 stars for [Topic]'." 
+    };
+  } catch (err: any) {
+    console.error("AI Logic Error:", err);
+    return { success: false, message: "Internal logic error: " + err.message };
   }
-
-  // 3. PROGRESS PATTERN: "mark [student] [rating] stars for [topic]"
-  // Example: "mark john 5 stars for parallel parking"
-  const progressMatch = input.match(/mark (\w+ \w+|\w+) (\d) stars? for (.+)/i);
-  if (progressMatch) {
-    const [_, studentName, rating, topicName] = progressMatch;
-    
-    const { data: students } = await supabase.from("students").select("id, name").eq("user_id", userId);
-    const student = students?.find(s => s.name.toLowerCase().includes(studentName.toLowerCase()));
-    
-    const { data: topics } = await supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`);
-    const topic = topics?.find(t => t.name.toLowerCase().includes(topicName.toLowerCase()));
-
-    if (!student || !topic) return { success: false, message: `I couldn't find ${!student ? 'that student' : 'that topic'}.` };
-
-    const { error } = await supabase.from("student_progress_entries").insert({
-      user_id: userId,
-      student_id: student.id,
-      topic_id: topic.id,
-      rating: parseInt(rating),
-      comment: "Added via AI Assistant",
-      entry_date: new Date().toISOString()
-    });
-
-    if (error) return { success: false, message: "Failed to save progress: " + error.message };
-    return { success: true, message: `Updated ${student.name}'s progress for ${topic.name} to ${rating} stars.`, actionTaken: "progress" };
-  }
-
-  return { 
-    success: false, 
-    message: "I'm not sure how to do that yet. Try: 'Add £20 fuel expense', 'Book [Name] for 10am tomorrow', or 'Mark [Name] 5 stars for [Topic]'." 
-  };
 };
