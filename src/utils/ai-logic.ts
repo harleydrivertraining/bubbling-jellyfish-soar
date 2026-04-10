@@ -308,19 +308,26 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
       
       // Recurrence Parsing
       let repeatCount = 1;
-      let intervalWeeks = 0;
+      let intervalWeeks = 1; // Default to weekly if repeating
       
-      if (input.includes("weekly") || input.includes("every week")) {
-        intervalWeeks = 1;
-      } else if (input.includes("fortnightly") || input.includes("every 2 weeks") || input.includes("every two weeks")) {
+      const isWeekly = input.includes("weekly") || input.includes("every week");
+      const isFortnightly = input.includes("fortnightly") || input.includes("every 2 weeks") || input.includes("every two weeks");
+      const isRepeating = input.includes("repeat") || input.includes("recurring") || input.includes("for") && input.match(/for \d+ weeks/i);
+
+      if (isFortnightly) {
         intervalWeeks = 2;
+      } else if (isWeekly) {
+        intervalWeeks = 1;
+      } else if (!isRepeating) {
+        intervalWeeks = 0; // Not repeating
       }
 
       const repeatMatch = input.match(/(?:for|repeat)\s+(\d+)\s*(?:weeks|times|occurrences)?/i);
       if (repeatMatch) {
         repeatCount = parseInt(repeatMatch[1]);
-      } else if (intervalWeeks > 0) {
-        // Default to 4 repeats if interval specified but no count
+        if (intervalWeeks === 0) intervalWeeks = 1; // Default to weekly if repeat count specified
+      } else if (isWeekly || isFortnightly) {
+        // Default to 4 repeats if frequency specified but no count
         repeatCount = 4;
       }
 
