@@ -1,5 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, parse, isValid, startOfTomorrow, setHours, setMinutes, addMinutes } from "date-fns";
+import { 
+  format, 
+  addDays, 
+  startOfTomorrow, 
+  setHours, 
+  setMinutes, 
+  addMinutes, 
+  nextDay, 
+  parse, 
+  isValid, 
+  setMonth, 
+  setDate,
+  startOfDay,
+  isBefore,
+  addYears
+} from "date-fns";
 
 export interface AIResponse {
   success: boolean;
@@ -33,10 +48,6 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
     }
 
     // 2. BOOKING PATTERN: "book [duration] [type] for [student] at [time] [day]"
-    // Examples: 
-    // "book 2 hours for john at 10am tomorrow"
-    // "book a 90 min test for sarah at 1pm"
-    // "book personal time at 3pm"
     if (input.includes("book")) {
       // Determine Duration (default 60 mins)
       let durationMins = 60;
@@ -79,10 +90,44 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         }
       }
 
-      // Determine Start Time
-      let startTime = new Date();
-      if (input.includes("tomorrow")) startTime = startOfTomorrow();
+      // --- IMPROVED DATE PARSING ---
+      let targetDate = startOfDay(new Date());
       
+      if (input.includes("tomorrow")) {
+        targetDate = startOfTomorrow();
+      } else {
+        // Check for days of the week
+        const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+        const dayIndex = days.findIndex(d => input.includes(d));
+        if (dayIndex !== -1) {
+          targetDate = nextDay(new Date(), dayIndex as any);
+        } else {
+          // Check for specific date like "25th Oct" or "25/10"
+          const dateMatch = input.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\/|\s+)(\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+          if (dateMatch) {
+            const day = parseInt(dateMatch[1]);
+            const monthStr = dateMatch[2].toLowerCase();
+            let month;
+            if (isNaN(parseInt(monthStr))) {
+              const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+              month = months.indexOf(monthStr.substring(0, 3));
+            } else {
+              month = parseInt(monthStr) - 1;
+            }
+            
+            if (month !== -1) {
+              targetDate = setMonth(setDate(targetDate, day), month);
+              // If the date is in the past, assume next year
+              if (isBefore(targetDate, startOfDay(new Date()))) {
+                targetDate = addYears(targetDate, 1);
+              }
+            }
+          }
+        }
+      }
+
+      // --- IMPROVED TIME PARSING ---
+      let startTime = targetDate;
       const timeMatch = input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
       if (timeMatch) {
         let hours = parseInt(timeMatch[1]);
@@ -92,7 +137,10 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
         if (ampm === "pm" && hours < 12) hours += 12;
         if (ampm === "am" && hours === 12) hours = 0;
         
-        startTime = setHours(setMinutes(startTime, mins), hours);
+        startTime = setHours(setMinutes(targetDate, mins), hours);
+      } else {
+        // Default to 9am if no time specified
+        startTime = setHours(setMinutes(targetDate, 0), 9);
       }
 
       const endTime = addMinutes(startTime, durationMins);
@@ -145,7 +193,7 @@ export const processAICommand = async (text: string, userId: string): Promise<AI
 
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Book a 2 hour test for [Name] at 10am tomorrow' or 'Add £20 fuel expense'." 
+      message: "I'm not sure how to do that yet. Try: 'Book a 2 hour test for [Name] at 10am on 25th Oct' or 'Add £20 fuel expense'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);
