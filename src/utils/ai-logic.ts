@@ -259,7 +259,37 @@ export const processAICommand = async (text: string, userId: string, context?: a
       };
     }
 
-    // 4. FIND BOOKING HELPER
+    // 4. NEXT LESSON QUERY PATTERN
+    if (input.includes("next") && (input.includes("lesson") || input.includes("booking") || input.includes("schedule") || input.includes("who"))) {
+      const { data: nextBooking, error } = await supabase
+        .from("bookings")
+        .select("id, title, start_time, lesson_type, students(name)")
+        .eq("user_id", userId)
+        .eq("status", "scheduled")
+        .gt("start_time", new Date().toISOString())
+        .order("start_time", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) return { success: false, message: "Failed to check schedule: " + error.message };
+      
+      if (!nextBooking) {
+        return { success: true, message: "You don't have any more lessons scheduled for today or in the future." };
+      }
+
+      const startTime = parseISO(nextBooking.start_time);
+      const studentName = (nextBooking.students as any)?.name || "a student";
+      const timeStr = format(startTime, "p");
+      const dateStr = isToday(startTime) ? "today" : isSameDay(startTime, startOfTomorrow()) ? "tomorrow" : `on ${format(startTime, "EEEE, MMM do")}`;
+
+      return { 
+        success: true, 
+        message: `Your next lesson is with **${studentName}** at **${timeStr}** ${dateStr}. It's a **${nextBooking.lesson_type}**.`,
+        actionTaken: "query_next_lesson"
+      };
+    }
+
+    // 5. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
       const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
@@ -284,7 +314,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { matches: matches || [], targetTime, timeProvided, student, error };
     };
 
-    // 5. DELETE/CANCEL BOOKING PATTERN
+    // 6. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
         const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
@@ -313,7 +343,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 6. UPDATE BOOKING STATUS
+    // 7. UPDATE BOOKING STATUS
     const isStatusUpdate = input.includes("complete") || 
                            input.includes("done") || 
                            input.includes("finished") || 
@@ -362,7 +392,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 7. LESSON NOTE PATTERN
+    // 8. LESSON NOTE PATTERN
     if (input.includes("note") || input.includes("comment") || input.includes("description")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
@@ -389,7 +419,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 8. LESSON TARGET PATTERN
+    // 9. LESSON TARGET PATTERN
     if (input.includes("target") || input.includes("goal") || input.includes("objective")) {
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
@@ -416,7 +446,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 9. PROGRESS UPDATE PATTERN
+    // 10. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -462,7 +492,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
           user_id: userId,
           student_id: student.id,
           topic_id: topic.id,
-          rating: finalMileage,
+          rating: finalRating,
           comment: isPrivate ? null : (noteContent || "Updated via Assistant"),
           private_notes: isPrivate ? noteContent : null,
           entry_date: new Date().toISOString()
@@ -476,7 +506,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 10. BOOKING / SLOT PATTERN
+    // 11. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
 
