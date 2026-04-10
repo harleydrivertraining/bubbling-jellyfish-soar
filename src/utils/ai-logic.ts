@@ -548,7 +548,43 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 12. PROGRESS UPDATE PATTERN
+    // 12. DRIVING TEST RESULT PATTERN
+    if (input.includes("test") && (input.includes("result") || input.includes("passed") || input.includes("failed") || input.includes("record"))) {
+      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      if (student) {
+        const { date: testDate } = parseDateTime(input);
+        const passed = input.includes("passed");
+        
+        // Extract faults
+        const drivingFaultsMatch = input.match(/(\d+)\s*(?:driving\s*)?faults?/i);
+        const seriousFaultsMatch = input.match(/(\d+)\s*serious\s*faults?/i);
+        
+        const drivingFaults = drivingFaultsMatch ? parseInt(drivingFaultsMatch[1]) : 0;
+        const seriousFaults = seriousFaultsMatch ? parseInt(seriousFaultsMatch[1]) : 0;
+        const examinerAction = input.includes("examiner action") || input.includes("intervention");
+
+        const { error } = await supabase.from("driving_tests").insert({
+          user_id: userId,
+          student_id: student.id,
+          test_date: format(testDate, "yyyy-MM-dd"),
+          passed: passed,
+          driving_faults: drivingFaults,
+          serious_faults: seriousFaults,
+          examiner_action: examinerAction,
+          notes: `Recorded via AI Assistant: ${text}`
+        });
+
+        if (error) return { success: false, message: "Failed to record test result: " + error.message };
+        
+        return { 
+          success: true, 
+          message: `Recorded test result for **${student.name}** on ${format(testDate, "MMM do")}. Result: **${passed ? 'PASSED' : 'FAILED'}** with ${drivingFaults} driving faults and ${seriousFaults} serious faults.`,
+          actionTaken: "test_result"
+        };
+      }
+    }
+
+    // 13. PROGRESS UPDATE PATTERN
     const isProgressUpdate = input.includes("star") || 
                              input.includes("rating") || 
                              input.includes("mark") || 
@@ -608,7 +644,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // 13. BOOKING / SLOT PATTERN
+    // 14. BOOKING / SLOT PATTERN
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
 
