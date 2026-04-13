@@ -102,7 +102,7 @@ const Dashboard: React.FC = () => {
   const { data: pendingRequests } = useQuery({
     queryKey: ['pending-requests', user?.id],
     queryFn: async () => {
-      const { data } =await supabase
+      const { data } = await supabase
         .from("bookings")
         .select("id, title, start_time, end_time, student_id, students(name, auth_user_id)")
         .eq("user_id", user!.id)
@@ -670,7 +670,7 @@ const Dashboard: React.FC = () => {
   if (isSessionLoading || isProfileLoading) {
     return (
       <div className="space-y-6 p-6">
-        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-48" />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
         </div>
