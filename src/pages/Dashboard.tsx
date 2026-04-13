@@ -102,7 +102,7 @@ const Dashboard: React.FC = () => {
   const { data: pendingRequests } = useQuery({
     queryKey: ['pending-requests', user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } =await supabase
         .from("bookings")
         .select("id, title, start_time, end_time, student_id, students(name, auth_user_id)")
         .eq("user_id", user!.id)
@@ -368,9 +368,9 @@ const Dashboard: React.FC = () => {
 
   const renderWidget = (id: string) => {
     switch (id) {
-      case "pending_requests":
+      case "pending_requests": {
         const hasRequests = pendingRequests && pendingRequests.length > 0;
-        if (!hasRequests) return null; // Hide completely if no requests
+        if (!hasRequests) return null;
 
         return (
           <Card key={id} className="shadow-md overflow-hidden transition-all border-l-4 border-l-orange-500 bg-orange-50/30">
@@ -417,6 +417,7 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
         );
+      }
       case "quick_stats":
         return (
           <div key={id} className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -493,7 +494,7 @@ const Dashboard: React.FC = () => {
         );
       case "todo_list":
         return <DashboardTodoWidget key={id} />;
-      case "upcoming_lessons":
+      case "upcoming_lessons": {
         const upcoming = bookingsData || [];
         const displayed = showAllLessons ? upcoming : upcoming.slice(0, 3);
         return (
@@ -562,6 +563,7 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
         );
+      }
       case "test_stats":
         return (
           <Card key={id} className="p-6 shadow-sm h-full">
@@ -592,7 +594,7 @@ const Dashboard: React.FC = () => {
             ) : <p className="text-sm text-muted-foreground text-center py-4">No test data available.</p>}
           </Card>
         );
-      case "next_tests":
+      case "next_tests": {
         const nextTests = (bookingsData || []).filter(b => b.lesson_type === "Driving Test").slice(0, 2);
         return (
           <Card key={id} className="p-6 shadow-sm h-full">
@@ -617,6 +619,7 @@ const Dashboard: React.FC = () => {
             )}
           </Card>
         );
+      }
       case "service_info":
         const isServiceWarning = !!serviceInfo && serviceInfo.minMiles !== null && serviceInfo.minMiles < 1000;
         return (
