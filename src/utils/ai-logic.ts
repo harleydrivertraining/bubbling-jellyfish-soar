@@ -317,6 +317,60 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
+    // --- GUIDED MESSAGING FLOW ---
+    if (context?.pendingMessage) {
+      const data = { ...context.pendingMessage };
+      const step = data.step;
+
+      if (step === 'student') {
+        const { student, ambiguous, options } = resolveStudentFromInput(text, students);
+        if (ambiguous) {
+          return { 
+            success: true, 
+            message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+            newContext: context 
+          };
+        }
+        if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        
+        data.student_id = student.id;
+        data.student_name = student.name;
+        data.auth_user_id = student.auth_user_id;
+        data.step = 'content';
+        return { success: true, message: `Got it, a message for **${student.name}**. What would you like to say?`, newContext: { pendingMessage: data } };
+      }
+
+      if (step === 'content') {
+        const content = text.trim();
+        if (!content) return { success: false, message: "The message can't be empty. What would you like to say?", newContext: context };
+
+        const { error } = await supabase.from("instructor_messages").insert({
+          instructor_id: userId,
+          student_id: data.student_id,
+          content: content,
+          is_broadcast: false
+        });
+
+        if (error) return { success: false, message: "Failed to send message: " + error.message };
+
+        if (data.auth_user_id) {
+          await supabase.from("notifications").insert({
+            user_id: data.auth_user_id,
+            title: "New Message",
+            message: "Your instructor has sent you a private message.",
+            type: "instructor_message"
+          });
+        }
+
+        return { 
+          success: true, 
+          message: `I've sent that message to **${data.student_name}**.`, 
+          actionTaken: "send_message",
+          newContext: null 
+        };
+      }
+    }
+
     // --- MARK PAST STUDENT FLOW ---
     if (context?.pendingMarkPastStudent) {
       const { student, ambiguous, options } = resolveStudentFromInput(text, students);
@@ -660,7 +714,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
     // 10. MESSAGING PATTERN
     const isMessaging = input.includes("message") || input.includes("tell") || input.includes("send");
     if (isMessaging) {
-      const msgParts = text.split(/[:]|saying|telling|that|message:/i);
+      const msgParts = text.split(/[:]|saying|telling|that|message:|to say/i);
       const searchArea = msgParts[0].toLowerCase();
       const { student, ambiguous, options } = resolveStudentFromInput(searchArea, students);
 
@@ -668,11 +722,27 @@ export const processAICommand = async (text: string, userId: string, context?: a
         return { 
           success: true, 
           message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
-          newContext: null // Messaging is direct, we don't have a guided flow yet
+          newContext: { 
+            pendingMessage: { 
+              step: 'student'
+            } 
+          } 
         };
       }
 
-      if (student && msgParts.length > 1) {
+      if (!student) {
+        return {
+          success: true,
+          message: "Sure! I can help you send a message. Who would you like to message?",
+          newContext: {
+            pendingMessage: {
+              step: 'student'
+            }
+          }
+        };
+      }
+
+      if (msgParts.length > 1) {
         const content = msgParts[msgParts.length - 1].trim();
         if (content.length > 0) {
           await supabase.from("instructor_messages").insert({ instructor_id: userId, student_id: student.id, content: content, is_broadcast: false });
@@ -682,6 +752,19 @@ export const processAICommand = async (text: string, userId: string, context?: a
           return { success: true, message: `I've sent that message to **${student.name}**.`, actionTaken: "send_message" };
         }
       }
+
+      return {
+        success: true,
+        message: `Got it, a message for **${student.name}**. What would you like to say?`,
+        newContext: {
+          pendingMessage: {
+            step: 'content',
+            student_id: student.id,
+            student_name: student.name,
+            auth_user_id: student.auth_user_id
+          }
+        }
+      };
     }
 
     // 11. DRIVING TEST RESULT PATTERN
