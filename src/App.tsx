@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import { SessionContextProvider, useSession } from "./components/auth/SessionContextProvider";
 import { initializePushNotifications } from "./utils/push-notifications";
-import { Skeleton } from "./components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Lazy load pages
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -37,6 +37,7 @@ const AdminSupport = lazy(() => import("./pages/AdminSupport"));
 const Accounts = lazy(() => import("./pages/Accounts"));
 const PendingRequests = lazy(() => import("./pages/PendingRequests"));
 const InstructorMessages = lazy(() => import("./pages/InstructorMessages"));
+const TodoList = lazy(() => import("./pages/TodoList"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
@@ -105,6 +106,7 @@ const AppContent = () => {
           <Route path="admin/support" element={<AdminSupport />} />
           <Route path="pending-requests" element={<PendingRequests />} />
           <Route path="messages" element={<InstructorMessages />} />
+          <Route path="todo" element={<TodoList />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>

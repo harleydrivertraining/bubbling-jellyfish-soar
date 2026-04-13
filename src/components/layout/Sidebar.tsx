@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import {
@@ -32,7 +32,8 @@ import {
   UserCircle,
   Sparkles,
   Inbox,
-  MessageSquare
+  MessageSquare,
+  ListTodo
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -78,6 +79,7 @@ interface SidebarProps {
 
 const DEFAULT_NAV_ITEMS = [
   { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { id: "todo", to: "/todo", icon: ListTodo, label: "To Do List" },
   { id: "students", to: "/students", icon: Users, label: "Students" },
   { id: "schedule", to: "/schedule", icon: CalendarDays, label: "Schedule" },
   { id: "messages", to: "/messages", icon: MessageSquare, label: "Messages" },

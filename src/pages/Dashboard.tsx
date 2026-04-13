@@ -7,7 +7,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox, RefreshCw } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox, RefreshCw, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -44,6 +44,7 @@ type RevenueTimeframe = "daily" | "weekly" | "monthly";
 const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "pending_requests", label: "Booking Requests", visible: true },
   { id: "quick_stats", label: "Quick Stats Row", visible: true },
+  { id: "todo_list", label: "To Do List", visible: true },
   { id: "upcoming_lessons", label: "Upcoming Lessons List", visible: true },
   { id: "test_stats", label: "Test Performance (12m)", visible: true },
   { id: "next_tests", label: "Next Driving Tests", visible: true },
@@ -288,6 +289,22 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
+  // Todos Query
+  const { data: todos = [] } = useQuery({
+    queryKey: ['instructor-todos-dashboard', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("instructor_todos")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("completed", false)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      return data || [];
+    },
+    enabled: !!user && isInstructor,
+  });
+
   const handleApprove = async (id: string, studentName: string, authUserId: string | null) => {
     const { error } = await supabase
       .from("bookings")
@@ -488,6 +505,38 @@ const Dashboard: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+        );
+      case "todo_list":
+        return (
+          <Card key={id} className="shadow-sm h-full flex flex-col">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <ListTodo className="h-5 w-5 text-primary" />
+                  To Do List
+                </CardTitle>
+                <Button asChild variant="ghost" size="sm" className="h-8 px-2 font-bold text-primary">
+                  <Link to="/todo">View All <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 p-0">
+              {todos.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground italic text-sm">
+                  No active tasks.
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {todos.map((todo) => (
+                    <div key={todo.id} className="p-3 flex items-center gap-3 hover:bg-muted/30 transition-colors">
+                      <div className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                      <span className="text-sm font-medium truncate">{todo.task}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         );
       case "upcoming_lessons":
         const upcoming = bookingsData || [];
