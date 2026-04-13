@@ -512,8 +512,9 @@ export const processAICommand = async (text: string, userId: string, context?: a
     }
 
     // 4. ADD STUDENT PATTERN
-    if (input.includes("add") && input.includes("student")) {
-      const nameMatch = text.match(/add (?:a )?new student (?:called |named )?([a-z\s]+)/i);
+    const isStudentKeyword = input.includes("student") || input.includes("learner") || input.includes("pupil");
+    if (input.includes("add") && isStudentKeyword) {
+      const nameMatch = text.match(/add (?:a )?new (?:student|learner|pupil) (?:called |named )?([a-z\s]+)/i);
       const name = nameMatch ? nameMatch[1].trim() : null;
 
       return {
@@ -530,7 +531,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 5. MARK PAST STUDENT PATTERN
     const isMarkPastAction = input.includes("mark") || input.includes("set") || input.includes("archive") || input.includes("finished") || input.includes("done with");
-    const isPastStudentTarget = input.includes("past student") || input.includes("archive") || input.includes("finished student");
+    const isPastStudentTarget = input.includes("past student") || input.includes("past learner") || input.includes("past pupil") || input.includes("archive") || input.includes("finished student") || input.includes("finished learner") || input.includes("finished pupil");
     
     if (isMarkPastAction && isPastStudentTarget) {
       const { student, ambiguous, options } = resolveStudentFromInput(input, students);
