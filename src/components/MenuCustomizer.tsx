@@ -25,7 +25,8 @@ import {
   PoundSterling,
   ListChecks,
   LifeBuoy,
-  Settings
+  Settings,
+  ListTodo
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,7 @@ const ICON_MAP: Record<string, any> = {
   dashboard: LayoutDashboard,
   students: Users,
   schedule: CalendarDays,
+  todo: ListTodo,
   lessons: BookOpen,
   "lesson-notes": NotebookText,
   "student-targets": Target,
@@ -60,6 +62,7 @@ const DEFAULT_MENU: MenuItemConfig[] = [
   { id: "dashboard", label: "Dashboard", visible: true, to: "/" },
   { id: "students", label: "Students", visible: true, to: "/students" },
   { id: "schedule", label: "Schedule", visible: true, to: "/schedule" },
+  { id: "todo", label: "To Do List", visible: true, to: "/todo" },
   { id: "lessons", label: "Lessons", visible: true, to: "/lessons" },
   { id: "lesson-notes", label: "Lesson Notes", visible: true, to: "/lesson-notes" },
   { id: "student-targets", label: "Student Targets", visible: true, to: "/student-targets" },

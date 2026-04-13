@@ -79,9 +79,9 @@ interface SidebarProps {
 
 const DEFAULT_NAV_ITEMS = [
   { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { id: "todo", to: "/todo", icon: ListTodo, label: "To Do List" },
   { id: "students", to: "/students", icon: Users, label: "Students" },
   { id: "schedule", to: "/schedule", icon: CalendarDays, label: "Schedule" },
+  { id: "todo", to: "/todo", icon: ListTodo, label: "To Do List" },
   { id: "messages", to: "/messages", icon: MessageSquare, label: "Messages" },
   { id: "lessons", to: "/lessons", icon: BookOpen, label: "Lessons" },
   { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
