@@ -79,9 +79,9 @@ interface SidebarProps {
 
 const DEFAULT_NAV_ITEMS = [
   { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { id: "students", to: "/students", icon: Users, label: "Students" },
   { id: "schedule", to: "/schedule", icon: CalendarDays, label: "Schedule" },
   { id: "todo", to: "/todo", icon: ListTodo, label: "To Do List" },
+  { id: "students", to: "/students", icon: Users, label: "Students" },
   { id: "messages", to: "/messages", icon: MessageSquare, label: "Messages" },
   { id: "lessons", to: "/lessons", icon: BookOpen, label: "Lessons" },
   { id: "lesson-notes", to: "/lesson-notes", icon: NotebookText, label: "Lesson Notes" },
@@ -123,6 +123,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        // If the saved config doesn't have the 'todo' item in it, it's an old config
+        // We'll merge it but ensure 'todo' follows 'schedule' if it's missing from the saved list
         const visibleItems = parsed
           .filter((p: any) => p.visible)
           .map((p: any) => {

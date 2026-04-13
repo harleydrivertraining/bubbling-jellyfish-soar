@@ -60,13 +60,15 @@ const ICON_MAP: Record<string, any> = {
 
 const DEFAULT_MENU: MenuItemConfig[] = [
   { id: "dashboard", label: "Dashboard", visible: true, to: "/" },
-  { id: "students", label: "Students", visible: true, to: "/students" },
   { id: "schedule", label: "Schedule", visible: true, to: "/schedule" },
   { id: "todo", label: "To Do List", visible: true, to: "/todo" },
+  { id: "students", label: "Students", visible: true, to: "/students" },
+  { id: "messages", label: "Messages", visible: true, to: "/messages" },
   { id: "lessons", label: "Lessons", visible: true, to: "/lessons" },
   { id: "lesson-notes", label: "Lesson Notes", visible: true, to: "/lesson-notes" },
   { id: "student-targets", label: "Student Targets", visible: true, to: "/student-targets" },
   { id: "progress", label: "Progress", visible: true, to: "/progress" },
+  { id: "self-assessments", label: "Pupil Self-Assessments", visible: true, to: "/pupil-self-assessments" },
   { id: "test-bookings", label: "Test Bookings", visible: true, to: "/driving-test-bookings" },
   { id: "test-records", label: "Test Records", visible: true, to: "/driving-tests" },
   { id: "test-stats", label: "Test Statistics", visible: true, to: "/test-statistics" },
