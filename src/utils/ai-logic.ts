@@ -36,6 +36,49 @@ export interface AIResponse {
   newContext?: any;
 }
 
+interface Student {
+  id: string;
+  name: string;
+  auth_user_id: string | null;
+}
+
+/**
+ * Helper to resolve a student from input string, handling ambiguity
+ */
+const resolveStudentFromInput = (input: string, students: Student[]) => {
+  const cleanInput = input.toLowerCase().trim();
+  if (!cleanInput) return { student: null, ambiguous: false };
+
+  // 1. Try exact full name match
+  const exactMatches = students.filter(s => s.name.toLowerCase() === cleanInput);
+  if (exactMatches.length === 1) return { student: exactMatches[0], ambiguous: false };
+
+  // 2. Try matching full name within the input string
+  // Sort by length descending to match "John Smith" before "John"
+  const sortedStudents = [...students].sort((a, b) => b.name.length - a.name.length);
+  const containedMatches = sortedStudents.filter(s => cleanInput.includes(s.name.toLowerCase()));
+  if (containedMatches.length === 1) return { student: containedMatches[0], ambiguous: false };
+  if (containedMatches.length > 1) return { student: null, ambiguous: true, options: containedMatches };
+
+  // 3. Try matching first name
+  const firstNames = students.filter(s => {
+    const firstName = s.name.split(' ')[0].toLowerCase();
+    // Match if the first name is a standalone word in the input
+    const regex = new RegExp(`\\b${firstName}\\b`, 'i');
+    return regex.test(cleanInput);
+  });
+
+  if (firstNames.length === 1) return { student: firstNames[0], ambiguous: false };
+  if (firstNames.length > 1) return { student: null, ambiguous: true, options: firstNames };
+
+  // 4. Fallback: check if the input is contained in any student name (partial match)
+  const partials = students.filter(s => s.name.toLowerCase().includes(cleanInput));
+  if (partials.length === 1) return { student: partials[0], ambiguous: false };
+  if (partials.length > 1) return { student: null, ambiguous: true, options: partials };
+
+  return { student: null, ambiguous: false };
+};
+
 /**
  * Helper to parse date and time from natural language
  */
@@ -154,8 +197,16 @@ export const processAICommand = async (text: string, userId: string, context?: a
       const step = data.step;
 
       if (step === 'student') {
-        const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
+        const { student, ambiguous, options } = resolveStudentFromInput(text, students);
+        if (ambiguous) {
+          return { 
+            success: true, 
+            message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+            newContext: context 
+          };
+        }
         if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        
         data.student_id = student.id;
         data.student_name = student.name;
         data.step = 'date';
@@ -226,8 +277,16 @@ export const processAICommand = async (text: string, userId: string, context?: a
       const step = data.step;
 
       if (step === 'student') {
-        const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
+        const { student, ambiguous, options } = resolveStudentFromInput(text, students);
+        if (ambiguous) {
+          return { 
+            success: true, 
+            message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+            newContext: context 
+          };
+        }
         if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        
         data.student_id = student.id;
         data.student_name = student.name;
         data.step = 'amount';
@@ -260,7 +319,14 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // --- MARK PAST STUDENT FLOW ---
     if (context?.pendingMarkPastStudent) {
-      const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
+      const { student, ambiguous, options } = resolveStudentFromInput(text, students);
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+          newContext: context 
+        };
+      }
       if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
       
       const { error } = await supabase.from("students").update({ is_past_student: true }).eq("id", student.id);
@@ -372,8 +438,16 @@ export const processAICommand = async (text: string, userId: string, context?: a
       const step = data.step;
 
       if (step === 'student') {
-        const student = students.find(s => input.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(input));
+        const { student, ambiguous, options } = resolveStudentFromInput(text, students);
+        if (ambiguous) {
+          return { 
+            success: true, 
+            message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+            newContext: context 
+          };
+        }
         if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        
         data.student_id = student.id;
         data.student_name = student.name;
         data.step = 'date';
@@ -459,9 +533,16 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const isPastStudentTarget = input.includes("past student") || input.includes("archive") || input.includes("finished student");
     
     if (isMarkPastAction && isPastStudentTarget) {
-      const cleanInput = input.replace("past student", "").replace("archive", "").replace("mark", "").replace("set", "").trim();
-      const student = students.find(s => cleanInput.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(cleanInput) && cleanInput.length > 2);
+      const { student, ambiguous, options } = resolveStudentFromInput(input, students);
       
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+          newContext: { pendingMarkPastStudent: true } 
+        };
+      }
+
       if (student) {
         const { error } = await supabase.from("students").update({ is_past_student: true }).eq("id", student.id);
         if (error) return { success: false, message: "Failed to update student: " + error.message };
@@ -580,7 +661,15 @@ export const processAICommand = async (text: string, userId: string, context?: a
     if (isMessaging) {
       const msgParts = text.split(/[:]|saying|telling|that|message:/i);
       const searchArea = msgParts[0].toLowerCase();
-      const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
+      const { student, ambiguous, options } = resolveStudentFromInput(searchArea, students);
+
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+          newContext: null // Messaging is direct, we don't have a guided flow yet
+        };
+      }
 
       if (student && msgParts.length > 1) {
         const content = msgParts[msgParts.length - 1].trim();
@@ -596,20 +685,33 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 11. DRIVING TEST RESULT PATTERN
     if (input.includes("test") && (input.includes("result") || input.includes("passed") || input.includes("failed") || input.includes("record"))) {
-      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      const { student, ambiguous, options } = resolveStudentFromInput(input, students);
       const { date: testDate } = parseDateTime(input);
       const hasOutcome = input.includes("passed") || input.includes("failed");
+
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+          newContext: { 
+            pendingTestResult: { 
+              step: 'student',
+              test_date: format(testDate, "yyyy-MM-dd")
+            } 
+          } 
+        };
+      }
 
       if (!student || !hasOutcome) {
         return { 
           success: true, 
-          message: "Sure! I can help you record a test result. Which student was the test for?",
+          message: "Sure! I can help you record a test result. " + (!student ? "Which student was the test for?" : "Did they pass?"),
           newContext: { 
             pendingTestResult: { 
-              step: student ? 'date' : 'student',
+              step: student ? 'outcome' : 'student',
               student_id: student?.id,
               student_name: student?.name,
-              test_date: student ? format(testDate, "yyyy-MM-dd") : null
+              test_date: format(testDate, "yyyy-MM-dd")
             } 
           } 
         };
@@ -640,19 +742,25 @@ export const processAICommand = async (text: string, userId: string, context?: a
     // 12. FIND BOOKING HELPER
     const findTargetBooking = async (searchStr: string) => {
       const { date: targetTime, timeProvided } = parseDateTime(searchStr);
-      const student = students.find(s => searchStr.includes(s.name.toLowerCase()));
+      const { student, ambiguous, options } = resolveStudentFromInput(searchStr, students);
+      
+      if (ambiguous) return { matches: [], ambiguous: true, options };
+
       let query = supabase.from("bookings").select("id, title, start_time, status").eq("user_id", userId);
       if (timeProvided) query = query.eq("start_time", targetTime.toISOString());
       else query = query.gte("start_time", startOfDay(targetTime).toISOString()).lte("start_time", endOfDay(targetTime).toISOString());
       if (student) query = query.eq("student_id", student.id);
       const { data: matches, error } = await query;
-      return { matches: matches || [], targetTime, timeProvided, student, error };
+      return { matches: matches || [], targetTime, timeProvided, student, error, ambiguous: false };
     };
 
     // 13. DELETE/CANCEL BOOKING PATTERN
     if (input.includes("delete") || input.includes("cancel") || input.includes("remove")) {
       if (input.includes("booking") || input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("gap") || input.includes("space")) {
-        const { matches, targetTime, timeProvided, student } = await findTargetBooking(input);
+        const result = await findTargetBooking(input);
+        if (result.ambiguous) return { success: true, message: `I found multiple students matching that name: **${result.options?.map(o => o.name).join(', ')}**. Which one did you mean?` };
+        
+        const { matches, targetTime, timeProvided, student } = result;
         if (matches.length === 0) return { success: false, message: `I couldn't find a booking on ${format(targetTime, "MMM do")}${student ? ' for ' + student.name : ''}.` };
         if (matches.length > 1 && !timeProvided) {
           const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
@@ -675,7 +783,11 @@ export const processAICommand = async (text: string, userId: string, context?: a
         await supabase.from("bookings").update({ status: "completed" }).in("id", toUpdate.map(b => b.id));
         return { success: true, message: `Marked all ${toUpdate.length} lessons on ${format(targetTime, "MMM do")} as completed.`, actionTaken: "complete_all" };
       }
-      const { matches, timeProvided, student } = await findTargetBooking(input);
+      
+      const result = await findTargetBooking(input);
+      if (result.ambiguous) return { success: true, message: `I found multiple students matching that name: **${result.options?.map(o => o.name).join(', ')}**. Which one did you mean?` };
+
+      const { matches, timeProvided, student } = result;
       if (matches.length === 0) return { success: false, message: `I couldn't find that lesson.` };
       if (matches.length > 1 && !timeProvided) {
         const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
@@ -699,7 +811,11 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const noteParts = text.split(/[:]|note:|comment:|description:|saying/i);
         const searchArea = noteParts[0].toLowerCase();
-        const { matches, timeProvided, student } = await findTargetBooking(searchArea);
+        const result = await findTargetBooking(searchArea);
+        
+        if (result.ambiguous) return { success: true, message: `I found multiple students matching that name: **${result.options?.map(o => o.name).join(', ')}**. Which one did you mean?` };
+
+        const { matches, timeProvided, student } = result;
         if (matches.length > 0) {
           if (matches.length > 1 && !timeProvided) {
             const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
@@ -721,7 +837,11 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (input.includes("lesson") || input.includes("booking") || input.includes("slot")) {
         const targetParts = text.split(/[:]|target:|goal:|objective:|saying/i);
         const searchArea = targetParts[0].toLowerCase();
-        const { matches, timeProvided, student } = await findTargetBooking(searchArea);
+        const result = await findTargetBooking(searchArea);
+
+        if (result.ambiguous) return { success: true, message: `I found multiple students matching that name: **${result.options?.map(o => o.name).join(', ')}**. Which one did you mean?` };
+
+        const { matches, timeProvided, student } = result;
         if (matches.length > 0) {
           if (matches.length > 1 && !timeProvided) {
             const times = matches.map(m => format(parseISO(m.start_time), "p")).join(", ");
@@ -748,9 +868,13 @@ export const processAICommand = async (text: string, userId: string, context?: a
       const noteParts = text.split(/[:]|note:|comment:|feedback:|saying/i);
       if (noteParts.length > 1) noteContent = noteParts[noteParts.length - 1].trim();
       const searchArea = noteParts[0].toLowerCase();
-      const student = students.find(s => searchArea.includes(s.name.toLowerCase()));
+      
+      const { student, ambiguous, options } = resolveStudentFromInput(searchArea, students);
+      if (ambiguous) return { success: true, message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?` };
+
       const sortedTopics = [...topics].sort((a, b) => b.name.length - a.name.length);
       const topic = sortedTopics.find(t => searchArea.includes(t.name.toLowerCase()));
+      
       if (student && topic) {
         let finalRating = rating;
         if (finalRating === null) {
@@ -767,9 +891,22 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 18. PRE-PAID HOURS PATTERN
     if (input.includes("add") && (input.includes("hour") || input.includes("credit") || input.includes("prepaid") || input.includes("pre-paid"))) {
-      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      const { student, ambiguous, options } = resolveStudentFromInput(input, students);
       const amountMatch = input.match(/(\d+(?:\.\d+)?)\s*(?:hour|hr|credit)s?/i);
       const amount = amountMatch ? parseFloat(amountMatch[1]) : null;
+
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+          newContext: { 
+            pendingPrePaidHours: { 
+              step: 'student',
+              amount: amount
+            } 
+          } 
+        };
+      }
 
       if (!student || !amount) {
         return {
@@ -804,10 +941,23 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
     const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
     if (isBookingAction && isBookingTarget) {
-      // Check if we have enough info for a direct booking
-      const student = students.find(s => input.includes(s.name.toLowerCase()));
+      const { student, ambiguous, options } = resolveStudentFromInput(input, students);
       const { date: startTime, timeProvided } = parseDateTime(input);
       
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+          newContext: { 
+            pendingBooking: { 
+              step: 'student',
+              date: format(startTime, "yyyy-MM-dd"),
+              start_time: startTime.toISOString()
+            } 
+          } 
+        };
+      }
+
       // If it's a vague "book a lesson" request, start the guided flow
       if (!student && !timeProvided && !input.includes("available")) {
         return {
