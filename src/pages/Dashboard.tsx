@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 import OwnerDashboard from "./OwnerDashboard";
 import StudentDashboard from "./StudentDashboard";
+import DashboardTodoWidget from "@/components/DashboardTodoWidget";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 
 interface Booking {
@@ -289,22 +290,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Todos Query
-  const { data: todos = [] } = useQuery({
-    queryKey: ['instructor-todos-dashboard', user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("instructor_todos")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("completed", false)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      return data || [];
-    },
-    enabled: !!user && isInstructor,
-  });
-
   const handleApprove = async (id: string, studentName: string, authUserId: string | null) => {
     const { error } = await supabase
       .from("bookings")
@@ -507,37 +492,7 @@ const Dashboard: React.FC = () => {
           </div>
         );
       case "todo_list":
-        return (
-          <Card key={id} className="shadow-sm h-full flex flex-col">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <ListTodo className="h-5 w-5 text-primary" />
-                  To Do List
-                </CardTitle>
-                <Button asChild variant="ghost" size="sm" className="h-8 px-2 font-bold text-primary">
-                  <Link to="/todo">View All <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 p-0">
-              {todos.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground italic text-sm">
-                  No active tasks.
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {todos.map((todo) => (
-                    <div key={todo.id} className="p-3 flex items-center gap-3 hover:bg-muted/30 transition-colors">
-                      <div className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                      <span className="text-sm font-medium truncate">{todo.task}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
+        return <DashboardTodoWidget key={id} />;
       case "upcoming_lessons":
         const upcoming = bookingsData || [];
         const displayed = showAllLessons ? upcoming : upcoming.slice(0, 3);
