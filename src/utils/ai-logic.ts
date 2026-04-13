@@ -179,15 +179,17 @@ export const processAICommand = async (text: string, userId: string, context?: a
     }
 
     // 1. FETCH ENTITIES
-    const [studentsRes, topicsRes, carsRes] = await Promise.all([
+    const [studentsRes, topicsRes, carsRes, todosRes] = await Promise.all([
       supabase.from("students").select("id, name, auth_user_id").eq("user_id", userId),
       supabase.from("progress_topics").select("id, name").or(`user_id.eq.${userId},is_default.eq.true`),
-      supabase.from("cars").select("id, make, model, initial_mileage").eq("user_id", userId)
+      supabase.from("cars").select("id, make, model, initial_mileage").eq("user_id", userId),
+      supabase.from("instructor_todos").select("*").eq("user_id", userId)
     ]);
 
     const students = studentsRes.data || [];
     const topics = topicsRes.data || [];
     const cars = carsRes.data || [];
+    const todos = todosRes.data || [];
 
     // 2. CHECK CONTEXT FOR PENDING ACTIONS
     
@@ -563,6 +565,55 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: null
         };
       }
+    }
+
+    // 3. TO DO LIST PATTERNS
+    const isTodoKeyword = input.includes("task") || input.includes("todo") || input.includes("to-do") || input.includes("reminder");
+    
+    // 3a. Add Todo
+    if (input.includes("add") && isTodoKeyword) {
+      const taskMatch = text.match(/add (?:a )?(?:new )?(?:task|todo|to-do|reminder)(?: called| named|:)? (.+)/i);
+      const task = taskMatch ? taskMatch[1].trim() : null;
+
+      if (task) {
+        const { error } = await supabase.from("instructor_todos").insert({ user_id: userId, task });
+        if (error) return { success: false, message: "Failed to add task: " + error.message };
+        return { success: true, message: `Added "**${task}**" to your to do list.`, actionTaken: "add_todo" };
+      }
+    }
+
+    // 3b. Complete Todo
+    if ((input.includes("complete") || input.includes("finish") || input.includes("mark") || input.includes("set")) && isTodoKeyword) {
+      const searchArea = input.replace(/complete|finish|mark|set|task|todo|to-do|reminder|as|done|completed|finished/g, "").trim();
+      if (searchArea) {
+        const matchedTodo = todos.find(t => t.task.toLowerCase().includes(searchArea));
+        if (matchedTodo) {
+          const { error } = await supabase.from("instructor_todos").update({ completed: true }).eq("id", matchedTodo.id);
+          if (error) return { success: false, message: "Failed to update task." };
+          return { success: true, message: `Marked "**${matchedTodo.task}**" as completed.`, actionTaken: "complete_todo" };
+        }
+      }
+    }
+
+    // 3c. Delete Todo
+    if ((input.includes("delete") || input.includes("remove")) && isTodoKeyword) {
+      const searchArea = input.replace(/delete|remove|task|todo|to-do|reminder/g, "").trim();
+      if (searchArea) {
+        const matchedTodo = todos.find(t => t.task.toLowerCase().includes(searchArea));
+        if (matchedTodo) {
+          const { error } = await supabase.from("instructor_todos").delete().eq("id", matchedTodo.id);
+          if (error) return { success: false, message: "Failed to delete task." };
+          return { success: true, message: `Removed "**${matchedTodo.task}**" from your list.`, actionTaken: "delete_todo" };
+        }
+      }
+    }
+
+    // 3d. List Todos
+    if ((input.includes("what") || input.includes("show") || input.includes("list")) && (input.includes("tasks") || input.includes("todo") || input.includes("to-do") || input.includes("reminders"))) {
+      const active = todos.filter(t => !t.completed);
+      if (active.length === 0) return { success: true, message: "Your to do list is empty! You're all caught up." };
+      const list = active.map((t, i) => `${i + 1}. ${t.task}`).join("\n");
+      return { success: true, message: `Here are your active tasks:\n\n${list}`, actionTaken: "list_todos" };
     }
 
     // 4. ADD STUDENT PATTERN
