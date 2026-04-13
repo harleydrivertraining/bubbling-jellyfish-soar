@@ -597,6 +597,13 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
     // 3c. Delete Todo
     if ((input.includes("delete") || input.includes("remove")) && isTodoKeyword) {
+      // Check for "delete all" first
+      if (input.includes("all") || input.includes("everything") || input.includes("list")) {
+        const { error } = await supabase.from("instructor_todos").delete().eq("user_id", userId);
+        if (error) return { success: false, message: "Failed to clear your list." };
+        return { success: true, message: "I've cleared all tasks from your to do list.", actionTaken: "clear_todos" };
+      }
+
       const searchArea = input.replace(/delete|remove|task|todo|to-do|reminder/g, "").trim();
       if (searchArea) {
         const matchedTodo = todos.find(t => t.task.toLowerCase().includes(searchArea));
