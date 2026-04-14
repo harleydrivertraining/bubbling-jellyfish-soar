@@ -222,9 +222,10 @@ export const processAICommand = async (text: string, userId: string, context?: a
           durationMins = (unit.startsWith('h')) ? val * 60 : val;
         }
 
-        let lessonType = "Driving lesson";
+        let lessonType = data.lesson_type || "Driving lesson";
         if (input.includes("test")) lessonType = "Driving Test";
         else if (input.includes("personal")) lessonType = "Personal";
+        else if (input.includes("gap") || input.includes("available") || input.includes("space")) lessonType = "Availability";
 
         data.lesson_type = lessonType;
         data.duration_mins = durationMins;
@@ -241,18 +242,20 @@ export const processAICommand = async (text: string, userId: string, context?: a
         finalStart.setMinutes(date.getMinutes());
         const finalEnd = addMinutes(finalStart, data.duration_mins);
 
+        const isAvailability = data.lesson_type === "Availability";
+
         const { error } = await supabase.from("bookings").insert({
           user_id: userId,
-          student_id: data.student_id,
-          title: `${data.student_name} - ${data.lesson_type}`,
+          student_id: isAvailability ? null : data.student_id,
+          title: isAvailability ? "Available Slot" : `${data.student_name} - ${data.lesson_type}`,
           lesson_type: data.lesson_type,
           start_time: finalStart.toISOString(),
           end_time: finalEnd.toISOString(),
-          status: "scheduled"
+          status: isAvailability ? "available" : "scheduled"
         });
 
         if (error) return { success: false, message: "Failed to create booking: " + error.message };
-        return { success: true, message: `Success! I've booked a **${data.lesson_type}** for **${data.student_name}** on **${format(finalStart, "do MMMM")}** at **${format(finalStart, "p")}**.`, actionTaken: "booking", newContext: null };
+        return { success: true, message: `Success! I've created a **${data.lesson_type}** on **${format(finalStart, "do MMMM")}** at **${format(finalStart, "p")}**.`, actionTaken: "booking", newContext: null };
       }
     }
 
@@ -272,7 +275,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (task) {
         task = task.replace(/(?:to|on|in)\s+(?:my\s+)?(?:todo|to-do|task|list|reminders?)$/i, "").trim();
         
-        // If the captured task is just one of the keywords, it means the user didn't provide a task name
         const keywords = ["task", "todo", "to-do", "reminder", "reminders"];
         if (keywords.includes(task.toLowerCase())) {
           task = null;
@@ -284,7 +286,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
         if (error) return { success: false, message: "Failed to add task: " + error.message };
         return { success: true, message: `Added "**${task}**" to your to do list.`, actionTaken: "add_todo" };
       } else {
-        // If they just said "add a new task" without content
         return { success: true, message: "Sure! What task would you like to add to your list?", newContext: { pendingTodo: { step: 'task' } } };
       }
     }
@@ -327,6 +328,91 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (active.length === 0) return { success: true, message: "Your to do list is empty! You're all caught up." };
       const list = active.map((t, i) => `${i + 1}. ${t.task}`).join("\n");
       return { success: true, message: `Here are your active tasks:\n\n${list}`, actionTaken: "list_todos" };
+    }
+
+    // --- BOOKING & GAPS PATTERNS ---
+    const isGapKeyword = input.includes("gap") || input.includes("available") || input.includes("availability") || input.includes("space") || input.includes("free slot");
+    const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
+    const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("test") || input.includes("appointment") || isGapKeyword;
+
+    if (isBookingAction && isBookingTarget) {
+      const isAvailability = isGapKeyword;
+      const { student, ambiguous, options } = resolveStudentFromInput(input, students);
+      const { date: startTime, timeProvided } = parseDateTime(input);
+
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`, 
+          newContext: { pendingBooking: { step: 'student', date: format(startTime, "yyyy-MM-dd"), start_time: startTime.toISOString(), lesson_type: isAvailability ? "Availability" : "Driving lesson" } } 
+        };
+      }
+
+      // If it's a gap and we don't have time/date
+      if (isAvailability && !timeProvided) {
+        return { 
+          success: true, 
+          message: "Sure! I can add a lesson gap for you. What date and time should it start?", 
+          newContext: { pendingBooking: { step: 'date', lesson_type: "Availability" } } 
+        };
+      }
+
+      // If it's a lesson and we don't have a student
+      if (!isAvailability && !student) {
+        return { 
+          success: true, 
+          message: "Sure! I can help you book a lesson. What is the student's name?", 
+          newContext: { pendingBooking: { step: 'student', date: format(startTime, "yyyy-MM-dd"), start_time: startTime.toISOString() } } 
+        };
+      }
+
+      // If we have everything or enough to start the flow
+      let durationMins = 60;
+      const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
+      if (durationMatch) { 
+        const val = parseFloat(durationMatch[1]); 
+        const unit = durationMatch[2].toLowerCase(); 
+        durationMins = (unit.startsWith('h')) ? val * 60 : val; 
+      }
+
+      let lessonType = isAvailability ? "Availability" : "Driving lesson";
+      let status = isAvailability ? "available" : "scheduled";
+      
+      if (input.includes("test")) { 
+        lessonType = "Driving Test"; 
+        if (!durationMatch) durationMins = 120; 
+      } else if (input.includes("personal")) {
+        lessonType = "Personal";
+      }
+
+      if (!timeProvided) {
+        return { 
+          success: true, 
+          message: `I've got the ${isAvailability ? 'gap' : 'student'}, but what date and time would you like to book?`, 
+          newContext: { pendingBooking: { step: 'date', student_id: student?.id, student_name: student?.name, lesson_type: lessonType, duration_mins: durationMins } } 
+        };
+      }
+
+      // Final creation
+      const title = isAvailability ? "Available Slot" : (student ? `${student.name} - ${lessonType}` : lessonType);
+      
+      const { error } = await supabase.from("bookings").insert({ 
+        user_id: userId, 
+        student_id: isAvailability ? null : (student?.id || null), 
+        title: title, 
+        lesson_type: lessonType, 
+        start_time: startTime.toISOString(), 
+        end_time: addMinutes(startTime, durationMins).toISOString(), 
+        status: status 
+      });
+
+      if (error) return { success: false, message: "Failed to create booking: " + error.message };
+
+      return { 
+        success: true, 
+        message: `Added a ${durationMins >= 60 ? (durationMins/60) + ' hour' : durationMins + ' min'} ${isAvailability ? 'lesson gap' : lessonType.toLowerCase()} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, 
+        actionTaken: "booking" 
+      };
     }
 
     // --- OTHER PATTERNS (STUDENTS, EXPENSES, ETC) ---
@@ -373,34 +459,9 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Your next lesson is with **${studentName}** at **${format(startTime, "p")}** ${dateStr}. It's a **${nextBooking.lesson_type}**.`, actionTaken: "query_next_lesson" };
     }
 
-    const isBookingAction = input.includes("book") || input.includes("add") || input.includes("create") || input.includes("set") || input.includes("put");
-    const isBookingTarget = input.includes("lesson") || input.includes("slot") || input.includes("gap") || input.includes("space") || input.includes("test") || input.includes("appointment");
-    if (isBookingAction && isBookingTarget) {
-      const { student, ambiguous, options } = resolveStudentFromInput(input, students);
-      const { date: startTime, timeProvided } = parseDateTime(input);
-      if (ambiguous) return { success: true, message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`, newContext: { pendingBooking: { step: 'student', date: format(startTime, "yyyy-MM-dd"), start_time: startTime.toISOString() } } };
-      if (!student && !timeProvided && !input.includes("available")) return { success: true, message: "Sure! I can help you book a lesson. What is the student's name?", newContext: { pendingBooking: { step: 'student' } } };
-      if (!student && !input.includes("available")) return { success: true, message: "I've got the time, but who is the lesson for?", newContext: { pendingBooking: { step: 'student', date: format(startTime, "yyyy-MM-dd"), start_time: startTime.toISOString() } } };
-      let durationMins = 60;
-      const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
-      if (durationMatch) { const val = parseFloat(durationMatch[1]); const unit = durationMatch[2].toLowerCase(); durationMins = (unit.startsWith('h')) ? val * 60 : val; }
-      let lessonType = "Driving lesson";
-      let status = "scheduled";
-      let titlePrefix = "";
-      if (input.includes("test")) { lessonType = "Driving Test"; if (!durationMatch) durationMins = 120; }
-      else if (input.includes("personal")) lessonType = "Personal";
-      else if (input.includes("available") || input.includes("availability") || input.includes("gap") || input.includes("space")) { lessonType = "Availability"; status = "available"; titlePrefix = "Available Slot"; }
-      if (lessonType === "Availability") titlePrefix = "Available Slot";
-      else if (student) titlePrefix = `${student.name} - ${lessonType}`;
-      else if (lessonType === "Personal") titlePrefix = "Personal Appointment";
-      if (!timeProvided && !input.includes("available")) return { success: true, message: `I've got the student, but what date and time would you like to book for **${student?.name || 'Someone'}**?`, newContext: { pendingBooking: { step: 'date', student_id: student?.id, student_name: student?.name, lesson_type: lessonType, duration_mins: durationMins } } };
-      await supabase.from("bookings").insert({ user_id: userId, student_id: student?.id || null, title: titlePrefix, lesson_type: lessonType, start_time: startTime.toISOString(), end_time: addMinutes(startTime, durationMins).toISOString(), status: status });
-      return { success: true, message: `Added a ${durationMins >= 60 ? (durationMins/60) + ' hour' : durationMins + ' min'} ${lessonType.toLowerCase()} ${student ? 'for ' + student.name : ''} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, actionTaken: "booking" };
-    }
-
     return { 
       success: false, 
-      message: "I'm not sure how to do that yet. Try: 'Remind me to call John', 'Add £20 fuel expense', or 'Book a lesson for Sarah tomorrow at 10am'." 
+      message: "I'm not sure how to do that yet. Try: 'Remind me to call John', 'Add £20 fuel expense', or 'Add a 2 hour gap tomorrow at 2pm'." 
     };
   } catch (err: any) {
     console.error("AI Logic Error:", err);
