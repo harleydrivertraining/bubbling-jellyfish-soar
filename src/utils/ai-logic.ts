@@ -178,6 +178,13 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const todos = todosRes.data || [];
 
     // --- CONTEXT HANDLING ---
+    if (context?.pendingTodo) {
+      const task = text.trim();
+      const { error } = await supabase.from("instructor_todos").insert({ user_id: userId, task });
+      if (error) return { success: false, message: "Failed to add task: " + error.message };
+      return { success: true, message: `Added "**${task}**" to your to do list.`, actionTaken: "add_todo", newContext: null };
+    }
+
     if (context?.pendingBooking) {
       const data = { ...context.pendingBooking };
       const step = data.step;
@@ -253,24 +260,24 @@ export const processAICommand = async (text: string, userId: string, context?: a
     const isTodoKeyword = input.includes("task") || input.includes("todo") || input.includes("to-do") || input.includes("reminder") || input.includes("remind") || input.includes("forget");
     
     // Add Todo
-    if ((input.includes("add") || input.includes("remind") || input.includes("forget") || input.includes("put")) && isTodoKeyword) {
-      // Try to extract the task content
-      // Patterns: "Remind me to [task]", "Don't forget to [task]", "Add a task to [task]", "Add [task] to my todo list"
+    if ((input.includes("add") || input.includes("remind") || input.includes("forget") || input.includes("put") || input.includes("new")) && isTodoKeyword) {
       let task = null;
       
       const remindMatch = text.match(/(?:remind me to|don't forget to|do not forget to|remind me|reminder to)\s+(.+)/i);
-      const addMatch = text.match(/(?:add|put)(?:\s+a)?(?:\s+new)?(?:\s+task|\s+todo|\s+to-do|\s+reminder)?(?:\s+called|\s+named|:)?\s+(.+?)(?:\s+to my|\s+on my|\s+in my|$)/i);
+      const addMatch = text.match(/(?:add|put|create)(?:\s+a)?(?:\s+new)?(?:\s+task|\s+todo|\s+to-do|\s+reminder)?(?:\s+called|\s+named|:)?\s+(.+?)(?:\s+to my|\s+on my|\s+in my|$)/i);
       
       if (remindMatch) task = remindMatch[1].trim();
       else if (addMatch) task = addMatch[1].trim();
 
       if (task) {
-        // Clean up common trailing phrases
         task = task.replace(/(?:to|on|in)\s+(?:my\s+)?(?:todo|to-do|task|list|reminders?)$/i, "").trim();
         
         const { error } = await supabase.from("instructor_todos").insert({ user_id: userId, task });
         if (error) return { success: false, message: "Failed to add task: " + error.message };
         return { success: true, message: `Added "**${task}**" to your to do list.`, actionTaken: "add_todo" };
+      } else {
+        // If they just said "add a new task" without content
+        return { success: true, message: "Sure! What task would you like to add to your list?", newContext: { pendingTodo: { step: 'task' } } };
       }
     }
 
