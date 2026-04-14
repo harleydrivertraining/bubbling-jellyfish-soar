@@ -272,6 +272,14 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (task) {
         task = task.replace(/(?:to|on|in)\s+(?:my\s+)?(?:todo|to-do|task|list|reminders?)$/i, "").trim();
         
+        // If the captured task is just one of the keywords, it means the user didn't provide a task name
+        const keywords = ["task", "todo", "to-do", "reminder", "reminders"];
+        if (keywords.includes(task.toLowerCase())) {
+          task = null;
+        }
+      }
+
+      if (task) {
         const { error } = await supabase.from("instructor_todos").insert({ user_id: userId, task });
         if (error) return { success: false, message: "Failed to add task: " + error.message };
         return { success: true, message: `Added "**${task}**" to your to do list.`, actionTaken: "add_todo" };
