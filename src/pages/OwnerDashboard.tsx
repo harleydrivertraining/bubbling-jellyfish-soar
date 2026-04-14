@@ -6,11 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import GlobalBroadcastForm from "@/components/GlobalBroadcastForm";
 
 interface PlatformStats {
   totalInstructors: number;
@@ -34,6 +36,7 @@ const OwnerDashboard: React.FC = () => {
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [recentSupport, setRecentSupport] = useState<RecentSupport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
 
   const fetchOwnerData = useCallback(async () => {
     if (!user) return;
@@ -127,9 +130,25 @@ const OwnerDashboard: React.FC = () => {
           </h1>
           <p className="text-muted-foreground font-medium mt-1">Platform-wide overview and management.</p>
         </div>
-        <Button onClick={fetchOwnerData} variant="outline" size="sm" className="font-bold">
-          <RefreshCw className="mr-2 h-4 w-4" /> Refresh Data
-        </Button>
+        <div className="flex items-center gap-3">
+          <Dialog open={isBroadcastOpen} onOpenChange={setIsBroadcastOpen}>
+            <DialogTrigger asChild>
+              <Button className="font-bold bg-primary hover:bg-primary/90">
+                <Megaphone className="mr-2 h-4 w-4" /> Global Broadcast
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Send Global Broadcast</DialogTitle>
+                <CardDescription>This will send a notification to every user on the platform.</CardDescription>
+              </DialogHeader>
+              <GlobalBroadcastForm onSuccess={() => setIsBroadcastOpen(false)} />
+            </DialogContent>
+          </Dialog>
+          <Button onClick={fetchOwnerData} variant="outline" size="sm" className="font-bold">
+            <RefreshCw className="mr-2 h-4 w-4" /> Refresh Data
+          </Button>
+        </div>
       </div>
 
       {showRLSWarning && (
