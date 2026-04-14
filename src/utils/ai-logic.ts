@@ -157,6 +157,32 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
   return { date: finalTime, timeProvided };
 };
 
+/**
+ * Helper to extract multiple times from a string
+ */
+const extractMultipleTimes = (input: string, baseDate: Date): Date[] => {
+  // Look for patterns like "10am", "14:30", "2pm", "at 9"
+  const timeRegex = /(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi;
+  const results: Date[] = [];
+  let match;
+
+  while ((match = timeRegex.exec(input)) !== null) {
+    let hours = parseInt(match[1]);
+    const mins = match[2] ? parseInt(match[2]) : 0;
+    const ampm = match[3]?.toLowerCase();
+
+    if (ampm === "pm" && hours < 12) hours += 12;
+    if (ampm === "am" && hours === 12) hours = 0;
+    if (!ampm && !match[2] && hours > 0 && hours < 8) hours += 12;
+
+    const date = new Date(baseDate);
+    date.setHours(hours, mins, 0, 0);
+    results.push(date);
+  }
+
+  return results;
+};
+
 export const processAICommand = async (text: string, userId: string, context?: any): Promise<AIResponse> => {
   try {
     const input = text.toLowerCase();
@@ -338,13 +364,13 @@ export const processAICommand = async (text: string, userId: string, context?: a
     if (isBookingAction && isBookingTarget) {
       const isAvailability = isGapKeyword;
       const { student, ambiguous, options } = resolveStudentFromInput(input, students);
-      const { date: startTime, timeProvided } = parseDateTime(input);
+      const { date: baseDate, timeProvided } = parseDateTime(input);
 
       if (ambiguous) {
         return { 
           success: true, 
           message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`, 
-          newContext: { pendingBooking: { step: 'student', date: format(startTime, "yyyy-MM-dd"), start_time: startTime.toISOString(), lesson_type: isAvailability ? "Availability" : "Driving lesson" } } 
+          newContext: { pendingBooking: { step: 'student', date: format(baseDate, "yyyy-MM-dd"), start_time: baseDate.toISOString(), lesson_type: isAvailability ? "Availability" : "Driving lesson" } } 
         };
       }
 
@@ -362,11 +388,11 @@ export const processAICommand = async (text: string, userId: string, context?: a
         return { 
           success: true, 
           message: "Sure! I can help you book a lesson. What is the student's name?", 
-          newContext: { pendingBooking: { step: 'student', date: format(startTime, "yyyy-MM-dd"), start_time: startTime.toISOString() } } 
+          newContext: { pendingBooking: { step: 'student', date: format(baseDate, "yyyy-MM-dd"), start_time: baseDate.toISOString() } } 
         };
       }
 
-      // If we have everything or enough to start the flow
+      // Handle multiple times for gaps
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
       if (durationMatch) { 
@@ -393,7 +419,32 @@ export const processAICommand = async (text: string, userId: string, context?: a
         };
       }
 
-      // Final creation
+      // Check for multiple times in the input
+      const allTimes = extractMultipleTimes(input, baseDate);
+      
+      if (allTimes.length > 1 && isAvailability) {
+        const bookingsToInsert = allTimes.map(startTime => ({
+          user_id: userId,
+          student_id: null,
+          title: "Available Slot",
+          lesson_type: "Availability",
+          start_time: startTime.toISOString(),
+          end_time: addMinutes(startTime, durationMins).toISOString(),
+          status: "available"
+        }));
+
+        const { error } = await supabase.from("bookings").insert(bookingsToInsert);
+        if (error) return { success: false, message: "Failed to create gaps: " + error.message };
+
+        const timeList = allTimes.map(t => format(t, "p")).join(", ");
+        return { 
+          success: true, 
+          message: `Success! I've added **${allTimes.length} lesson gaps** for **${format(baseDate, "do MMMM")}** at **${timeList}**.`, 
+          actionTaken: "multiple_bookings" 
+        };
+      }
+
+      // Final creation for single booking
       const title = isAvailability ? "Available Slot" : (student ? `${student.name} - ${lessonType}` : lessonType);
       
       const { error } = await supabase.from("bookings").insert({ 
@@ -401,8 +452,8 @@ export const processAICommand = async (text: string, userId: string, context?: a
         student_id: isAvailability ? null : (student?.id || null), 
         title: title, 
         lesson_type: lessonType, 
-        start_time: startTime.toISOString(), 
-        end_time: addMinutes(startTime, durationMins).toISOString(), 
+        start_time: baseDate.toISOString(), 
+        end_time: addMinutes(baseDate, durationMins).toISOString(), 
         status: status 
       });
 
@@ -410,7 +461,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       return { 
         success: true, 
-        message: `Added a ${durationMins >= 60 ? (durationMins/60) + ' hour' : durationMins + ' min'} ${isAvailability ? 'lesson gap' : lessonType.toLowerCase()} at ${format(startTime, "p")} on ${format(startTime, "MMM do")}.`, 
+        message: `Added a ${durationMins >= 60 ? (durationMins/60) + ' hour' : durationMins + ' min'} ${isAvailability ? 'lesson gap' : lessonType.toLowerCase()} at ${format(baseDate, "p")} on ${format(baseDate, "MMM do")}.`, 
         actionTaken: "booking" 
       };
     }
@@ -445,7 +496,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
         const { data: latestEntry } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", targetCar.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(1).maybeSingle();
         finalMileage = (latestEntry?.current_mileage || targetCar.initial_mileage) + value;
       }
-      const { error } = await supabase.from("car_mileage_entries").insert({ user_id: userId, car_id: targetCar.id, current_mileage: finalMileage, entry_date: format(new Date(), "yyyy-MM-dd"), notes: isAdditive ? `Added ${value} miles via AI` : "Updated total via AI" });
+      const { error = null } = await supabase.from("car_mileage_entries").insert({ user_id: userId, car_id: targetCar.id, current_mileage: finalMileage, entry_date: format(new Date(), "yyyy-MM-dd"), notes: isAdditive ? `Added ${value} miles via AI` : "Updated total via AI" });
       if (error) return { success: false, message: "Failed to record mileage: " + error.message };
       return { success: true, message: isAdditive ? `Added ${value} miles to your ${targetCar.make}. New total is ${finalMileage.toFixed(0)}.` : `Updated total mileage for your ${targetCar.make} to ${finalMileage.toFixed(0)}.`, actionTaken: "mileage" };
     }
