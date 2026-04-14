@@ -132,15 +132,16 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
   }
 
   let finalTime = targetDate;
-  const timeMatch = input.match(/(?:at\s+)(\d+)(?::(\d+))?\s*(am|pm)?/i) || 
-                    input.match(/(\d+)(?::(\d+))?\s*(am|pm)/i) ||
-                    input.match(/(\d+):(\d+)/i);
+  // Updated regex to support both : and . for minutes
+  const timeMatch = input.match(/(?:at\s+)(\d+)(?:[:.](\d+))?\s*(am|pm)?/i) || 
+                    input.match(/(\d+)(?:[:.](\d+))?\s*(am|pm)/i) ||
+                    input.match(/(\d+)[:.](\d+)/i);
 
   if (timeMatch) {
     timeProvided = true;
-    let hoursStr = timeMatch[1] || timeMatch[4] || timeMatch[7];
-    let minsStr = timeMatch[2] || timeMatch[5] || timeMatch[8];
-    let ampm = (timeMatch[3] || timeMatch[6])?.toLowerCase();
+    let hoursStr = timeMatch[1];
+    let minsStr = timeMatch[2];
+    let ampm = timeMatch[3]?.toLowerCase();
 
     let hours = parseInt(hoursStr);
     const mins = minsStr ? parseInt(minsStr) : 0;
@@ -161,8 +162,8 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
  * Helper to extract multiple times from a string
  */
 const extractMultipleTimes = (input: string, baseDate: Date): Date[] => {
-  // Look for patterns like "10am", "14:30", "2pm", "at 9"
-  const timeRegex = /(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi;
+  // Updated regex to support both : and . for minutes
+  const timeRegex = /(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?/gi;
   const results: Date[] = [];
   let match;
 
