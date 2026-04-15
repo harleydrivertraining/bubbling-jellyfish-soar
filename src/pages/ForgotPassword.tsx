@@ -25,7 +25,8 @@ const ForgotPassword = () => {
       setIsSent(true);
     } catch (error: any) {
       console.error("Reset error:", error);
-      showError("Failed to send reset email. Please ensure the Edge Function is deployed.");
+      // Show the actual error message from the database/utility
+      showError(error.message || "Failed to send reset email. Please ensure the SQL function is created in Supabase.");
     } finally {
       setIsLoading(false);
     }
