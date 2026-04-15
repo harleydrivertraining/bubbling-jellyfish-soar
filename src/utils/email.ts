@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { CapacitorHttp } from '@capacitor/core';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from "@/integrations/supabase/client";
 
 interface SendBookingEmailParams {
   to: string;
@@ -19,10 +20,6 @@ export const sendBookingNotificationEmail = async ({
 
   if (!apiKey || apiKey.includes("your_actual_key")) {
     throw new Error("Resend API key is missing or invalid in .env");
-  }
-
-  if (!to) {
-    throw new Error("Instructor email is missing. Please save an email in your profile first.");
   }
 
   const emailData = {
@@ -52,30 +49,31 @@ export const sendBookingNotificationEmail = async ({
         },
         data: emailData,
       };
-
       const response = await CapacitorHttp.post(options);
       return response;
     } else {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify(emailData),
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Resend API error");
-      }
-      
+      if (!response.ok) throw new Error("Resend API error");
       return response;
     }
   } catch (error: any) {
-    if (error.message === 'Failed to fetch') {
-      throw new Error("CORS Blocked: Browsers block direct Resend calls. This will work on the mobile app, but for web testing, use a Supabase Edge Function.");
-    }
     throw error;
   }
+};
+
+export const sendPasswordResetEmail = async (email: string) => {
+  // We call the Supabase Edge Function to handle the secure link generation
+  const { data, error } = await supabase.functions.invoke('send-email', {
+    body: { 
+      type: 'password_reset',
+      email: email 
+    }
+  });
+
+  if (error) throw error;
+  return data;
 };
