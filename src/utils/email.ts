@@ -26,7 +26,7 @@ export const sendBookingNotificationEmail = async ({
     from: "HDT App <notifications@drivinginstructorapp.co.uk>",
     to: [to],
     subject: `New Lesson Booked: ${studentName}`,
-    html<dyad-write path="src/utils/email.ts" description="Continuing the update of email utility to call the request_password_reset_sql RPC.">
+    html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
         <h1 style="color: #1e293b; font-size: 24px; font-weight: 800; margin-bottom: 16px;">New Lesson Booked!</h1>
         <p style="color: #475569; font-size: 16px; line-height: 1.5;"><strong>${studentName}</strong> has just booked an available slot.</p>
