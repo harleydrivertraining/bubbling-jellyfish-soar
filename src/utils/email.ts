@@ -66,14 +66,12 @@ export const sendBookingNotificationEmail = async ({
 };
 
 export const sendPasswordResetEmail = async (email: string) => {
-  // We call the SQL RPC function instead of an Edge Function
-  const { data, error } = await supabase.rpc('request_password_reset_sql', {
-    user_email: email,
-    origin_url: window.location.origin
+  // Use the built-in Supabase method. 
+  // This is the standard way to handle resets without Edge Functions.
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
   });
 
   if (error) throw error;
-  if (data && data.success === false) throw new Error(data.error);
-  
   return data;
 };
