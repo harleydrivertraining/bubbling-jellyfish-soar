@@ -66,10 +66,10 @@ export const sendBookingNotificationEmail = async ({
 };
 
 export const sendPasswordResetEmail = async (email: string) => {
-  // Use the built-in Supabase method. 
-  // This is the standard way to handle resets without Edge Functions.
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
+  // Call our custom SQL function that handles the reset link generation and Resend delivery
+  const { data, error } = await supabase.rpc('request_password_reset', { 
+    user_email: email,
+    site_url: window.location.origin
   });
 
   if (error) throw error;
