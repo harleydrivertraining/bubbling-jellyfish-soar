@@ -119,12 +119,10 @@ const StudentCalendar: React.FC = () => {
       
       const allBookings = bookingsData || [];
       
-      // Filter out cancelled bookings as they don't block time
-      const activeBookings = allBookings.filter(b => b.status !== 'cancelled');
-      
       // Separate "Available" slots from "Taken" slots
-      setExistingBookings(activeBookings.filter(b => b.status !== 'available'));
-      setManualAvailableSlots(activeBookings.filter(b => b.status === 'available'));
+      // Taken = Scheduled, Completed, or Pending Approval
+      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
+      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
 
     } catch (error: any) {
       console.error("Error fetching calendar data:", error);
@@ -147,8 +145,10 @@ const StudentCalendar: React.FC = () => {
     const noticeHours = instructor.min_booking_notice_hours ?? 48;
     const minStartTimeMs = addHours(now, noticeHours).getTime();
     const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
+    const durationMs = filterDuration * 60000;
+    const intervalMs = (instructor.booking_interval_mins || 30) * 60000;
 
-    // Pre-calculate busy intervals as numeric timestamps for speed and accuracy
+    // Pre-calculate busy intervals as numeric timestamps
     const busyIntervals = existingBookings.map(b => ({
       start: parseISO(b.start_time).getTime() - bufferMs,
       end: parseISO(b.end_time).getTime() + bufferMs
@@ -161,75 +161,57 @@ const StudentCalendar: React.FC = () => {
       });
     };
 
-    // Mode 1: Manual Gaps Only
-    if (mode === "gaps") {
-      return manualAvailableSlots
-        .filter(slot => {
-          const start = parseISO(slot.start_time);
-          const end = parseISO(slot.end_time);
-          const startMs = start.getTime();
-          const endMs = end.getTime();
-          const duration = (endMs - startMs) / 60000;
-          
-          // 1. Check notice period
-          if (startMs < minStartTimeMs) return false;
-          
-          // 2. Check duration match (within 5 min tolerance)
-          if (Math.abs(duration - filterDuration) > 5) return false;
-
-          // 3. Check for clashes with existing bookings (including buffer)
-          return !isClashing(startMs, endMs);
-        })
-        .map(slot => ({
-          ...slot,
-          isGenerated: false
-        }));
-    }
-
-    // Mode 2: Open Schedule Generation
-    const intervalMs = (instructor.booking_interval_mins || 30) * 60000;
-    const durationMs = filterDuration * 60000;
-    const startHour = instructor.calendar_start_hour ?? 9;
-    const endHour = instructor.calendar_end_hour ?? 18;
-
     const slots: any[] = [];
-    const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
-    const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
-    
-    const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
-    daysInRange.forEach(day => {
-      // Skip days entirely in the past
-      if (endOfDay(day).getTime() < minStartTimeMs) return;
+    if (mode === "gaps") {
+      // Mode 1: Manual Gaps
+      // We treat each manual gap as a window where we can generate slots
+      manualAvailableSlots.forEach(gap => {
+        const gapStartMs = parseISO(gap.start_time).getTime();
+        const gapEndMs = parseISO(gap.end_time).getTime();
 
-      const dayStartMs = setMinutes(setHours(startOfDay(day), startHour), 0).getTime();
-      const dayEndMs = setMinutes(setHours(startOfDay(day), endHour), 0).getTime();
-
-      let currentPointerMs = dayStartMs;
-
-      while (currentPointerMs + durationMs <= dayEndMs) {
-        const slotStartMs = currentPointerMs;
-        const slotEndMs = currentPointerMs + durationMs;
-
-        // 1. Check notice period
-        if (slotStartMs < minStartTimeMs) {
+        let currentPointerMs = gapStartMs;
+        while (currentPointerMs + durationMs <= gapEndMs) {
+          if (currentPointerMs >= minStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
+            slots.push({
+              id: `gap-${gap.id}-${currentPointerMs}`,
+              start_time: new Date(currentPointerMs).toISOString(),
+              end_time: new Date(currentPointerMs + durationMs).toISOString(),
+              isGenerated: true // We treat these as generated because they might be sub-slots of a larger gap
+            });
+          }
           currentPointerMs += intervalMs;
-          continue;
         }
+      });
+    } else {
+      // Mode 2: Open Schedule
+      const startHour = instructor.calendar_start_hour ?? 9;
+      const endHour = instructor.calendar_end_hour ?? 18;
 
-        // 2. Check for clashes with existing bookings + buffer
-        if (!isClashing(slotStartMs, slotEndMs)) {
-          slots.push({
-            id: `gen-${slotStartMs}`,
-            start_time: new Date(slotStartMs).toISOString(),
-            end_time: new Date(slotEndMs).toISOString(),
-            isGenerated: true
-          });
+      const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
+      const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
+      const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
+
+      daysInRange.forEach(day => {
+        if (endOfDay(day).getTime() < minStartTimeMs) return;
+
+        const dayStartMs = setMinutes(setHours(startOfDay(day), startHour), 0).getTime();
+        const dayEndMs = setMinutes(setHours(startOfDay(day), endHour), 0).getTime();
+
+        let currentPointerMs = dayStartMs;
+        while (currentPointerMs + durationMs <= dayEndMs) {
+          if (currentPointerMs >= minStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
+            slots.push({
+              id: `gen-${currentPointerMs}`,
+              start_time: new Date(currentPointerMs).toISOString(),
+              end_time: new Date(currentPointerMs + durationMs).toISOString(),
+              isGenerated: true
+            });
+          }
+          currentPointerMs += intervalMs;
         }
-
-        currentPointerMs += intervalMs;
-      }
-    });
+      });
+    }
 
     return slots;
   }, [instructor, studentData, existingBookings, manualAvailableSlots, filterDuration, currentMonth]);
@@ -259,31 +241,19 @@ const StudentCalendar: React.FC = () => {
         ? `${studentData.name} - Pending Approval` 
         : `${studentData.name} - Driving lesson`;
 
-      if (selectedSlot.isGenerated) {
-        const { error } = await supabase
-          .from("bookings")
-          .insert({
-            user_id: studentData.user_id,
-            student_id: studentData.id,
-            status: newStatus,
-            title: displayTitle,
-            lesson_type: "Driving lesson",
-            start_time: selectedSlot.start_time,
-            end_time: selectedSlot.end_time
-          });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("bookings")
-          .update({
-            student_id: studentData.id,
-            status: newStatus,
-            title: displayTitle,
-            lesson_type: "Driving lesson"
-          })
-          .eq("id", selectedSlot.id);
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from("bookings")
+        .insert({
+          user_id: studentData.user_id,
+          student_id: studentData.id,
+          status: newStatus,
+          title: displayTitle,
+          lesson_type: "Driving lesson",
+          start_time: selectedSlot.start_time,
+          end_time: selectedSlot.end_time
+        });
+
+      if (error) throw error;
 
       await supabase.from("notifications").insert({
         user_id: studentData.user_id,
