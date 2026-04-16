@@ -35,6 +35,7 @@ import {
   format, 
   addHours, 
   isBefore, 
+  isAfter,
   startOfMonth, 
   endOfMonth, 
   startOfWeek, 
@@ -47,9 +48,10 @@ import {
   parseISO,
   differenceInMinutes,
   addMinutes,
+  subMinutes,
   setHours,
   setMinutes,
-  isWithinInterval,
+  endOfDay,
   areIntervalsOverlapping
 } from "date-fns";
 
