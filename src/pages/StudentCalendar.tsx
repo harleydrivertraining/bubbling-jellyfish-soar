@@ -18,7 +18,6 @@ import {
   ChevronLeft, 
   ChevronRight,
   Calendar as CalendarIcon,
-  Car,
   Filter
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -51,8 +50,7 @@ import {
   subMinutes,
   setHours,
   setMinutes,
-  endOfDay,
-  areIntervalsOverlapping
+  endOfDay
 } from "date-fns";
 
 interface Booking {
@@ -103,7 +101,6 @@ const StudentCalendar: React.FC = () => {
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
-      // Fetch all bookings to check for overlaps
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
         .select("*")
@@ -114,9 +111,11 @@ const StudentCalendar: React.FC = () => {
       if (bError) throw bError;
       
       const allBookings = bookingsData || [];
-      // Existing bookings include scheduled, completed, and pending_approval (to prevent double requests)
-      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
-      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
+      // Filter out cancelled bookings. Everything else (scheduled, completed, pending, available) matters.
+      const activeBookings = allBookings.filter(b => b.status !== 'cancelled');
+      
+      setExistingBookings(activeBookings.filter(b => b.status !== 'available'));
+      setManualAvailableSlots(activeBookings.filter(b => b.status === 'available'));
 
     } catch (error: any) {
       console.error("Error fetching calendar data:", error);
@@ -139,24 +138,6 @@ const StudentCalendar: React.FC = () => {
     const minStartTime = addHours(now, noticeHours);
     const buffer = instructor.booking_buffer_mins || 0;
 
-    // Helper to check if a potential slot overlaps with any existing booking (including buffer)
-    const isSlotClashing = (slotStart: Date, slotEnd: Date) => {
-      return existingBookings.some(booking => {
-        const bStart = parseISO(booking.start_time);
-        const bEnd = parseISO(booking.end_time);
-        
-        // Add buffer to the existing booking's interval for checking
-        // This ensures the new slot doesn't start too soon after or end too close before an existing one
-        const bufferedBStart = subMinutes(bStart, buffer);
-        const bufferedBEnd = addMinutes(bEnd, buffer);
-
-        return areIntervalsOverlapping(
-          { start: slotStart, end: slotEnd },
-          { start: bufferedBStart, end: bufferedBEnd }
-        );
-      });
-    };
-
     // Mode 1: Manual Gaps Only
     if (mode === "gaps") {
       return manualAvailableSlots
@@ -165,10 +146,8 @@ const StudentCalendar: React.FC = () => {
           const end = parseISO(slot.end_time);
           const duration = differenceInMinutes(end, start);
           
-          // Check notice period, duration match, and ensure no accidental clashes with newly added bookings
-          return isAfter(start, minStartTime) && 
-                 Math.abs(duration - filterDuration) < 5 &&
-                 !isSlotClashing(start, end);
+          // Check notice period and duration match
+          return isAfter(start, minStartTime) && Math.abs(duration - filterDuration) < 5;
         })
         .map(slot => ({
           ...slot,
@@ -183,7 +162,7 @@ const StudentCalendar: React.FC = () => {
 
     const slots: any[] = [];
     const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
-    const endRange = endOfWeek(endOfMonth(addMonths(currentMonth, 1)), { weekStartsOn: 1 });
+    const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
     
     const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
@@ -198,14 +177,26 @@ const StudentCalendar: React.FC = () => {
         const slotStart = currentPointer;
         const slotEnd = addMinutes(slotStart, filterDuration);
 
-        // Check if this slot is too soon
+        // 1. Check notice period
         if (isBefore(slotStart, minStartTime)) {
           currentPointer = addMinutes(currentPointer, interval);
           continue;
         }
 
-        // Check for overlaps with existing bookings + buffer
-        if (!isSlotClashing(slotStart, slotEnd)) {
+        // 2. Check for clashes with existing bookings (including buffer)
+        const hasClash = existingBookings.some(booking => {
+          const bStart = parseISO(booking.start_time);
+          const bEnd = parseISO(booking.end_time);
+          
+          // The slot clashes if it starts before a booking ends (+ buffer)
+          // AND it ends after a booking starts (- buffer)
+          const bufferedBStart = subMinutes(bStart, buffer);
+          const bufferedBEnd = addMinutes(bEnd, buffer);
+
+          return isBefore(slotStart, bufferedBEnd) && isAfter(slotEnd, bufferedBStart);
+        });
+
+        if (!hasClash) {
           slots.push({
             id: `gen-${slotStart.getTime()}`,
             start_time: slotStart.toISOString(),
@@ -247,7 +238,6 @@ const StudentCalendar: React.FC = () => {
         : `${studentData.name} - Driving lesson`;
 
       if (selectedSlot.isGenerated) {
-        // Create a new booking record
         const { error } = await supabase
           .from("bookings")
           .insert({
@@ -261,7 +251,6 @@ const StudentCalendar: React.FC = () => {
           });
         if (error) throw error;
       } else {
-        // Update existing manual available slot
         const { error } = await supabase
           .from("bookings")
           .update({
@@ -306,7 +295,6 @@ const StudentCalendar: React.FC = () => {
         </div>
       </div>
 
-      {/* Duration Selector */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-1">
           <Filter className="h-4 w-4 text-muted-foreground" />
@@ -335,7 +323,6 @@ const StudentCalendar: React.FC = () => {
         </div>
       </div>
 
-      {/* Monthly Calendar Grid */}
       <Card className="shadow-sm border-none overflow-hidden">
         <CardHeader className="bg-primary text-primary-foreground p-4">
           <div className="flex items-center justify-between">
@@ -390,7 +377,6 @@ const StudentCalendar: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Available Slots List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h3 className="font-black text-lg flex items-center gap-2">
@@ -449,7 +435,6 @@ const StudentCalendar: React.FC = () => {
         )}
       </div>
 
-      {/* Booking Confirmation Dialog */}
       <Dialog open={!!selectedSlot} onOpenChange={(open) => !open && setSelectedSlot(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
