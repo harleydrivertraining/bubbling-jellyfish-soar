@@ -85,7 +85,7 @@ const StudentCalendar: React.FC = () => {
     else setIsRefreshing(true);
 
     try {
-      // 1. Get Student Record to find who their instructor is
+      // 1. Get Student Record
       const { data: sData, error: sError } = await supabase
         .from("students")
         .select("*")
@@ -95,7 +95,7 @@ const StudentCalendar: React.FC = () => {
       if (sError) throw sError;
       setStudentData(sData);
 
-      // 2. Get Instructor Profile for booking settings
+      // 2. Get Instructor Profile
       const { data: instructorProfile } = await supabase
         .from("profiles")
         .select("*")
@@ -104,7 +104,7 @@ const StudentCalendar: React.FC = () => {
       
       setInstructor(instructorProfile);
 
-      // 3. Fetch ALL bookings for the instructor in the visible range
+      // 3. Fetch Bookings for the visible range
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
@@ -200,7 +200,7 @@ const StudentCalendar: React.FC = () => {
 
     daysInRange.forEach(day => {
       // Skip days entirely in the past
-      if (getTime(endOfDay(day)) < minStartTimeMs) return;
+      if (endOfDay(day).getTime() < minStartTimeMs) return;
 
       const dayStartMs = setMinutes(setHours(startOfDay(day), startHour), 0).getTime();
       const dayEndMs = setMinutes(setHours(startOfDay(day), endHour), 0).getTime();
