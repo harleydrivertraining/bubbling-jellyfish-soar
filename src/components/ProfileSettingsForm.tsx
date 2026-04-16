@@ -27,11 +27,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Clock, Shield, BellRing, CheckSquare, AlertCircle, CalendarRange, Timer } from "lucide-react";
+import { User, Clock, Shield, CalendarRange, Timer, CheckCircle2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+
+const DAYS = [
+  { id: "1", label: "Monday" },
+  { id: "2", label: "Tuesday" },
+  { id: "3", label: "Wednesday" },
+  { id: "4", label: "Thursday" },
+  { id: "5", label: "Friday" },
+  { id: "6", label: "Saturday" },
+  { id: "0", label: "Sunday" },
+];
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
@@ -42,8 +52,6 @@ const formSchema = z.object({
   ),
   logo_url: z.string().url().optional().nullable().or(z.literal("")),
   default_lesson_duration: z.enum(["60", "90", "120"]).optional().nullable(),
-  calendar_start_hour: z.string().optional().nullable(),
-  calendar_end_hour: z.string().optional().nullable(),
   instructor_pin: z.string().optional().nullable(),
   min_booking_notice_hours: z.preprocess(
     (val) => (val === "" ? 48 : Number(val)),
@@ -59,6 +67,11 @@ const formSchema = z.object({
     (val) => (val === "" ? 15 : Number(val)),
     z.number().min(0).max(60)
   ),
+  working_hours: z.record(z.object({
+    active: z.boolean(),
+    start: z.number(),
+    end: z.number()
+  }))
 });
 
 const ProfileSettingsForm: React.FC = () => {
@@ -74,14 +87,21 @@ const ProfileSettingsForm: React.FC = () => {
       hourly_rate: null,
       logo_url: "",
       default_lesson_duration: "60",
-      calendar_start_hour: "9",
-      calendar_end_hour: "18",
       instructor_pin: "",
       min_booking_notice_hours: 48,
       require_booking_approval: false,
       booking_mode: "gaps",
       booking_interval_mins: 30,
       booking_buffer_mins: 15,
+      working_hours: {
+        "1": { active: true, start: 9, end: 17 },
+        "2": { active: true, start: 9, end: 17 },
+        "3": { active: true, start: 9, end: 17 },
+        "4": { active: true, start: 9, end: 17 },
+        "5": { active: true, start: 9, end: 17 },
+        "6": { active: false, start: 9, end: 17 },
+        "0": { active: false, start: 9, end: 17 },
+      }
     },
   });
 
@@ -106,14 +126,13 @@ const ProfileSettingsForm: React.FC = () => {
           hourly_rate: data.hourly_rate,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
-          calendar_start_hour: data.calendar_start_hour?.toString() || "9",
-          calendar_end_hour: data.calendar_end_hour?.toString() || "18",
           instructor_pin: data.instructor_pin || "",
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
           require_booking_approval: data.require_booking_approval ?? false,
           booking_mode: data.booking_mode || "gaps",
           booking_interval_mins: data.booking_interval_mins ?? 30,
           booking_buffer_mins: data.booking_buffer_mins ?? 15,
+          working_hours: data.working_hours || form.getValues("working_hours")
         });
       }
     } catch (error: any) {
@@ -138,13 +157,12 @@ const ProfileSettingsForm: React.FC = () => {
         hourly_rate: values.hourly_rate,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
-        calendar_start_hour: values.calendar_start_hour ? parseInt(values.calendar_start_hour) : 9,
-        calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
         min_booking_notice_hours: values.min_booking_notice_hours,
         require_booking_approval: values.require_booking_approval,
         booking_mode: values.booking_mode,
         booking_interval_mins: values.booking_interval_mins,
         booking_buffer_mins: values.booking_buffer_mins,
+        working_hours: values.working_hours,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -265,41 +283,71 @@ const ProfileSettingsForm: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="calendar_start_hour"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Working Day Starts</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || "9"}>
-                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {Array.from({ length: 24 }).map((_, i) => (
-                      <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="calendar_end_hour"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Working Day Ends</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || "18"}>
-                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {Array.from({ length: 24 }).map((_, i) => (
-                      <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
+        <div className="p-4 border rounded-xl bg-muted/30 space-y-6">
+          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
+            <Clock className="h-4 w-4" /> Working Hours
+          </h3>
+          
+          <div className="space-y-4">
+            {DAYS.map((day) => (
+              <div key={day.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 bg-background rounded-lg border shadow-sm">
+                <div className="flex items-center gap-3 min-w-[120px]">
+                  <FormField
+                    control={form.control}
+                    name={`working_hours.${day.id}.active`}
+                    render={({ field }) => (
+                      <FormControl>
+                        <Switch 
+                          checked={field.value} 
+                          onCheckedChange={field.onChange} 
+                        />
+                      </FormControl>
+                    )}
+                  />
+                  <span className={cn("font-bold text-sm", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
+                    {day.label}
+                  </span>
+                </div>
+
+                {form.watch(`working_hours.${day.id}.active`) && (
+                  <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                    <FormField
+                      control={form.control}
+                      name={`working_hours.${day.id}.start`}
+                      render={({ field }) => (
+                        <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
+                          <FormControl><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {Array.from({ length: 24 }).map((_, i) => (
+                              <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    <span className="text-xs font-bold text-muted-foreground">to</span>
+                    <FormField
+                      control={form.control}
+                      name={`working_hours.${day.id}.end`}
+                      render={({ field }) => (
+                        <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
+                          <FormControl><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {Array.from({ length: 24 }).map((_, i) => (
+                              <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                )}
+                {!form.watch(`working_hours.${day.id}.active`) && (
+                  <span className="text-xs italic text-muted-foreground">Unavailable</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="p-4 border rounded-xl bg-muted/30 space-y-6">

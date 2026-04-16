@@ -54,7 +54,8 @@ import {
   setHours,
   setMinutes,
   endOfDay,
-  startOfDay
+  startOfDay,
+  getDay
 } from "date-fns";
 
 interface Booking {
@@ -184,16 +185,20 @@ const StudentCalendar: React.FC = () => {
         }
       });
     } else {
-      const startHour = instructor.calendar_start_hour ?? 9;
-      const endHour = instructor.calendar_end_hour ?? 18;
+      const schedule = instructor.working_hours || {};
 
       const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
       const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
       const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
       daysInRange.forEach(day => {
-        const dayStartMs = setMinutes(setHours(startOfDay(day), startHour), 0).getTime();
-        const dayEndMs = setMinutes(setHours(startOfDay(day), endHour), 0).getTime();
+        const dayOfWeek = getDay(day).toString();
+        const dayConfig = schedule[dayOfWeek];
+
+        if (!dayConfig || !dayConfig.active) return;
+
+        const dayStartMs = setMinutes(setHours(startOfDay(day), dayConfig.start), 0).getTime();
+        const dayEndMs = setMinutes(setHours(startOfDay(day), dayConfig.end), 0).getTime();
 
         let currentPointerMs = dayStartMs;
         while (currentPointerMs + durationMs <= dayEndMs) {
