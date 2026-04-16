@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Clock, CalendarRange, Timer, Shield, Loader2, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, CalendarRange, Timer, Shield, Loader2, CalendarDays, ChevronDown, ChevronUp, PoundSterling } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -70,6 +70,7 @@ const formSchema = z.object({
     z.number().min(1).max(52)
   ),
   require_booking_approval: z.boolean().default(false),
+  show_prices_on_booking: z.boolean().default(true),
   booking_mode: z.enum(["gaps", "open"]).default("gaps"),
   booking_interval_mins: z.preprocess(
     (val) => (val === "" ? 30 : Number(val)),
@@ -103,6 +104,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
       min_booking_notice_hours: 48,
       max_booking_advance_weeks: 12,
       require_booking_approval: false,
+      show_prices_on_booking: true,
       booking_mode: "gaps",
       booking_interval_mins: 30,
       booking_buffer_mins: 15,
@@ -125,7 +127,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("min_booking_notice_hours, max_booking_advance_weeks, require_booking_approval, booking_mode, booking_interval_mins, booking_buffer_mins, instructor_pin, working_hours")
+        .select("min_booking_notice_hours, max_booking_advance_weeks, require_booking_approval, show_prices_on_booking, booking_mode, booking_interval_mins, booking_buffer_mins, instructor_pin, working_hours")
         .eq("id", user.id)
         .single();
 
@@ -149,6 +151,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
           max_booking_advance_weeks: data.max_booking_advance_weeks ?? 12,
           require_booking_approval: data.require_booking_approval ?? false,
+          show_prices_on_booking: data.show_prices_on_booking ?? true,
           booking_mode: (data.booking_mode as "gaps" | "open") || "gaps",
           booking_interval_mins: data.booking_interval_mins ?? 30,
           booking_buffer_mins: data.booking_buffer_mins ?? 15,
@@ -177,6 +180,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         min_booking_notice_hours: values.min_booking_notice_hours,
         max_booking_advance_weeks: values.max_booking_advance_weeks,
         require_booking_approval: values.require_booking_approval,
+        show_prices_on_booking: values.show_prices_on_booking,
         booking_mode: values.booking_mode,
         booking_interval_mins: values.booking_interval_mins,
         booking_buffer_mins: values.booking_buffer_mins,
@@ -426,6 +430,23 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                 <div className="space-y-0.5">
                   <FormLabel className="text-sm font-bold">Require Approval</FormLabel>
                   <p className="text-[10px] text-muted-foreground">Manually confirm every booking</p>
+                </div>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="show_prices_on_booking"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <PoundSterling className="h-4 w-4 text-green-600" />
+                    <FormLabel className="text-sm font-bold">Show Prices to Students</FormLabel>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Display lesson costs on the booking page</p>
                 </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>

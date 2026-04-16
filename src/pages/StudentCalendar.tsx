@@ -285,6 +285,8 @@ const StudentCalendar: React.FC = () => {
     return <div className="p-6 space-y-6 max-w-6xl mx-auto"><Skeleton className="h-10 w-48" /><Skeleton className="h-[500px] w-full" /></div>;
   }
 
+  const showPrices = instructor?.show_prices_on_booking ?? true;
+
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20 px-4">
       <div className="flex items-center justify-between">
@@ -325,9 +327,11 @@ const StudentCalendar: React.FC = () => {
               <span className="text-[10px] font-bold uppercase tracking-tight opacity-70">
                 {mins === 60 ? "1 Hour" : mins === 90 ? "1.5 Hours" : "2 Hours"}
               </span>
-              <span className="text-xl font-black text-primary">
-                £{((mins / 60) * (instructor?.hourly_rate || 0)).toFixed(2)}
-              </span>
+              {showPrices && (
+                <span className="text-xl font-black text-primary">
+                  £{((mins / 60) * (instructor?.hourly_rate || 0)).toFixed(2)}
+                </span>
+              )}
             </button>
           ))}
         </div>
