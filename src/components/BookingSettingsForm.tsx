@@ -125,9 +125,10 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
     setIsLoading(true);
     
     try {
+      // Using * to avoid failure if specific columns are missing during migration
       const { data, error } = await supabase
         .from("profiles")
-        .select("min_booking_notice_hours, max_booking_advance_weeks, require_booking_approval, show_prices_on_booking, booking_mode, booking_interval_mins, booking_buffer_mins, instructor_pin, working_hours")
+        .select("*")
         .eq("id", user.id)
         .single();
 
@@ -160,7 +161,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
       }
     } catch (error: any) {
       console.error("Error fetching booking settings:", error);
-      showError("Failed to load settings.");
+      showError("Failed to load settings. Please ensure your database is up to date.");
     } finally {
       setIsLoading(false);
     }
