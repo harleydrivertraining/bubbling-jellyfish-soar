@@ -10,6 +10,7 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { processAICommand } from "@/utils/ai-logic";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   role: 'assistant' | 'user';
@@ -24,6 +25,7 @@ const AIAssistant: React.FC = () => {
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [context, setContext] = useState<any>(null);
+  const [isStudent, setIsStudent] = useState<boolean | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
@@ -33,6 +35,20 @@ const AIAssistant: React.FC = () => {
   ]);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkRole = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      
+      setIsStudent(data?.role?.toLowerCase() === 'student');
+    };
+    checkRole();
+  }, [user]);
 
   // Listen for global toggle event (from mobile bottom nav)
   useEffect(() => {
@@ -83,7 +99,7 @@ const AIAssistant: React.FC = () => {
     }
   };
 
-  if (!user) return null;
+  if (!user || isStudent === true || isStudent === null) return null;
 
   return (
     <div className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-[100] flex flex-col items-end">

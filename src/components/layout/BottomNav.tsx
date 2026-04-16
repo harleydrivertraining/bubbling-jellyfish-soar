@@ -65,11 +65,13 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
           <span className={labelClasses}>Home</span>
         </Link>
 
-        {/* AI Assistant Trigger */}
-        <button onClick={toggleAssistant} className={navItemClasses(false)}>
-          <Sparkles className="h-5 w-5 text-primary" />
-          <span className={labelClasses}>AI</span>
-        </button>
+        {/* AI Assistant Trigger - Hidden for students */}
+        {!isStudent && (
+          <button onClick={toggleAssistant} className={navItemClasses(false)}>
+            <Sparkles className="h-5 w-5 text-primary" />
+            <span className={labelClasses}>AI</span>
+          </button>
+        )}
 
         {/* Calendar Link */}
         <Link
