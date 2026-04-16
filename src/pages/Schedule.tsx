@@ -3,9 +3,10 @@
 import React, { useState, useCallback, useEffect } from "react";
 import CalendarComponent from "@/components/Calendar";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, RefreshCcw, ClipboardCheck } from "lucide-react";
+import { PlusCircle, RefreshCcw, ClipboardCheck, Settings2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
+import BookingSettingsForm from "@/components/BookingSettingsForm";
 import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -21,6 +22,7 @@ const Schedule: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const queryClient = useQueryClient();
   const [isAddBookingDialogOpen, setIsAddBookingDialogOpen] = useState(false);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [calendarHours, setCalendarHours] = useState({ start: 9, end: 18 });
   const [pendingCount, setPendingCount] = useState(0);
@@ -201,14 +203,25 @@ const Schedule: React.FC = () => {
             </div>
           )}
         </div>
-        <Button 
-          onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))} 
-          className="shrink-0 h-9 sm:h-10 px-3 sm:px-4"
-          size={isMobile ? "sm" : "default"}
-        >
-          <PlusCircle className="mr-2 h-4 w-4" /> 
-          New Booking
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => setIsSettingsDialogOpen(true)}
+            className="h-9 w-9 sm:h-10 sm:w-10"
+            title="Booking Settings"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+          <Button 
+            onClick={() => handleOpenAddBookingDialog(new Date(), addMinutes(new Date(), 60))} 
+            className="shrink-0 h-9 sm:h-10 px-3 sm:px-4 font-bold"
+            size={isMobile ? "sm" : "default"}
+          >
+            <PlusCircle className="mr-2 h-4 w-4" /> 
+            New Booking
+          </Button>
+        </div>
       </div>
       
       <div className="flex-1 min-h-[600px]">
@@ -253,6 +266,18 @@ const Schedule: React.FC = () => {
               onClose={() => setIsAddBookingDialogOpen(false)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5 text-primary" />
+              Booking Controls
+            </DialogTitle>
+          </DialogHeader>
+          <BookingSettingsForm onSuccess={() => setIsSettingsDialogOpen(false)} />
         </DialogContent>
       </Dialog>
     </div>
