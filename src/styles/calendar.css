@@ -5,6 +5,12 @@
   display: flex;
   flex-direction: column;
   @apply text-foreground; /* Ensure text color is consistent */
+  
+  /* Prevent browser context menus and 'save image' popups on long press */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: pan-x pan-y;
 }
 
 .rbc-header {
@@ -53,6 +59,9 @@
   align-items: center; /* Vertically align content */
   justify-content: space-between; /* Space out title and button */
   overflow: hidden; /* Hide overflow if content is too long */
+  
+  /* Ensure icons inside events don't trigger browser 'image' menus */
+  -webkit-touch-callout: none;
 }
 
 .rbc-toolbar {
