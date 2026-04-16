@@ -3,12 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, Lock } from "lucide-react";
+import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, Lock, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import ProfileSettingsForm from "@/components/ProfileSettingsForm";
 import NotificationSettingsForm from "@/components/NotificationSettingsForm";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
+import ChangeEmailForm from "@/components/ChangeEmailForm";
 import MenuCustomizer from "@/components/MenuCustomizer";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -130,6 +131,21 @@ const Settings: React.FC = () => {
 
           {activeTab === "account" && (
             <div className="space-y-6">
+              {!isStudent && (
+                <Card className="border-none shadow-sm bg-card">
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-primary" />
+                      Change Login Email
+                    </CardTitle>
+                    <CardDescription>Update the email address you use to sign in to your account.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+                    <ChangeEmailForm />
+                  </CardContent>
+                </Card>
+              )}
+
               <Card className="border-none shadow-sm bg-card">
                 <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="flex items-center gap-2">
