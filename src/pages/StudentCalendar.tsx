@@ -35,6 +35,7 @@ import {
 import { 
   format, 
   addHours, 
+  addWeeks,
   isBefore, 
   isAfter,
   startOfMonth, 
@@ -109,7 +110,6 @@ const StudentCalendar: React.FC = () => {
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
-      // We only select the times to respect privacy while checking availability
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
         .select("id, start_time, end_time, status, lesson_type")
@@ -121,13 +121,8 @@ const StudentCalendar: React.FC = () => {
       
       const allBookings = bookingsData || [];
       
-      // Separate "Available" slots from "Taken" slots
-      // Taken = Scheduled, Completed, or Pending Approval
-      const busy = allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled');
-      const gaps = allBookings.filter(b => b.status === 'available');
-
-      setExistingBookings(busy);
-      setManualAvailableSlots(gaps);
+      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
+      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
 
     } catch (error: any) {
       console.error("Error fetching calendar data:", error);
@@ -148,12 +143,15 @@ const StudentCalendar: React.FC = () => {
     const mode = instructor.booking_mode || "gaps";
     const now = new Date();
     const noticeHours = instructor.min_booking_notice_hours ?? 48;
+    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
+    
     const minStartTimeMs = addHours(now, noticeHours).getTime();
+    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
+    
     const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
     const durationMs = filterDuration * 60000;
     const intervalMs = (instructor.booking_interval_mins || 30) * 60000;
 
-    // Pre-calculate busy intervals as numeric timestamps
     const busyIntervals = existingBookings.map(b => ({
       start: parseISO(b.start_time).getTime() - bufferMs,
       end: parseISO(b.end_time).getTime() + bufferMs
@@ -161,7 +159,6 @@ const StudentCalendar: React.FC = () => {
 
     const isClashing = (startMs: number, endMs: number) => {
       return busyIntervals.some(busy => {
-        // Overlap if: (StartA < EndB) AND (EndA > StartB)
         return startMs < busy.end && endMs > busy.start;
       });
     };
@@ -175,7 +172,7 @@ const StudentCalendar: React.FC = () => {
 
         let currentPointerMs = gapStartMs;
         while (currentPointerMs + durationMs <= gapEndMs) {
-          if (currentPointerMs >= minStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
+          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
             slots.push({
               id: `gap-${gap.id}-${currentPointerMs}`,
               start_time: new Date(currentPointerMs).toISOString(),
@@ -195,14 +192,12 @@ const StudentCalendar: React.FC = () => {
       const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
       daysInRange.forEach(day => {
-        if (endOfDay(day).getTime() < minStartTimeMs) return;
-
         const dayStartMs = setMinutes(setHours(startOfDay(day), startHour), 0).getTime();
         const dayEndMs = setMinutes(setHours(startOfDay(day), endHour), 0).getTime();
 
         let currentPointerMs = dayStartMs;
         while (currentPointerMs + durationMs <= dayEndMs) {
-          if (currentPointerMs >= minStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
+          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
             slots.push({
               id: `gen-${currentPointerMs}`,
               start_time: new Date(currentPointerMs).toISOString(),

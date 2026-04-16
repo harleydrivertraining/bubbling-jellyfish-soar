@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Clock, CalendarRange, Timer, Shield, Loader2, AlertCircle } from "lucide-react";
+import { Clock, CalendarRange, Timer, Shield, Loader2, AlertCircle, CalendarDays } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +36,10 @@ const formSchema = z.object({
   min_booking_notice_hours: z.preprocess(
     (val) => (val === "" ? 48 : Number(val)),
     z.number().min(0)
+  ),
+  max_booking_advance_weeks: z.preprocess(
+    (val) => (val === "" ? 12 : Number(val)),
+    z.number().min(1).max(52)
   ),
   require_booking_approval: z.boolean().default(false),
   booking_mode: z.enum(["gaps", "open"]).default("gaps"),
@@ -64,6 +68,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
     resolver: zodResolver(formSchema),
     defaultValues: {
       min_booking_notice_hours: 48,
+      max_booking_advance_weeks: 12,
       require_booking_approval: false,
       booking_mode: "gaps",
       booking_interval_mins: 30,
@@ -79,7 +84,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("min_booking_notice_hours, require_booking_approval, booking_mode, booking_interval_mins, booking_buffer_mins, instructor_pin")
+        .select("min_booking_notice_hours, max_booking_advance_weeks, require_booking_approval, booking_mode, booking_interval_mins, booking_buffer_mins, instructor_pin")
         .eq("id", user.id)
         .single();
 
@@ -89,6 +94,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         setInstructorPin(data.instructor_pin);
         form.reset({
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
+          max_booking_advance_weeks: data.max_booking_advance_weeks ?? 12,
           require_booking_approval: data.require_booking_approval ?? false,
           booking_mode: (data.booking_mode as "gaps" | "open") || "gaps",
           booking_interval_mins: data.booking_interval_mins ?? 30,
@@ -98,7 +104,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
     } catch (error: any) {
       console.error("Error fetching booking settings:", error);
       setFetchError(error.message);
-      showError("Failed to load settings. Please ensure database columns are added.");
+      showError("Failed to load settings.");
     } finally {
       setIsLoading(false);
     }
@@ -116,6 +122,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
       .from("profiles")
       .update({
         min_booking_notice_hours: values.min_booking_notice_hours,
+        max_booking_advance_weeks: values.max_booking_advance_weeks,
         require_booking_approval: values.require_booking_approval,
         booking_mode: values.booking_mode,
         booking_interval_mins: values.booking_interval_mins,
@@ -139,26 +146,6 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-10 w-full" />
-      </div>
-    );
-  }
-
-  if (fetchError) {
-    return (
-      <div className="p-6 text-center space-y-4">
-        <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
-        <div className="space-y-2">
-          <p className="font-bold text-lg">Database Error</p>
-          <p className="text-sm text-muted-foreground">
-            It looks like the new booking columns haven't been added to your database yet.
-          </p>
-        </div>
-        <div className="p-3 bg-muted rounded text-[10px] font-mono text-left overflow-auto max-h-32">
-          {fetchError}
-        </div>
-        <Button onClick={fetchSettings} variant="outline" className="w-full">
-          Try Again
-        </Button>
       </div>
     );
   }
@@ -226,6 +213,35 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
           )}
         />
 
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="min_booking_notice_hours"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold flex items-center gap-1.5">
+                  <Clock className="h-3 w-3" /> Min Notice (Hrs)
+                </FormLabel>
+                <FormControl><Input type="number" className="h-9" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} /></FormControl>
+                <FormDescription className="text-[10px]">Minimum time before start</FormDescription>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="max_booking_advance_weeks"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold flex items-center gap-1.5">
+                  <CalendarDays className="h-3 w-3" /> Max Advance (Wks)
+                </FormLabel>
+                <FormControl><Input type="number" className="h-9" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} /></FormControl>
+                <FormDescription className="text-[10px]">How far ahead they can see</FormDescription>
+              </FormItem>
+            )}
+          />
+        </div>
+
         {bookingMode === "open" && (
           <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <FormField
@@ -282,17 +298,6 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                   <p className="text-[10px] text-muted-foreground">Manually confirm every booking</p>
                 </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="min_booking_notice_hours"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold">Notice Period (Hours)</FormLabel>
-                <FormControl><Input type="number" className="h-9" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} /></FormControl>
-                <FormDescription className="text-[10px]">Minimum time before a lesson starts</FormDescription>
               </FormItem>
             )}
           />
