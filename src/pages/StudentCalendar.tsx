@@ -52,8 +52,7 @@ import {
   setHours,
   setMinutes,
   endOfDay,
-  startOfDay,
-  getTime
+  startOfDay
 } from "date-fns";
 
 interface Booking {
@@ -86,7 +85,7 @@ const StudentCalendar: React.FC = () => {
     else setIsRefreshing(true);
 
     try {
-      // 1. Get Student Record
+      // 1. Get Student Record to find who their instructor is
       const { data: sData, error: sError } = await supabase
         .from("students")
         .select("*")
@@ -96,7 +95,7 @@ const StudentCalendar: React.FC = () => {
       if (sError) throw sError;
       setStudentData(sData);
 
-      // 2. Get Instructor Profile
+      // 2. Get Instructor Profile for booking settings
       const { data: instructorProfile } = await supabase
         .from("profiles")
         .select("*")
@@ -105,13 +104,13 @@ const StudentCalendar: React.FC = () => {
       
       setInstructor(instructorProfile);
 
-      // 3. Fetch Bookings for the visible range
+      // 3. Fetch ALL bookings for the instructor in the visible range
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
-        .select("*")
+        .select("id, start_time, end_time, status, lesson_type")
         .eq("user_id", sData.user_id)
         .gte("start_time", rangeStart)
         .lte("end_time", rangeEnd);
@@ -120,10 +119,12 @@ const StudentCalendar: React.FC = () => {
       
       const allBookings = bookingsData || [];
       
+      // Filter out cancelled bookings as they don't block time
+      const activeBookings = allBookings.filter(b => b.status !== 'cancelled');
+      
       // Separate "Available" slots from "Taken" slots
-      // Taken slots = Scheduled, Completed, or Pending Approval
-      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
-      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
+      setExistingBookings(activeBookings.filter(b => b.status !== 'available'));
+      setManualAvailableSlots(activeBookings.filter(b => b.status === 'available'));
 
     } catch (error: any) {
       console.error("Error fetching calendar data:", error);
@@ -144,8 +145,21 @@ const StudentCalendar: React.FC = () => {
     const mode = instructor.booking_mode || "gaps";
     const now = new Date();
     const noticeHours = instructor.min_booking_notice_hours ?? 48;
-    const minStartTime = addHours(now, noticeHours);
-    const buffer = instructor.booking_buffer_mins || 0;
+    const minStartTimeMs = addHours(now, noticeHours).getTime();
+    const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
+
+    // Pre-calculate busy intervals as numeric timestamps for speed and accuracy
+    const busyIntervals = existingBookings.map(b => ({
+      start: parseISO(b.start_time).getTime() - bufferMs,
+      end: parseISO(b.end_time).getTime() + bufferMs
+    }));
+
+    const isClashing = (startMs: number, endMs: number) => {
+      return busyIntervals.some(busy => {
+        // Overlap if: (StartA < EndB) AND (EndA > StartB)
+        return startMs < busy.end && endMs > busy.start;
+      });
+    };
 
     // Mode 1: Manual Gaps Only
     if (mode === "gaps") {
@@ -153,20 +167,18 @@ const StudentCalendar: React.FC = () => {
         .filter(slot => {
           const start = parseISO(slot.start_time);
           const end = parseISO(slot.end_time);
-          const duration = differenceInMinutes(end, start);
+          const startMs = start.getTime();
+          const endMs = end.getTime();
+          const duration = (endMs - startMs) / 60000;
           
-          // Check notice period and duration match
-          if (isBefore(start, minStartTime)) return false;
+          // 1. Check notice period
+          if (startMs < minStartTimeMs) return false;
+          
+          // 2. Check duration match (within 5 min tolerance)
           if (Math.abs(duration - filterDuration) > 5) return false;
 
-          // Ensure no overlap with existing bookings (including buffer)
-          const hasClash = existingBookings.some(b => {
-            const bStart = subMinutes(parseISO(b.start_time), buffer);
-            const bEnd = addMinutes(parseISO(b.end_time), buffer);
-            return isBefore(start, bEnd) && isAfter(end, bStart);
-          });
-
-          return !hasClash;
+          // 3. Check for clashes with existing bookings (including buffer)
+          return !isClashing(startMs, endMs);
         })
         .map(slot => ({
           ...slot,
@@ -175,7 +187,8 @@ const StudentCalendar: React.FC = () => {
     }
 
     // Mode 2: Open Schedule Generation
-    const interval = instructor.booking_interval_mins || 30;
+    const intervalMs = (instructor.booking_interval_mins || 30) * 60000;
+    const durationMs = filterDuration * 60000;
     const startHour = instructor.calendar_start_hour ?? 9;
     const endHour = instructor.calendar_end_hour ?? 18;
 
@@ -186,46 +199,35 @@ const StudentCalendar: React.FC = () => {
     const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
     daysInRange.forEach(day => {
-      // Skip past days or days within notice period
-      if (isBefore(endOfDay(day), minStartTime)) return;
+      // Skip days entirely in the past
+      if (getTime(endOfDay(day)) < minStartTimeMs) return;
 
-      let currentPointer = setMinutes(setHours(startOfDay(day), startHour), 0);
-      const dayEnd = setMinutes(setHours(startOfDay(day), endHour), 0);
+      const dayStartMs = setMinutes(setHours(startOfDay(day), startHour), 0).getTime();
+      const dayEndMs = setMinutes(setHours(startOfDay(day), endHour), 0).getTime();
 
-      while (isBefore(addMinutes(currentPointer, filterDuration), dayEnd)) {
-        const slotStart = currentPointer;
-        const slotEnd = addMinutes(slotStart, filterDuration);
+      let currentPointerMs = dayStartMs;
+
+      while (currentPointerMs + durationMs <= dayEndMs) {
+        const slotStartMs = currentPointerMs;
+        const slotEndMs = currentPointerMs + durationMs;
 
         // 1. Check notice period
-        if (isBefore(slotStart, minStartTime)) {
-          currentPointer = addMinutes(currentPointer, interval);
+        if (slotStartMs < minStartTimeMs) {
+          currentPointerMs += intervalMs;
           continue;
         }
 
-        // 2. Check for clashes with existing bookings (including buffer)
-        const hasClash = existingBookings.some(booking => {
-          const bStart = parseISO(booking.start_time);
-          const bEnd = parseISO(booking.end_time);
-          
-          // The slot clashes if it starts before a booking ends (+ buffer)
-          // AND it ends after a booking starts (- buffer)
-          const bufferedBStart = subMinutes(bStart, buffer);
-          const bufferedBEnd = addMinutes(bEnd, buffer);
-
-          // Strict overlap check
-          return isBefore(slotStart, bufferedBEnd) && isAfter(slotEnd, bufferedBStart);
-        });
-
-        if (!hasClash) {
+        // 2. Check for clashes with existing bookings + buffer
+        if (!isClashing(slotStartMs, slotEndMs)) {
           slots.push({
-            id: `gen-${slotStart.getTime()}`,
-            start_time: slotStart.toISOString(),
-            end_time: slotEnd.toISOString(),
+            id: `gen-${slotStartMs}`,
+            start_time: new Date(slotStartMs).toISOString(),
+            end_time: new Date(slotEndMs).toISOString(),
             isGenerated: true
           });
         }
 
-        currentPointer = addMinutes(currentPointer, interval);
+        currentPointerMs += intervalMs;
       }
     });
 
