@@ -47,25 +47,26 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     if (isLoadingInitialBookings) return;
     setIsLoadingInitialBookings(true);
     
-    const now = new Date();
-    // Fetch a wide range (3 months either side) to cover most views
-    const rangeStart = startOfMonth(addMonths(now, -3));
-    const rangeEnd = endOfMonth(addMonths(now, 3));
+    try {
+      const now = new Date();
+      const rangeStart = startOfMonth(addMonths(now, -3));
+      const rangeEnd = endOfMonth(addMonths(now, 3));
 
-    const { data, error } = await supabase
-      .from("bookings")
-      .select("id, title, description, start_time, end_time, student_id, status, lesson_type, is_paid, targets_for_next_session, students(name)")
-      .eq("user_id", userId)
-      .gte("start_time", rangeStart.toISOString())
-      .lte("end_time", rangeEnd.toISOString());
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, title, description, start_time, end_time, student_id, status, lesson_type, is_paid, targets_for_next_session, students(name)")
+        .eq("user_id", userId)
+        .gte("start_time", rangeStart.toISOString())
+        .lte("end_time", rangeEnd.toISOString());
 
-    if (error) {
+      if (error) throw error;
+      setInitialBookings(data as unknown as Booking[] || []);
+    } catch (error) {
       console.error("Error fetching initial bookings:", error);
       setInitialBookings([]);
-    } else {
-      setInitialBookings(data as unknown as Booking[] || []);
+    } finally {
+      setIsLoadingInitialBookings(false);
     }
-    setIsLoadingInitialBookings(false);
   }, [isLoadingInitialBookings]);
 
   const refreshInitialBookings = async () => {
@@ -77,19 +78,23 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     const getInitialSession = async () => {
       try {
+        // This retrieves the session from localStorage if it exists
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        // Updated public routes to include the secret signup path
-        const publicRoutes = ["/login", "/74985", "/signup-success"];
+        
+        const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
         const isPublicRoute = publicRoutes.includes(location.pathname);
 
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
           fetchInitialBookings(initialSession.user.id);
+          
+          // Only redirect to home if they are currently on a login/signup page
           if (isPublicRoute) {
             navigate("/", { replace: true });
           }
         } else {
+          // If no session and not on a public route, send to login
           if (!isPublicRoute) {
             navigate("/login", { replace: true });
           }
@@ -107,16 +112,18 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      const publicRoutes = ["/login", "/74985", "/signup-success"];
+      const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
       const isPublicRoute = publicRoutes.includes(location.pathname);
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
+        
         if (currentSession?.user) {
           fetchInitialBookings(currentSession.user.id);
         }
-        if (isPublicRoute) {
+        
+        if (isPublicRoute && event === 'SIGNED_IN') {
           navigate("/", { replace: true });
         }
       } else if (event === 'SIGNED_OUT') {
