@@ -6,6 +6,8 @@ import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { 
   ArrowLeft, 
   Sparkles, 
@@ -15,7 +17,8 @@ import {
   ClipboardCheck, 
   ChevronLeft, 
   ChevronRight,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Car
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
