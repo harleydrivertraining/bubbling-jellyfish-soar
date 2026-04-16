@@ -333,33 +333,33 @@ const StudentCalendar: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_380px] items-start">
-        {/* Left Column: Calendar */}
+      <div className="grid gap-8 lg:grid-cols-[400px_1fr] items-start">
+        {/* Left Column: Calendar (Fixed Width on Desktop) */}
         <Card className="shadow-md border-none overflow-hidden">
-          <CardHeader className="bg-primary text-primary-foreground p-6">
+          <CardHeader className="bg-primary text-primary-foreground p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-bold">
+              <CardTitle className="text-lg sm:text-xl font-bold">
                 {format(currentMonth, "MMMM yyyy")}
               </CardTitle>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="icon" className="h-10 w-10 text-white hover:bg-white/20" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                  <ChevronLeft className="h-6 w-6" />
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+                  <ChevronLeft className="h-5 w-5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-10 w-10 text-white hover:bg-white/20" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                  <ChevronRight className="h-6 w-6" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+                  <ChevronRight className="h-5 w-5" />
                 </Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-7 mb-4">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
-                <div key={i} className="text-center text-[10px] font-black text-muted-foreground uppercase py-2">
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid grid-cols-7 mb-2">
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
+                <div key={i} className="text-center text-[10px] font-black text-muted-foreground uppercase py-1">
                   {day}
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-2 sm:gap-4">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {days.map((day, i) => {
                 const isSelected = isSameDay(day, selectedDate);
                 const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -370,7 +370,7 @@ const StudentCalendar: React.FC = () => {
                     <button
                       onClick={() => setSelectedDate(day)}
                       className={cn(
-                        "h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center text-sm font-bold transition-all relative",
+                        "h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all relative",
                         !isCurrentMonth && "text-muted-foreground/30",
                         isCurrentMonth && "text-foreground",
                         isSelected && "bg-primary text-primary-foreground scale-110 shadow-lg",
@@ -379,7 +379,7 @@ const StudentCalendar: React.FC = () => {
                     >
                       {format(day, "d")}
                       {(available && !isSelected) && (
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-blue-500" />
                       )}
                     </button>
                   </div>
@@ -389,7 +389,7 @@ const StudentCalendar: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Right Column: Slots */}
+        {/* Right Column: Slots (Takes remaining space) */}
         <div className="space-y-6">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-black text-xl flex items-center gap-2">
