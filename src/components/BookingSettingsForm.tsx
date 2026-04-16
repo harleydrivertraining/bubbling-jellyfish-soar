@@ -135,11 +135,10 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
       if (data) {
         setInstructorPin(data.instructor_pin);
         
-        // Convert legacy numeric hours to strings if necessary
         const rawHours = data.working_hours || {};
         const formattedHours: any = {};
         DAYS.forEach(day => {
-          const config = rawHours[day.id] || { active: false, start: 9, end: 17 };
+          const config = rawHours[day.id] || { active: false, start: "09:00", end: "17:00" };
           formattedHours[day.id] = {
             active: config.active,
             start: typeof config.start === 'number' ? `${config.start.toString().padStart(2, '0')}:00` : config.start,
@@ -353,10 +352,10 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                   {isHoursExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
+              <CollapsibleContent className="p-2 sm:p-4 pt-0 space-y-2 animate-in slide-in-from-top-2 duration-200">
                 {DAYS.map((day) => (
-                  <div key={day.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 bg-background rounded-lg border shadow-sm">
-                    <div className="flex items-center gap-3 min-w-[100px]">
+                  <div key={day.id} className="flex items-center justify-between gap-2 p-2 bg-background rounded-lg border shadow-sm">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <FormField
                         control={form.control}
                         name={`working_hours.${day.id}.active`}
@@ -370,19 +369,19 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                           </FormControl>
                         )}
                       />
-                      <span className={cn("font-bold text-xs", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
+                      <span className={cn("font-bold text-[11px] sm:text-xs truncate", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
                         {day.label}
                       </span>
                     </div>
 
-                    {form.watch(`working_hours.${day.id}.active`) && (
-                      <div className="flex items-center gap-2">
+                    {form.watch(`working_hours.${day.id}.active`) ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <FormField
                           control={form.control}
                           name={`working_hours.${day.id}.start`}
                           render={({ field }) => (
                             <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl><SelectTrigger className="w-24 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                              <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] px-2"><SelectValue /></SelectTrigger></FormControl>
                               <SelectContent>
                                 {TIME_OPTIONS.map((time) => (
                                   <SelectItem key={time} value={time}>{time}</SelectItem>
@@ -397,7 +396,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                           name={`working_hours.${day.id}.end`}
                           render={({ field }) => (
                             <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl><SelectTrigger className="w-24 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                              <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] px-2"><SelectValue /></SelectTrigger></FormControl>
                               <SelectContent>
                                 {TIME_OPTIONS.map((time) => (
                                   <SelectItem key={time} value={time}>{time}</SelectItem>
@@ -407,9 +406,8 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                           )}
                         />
                       </div>
-                    )}
-                    {!form.watch(`working_hours.${day.id}.active`) && (
-                      <span className="text-[10px] italic text-muted-foreground">Off</span>
+                    ) : (
+                      <span className="text-[10px] italic text-muted-foreground pr-2">Off</span>
                     )}
                   </div>
                 ))}

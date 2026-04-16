@@ -43,6 +43,20 @@ const DAYS = [
   { id: "0", label: "Sunday" },
 ];
 
+// Helper to generate 15-min time options
+const generateTimeOptions = () => {
+  const options = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let min = 0; min < 60; min += 15) {
+      const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+      options.push(time);
+    }
+  }
+  return options;
+};
+
+const TIME_OPTIONS = generateTimeOptions();
+
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
@@ -121,11 +135,10 @@ const ProfileSettingsForm: React.FC = () => {
       if (data) {
         setUserRole(data.role);
         
-        // Convert legacy numeric hours to strings if necessary
         const rawHours = data.working_hours || {};
         const formattedHours: any = {};
         DAYS.forEach(day => {
-          const config = rawHours[day.id] || { active: false, start: 9, end: 17 };
+          const config = rawHours[day.id] || { active: false, start: "09:00", end: "17:00" };
           formattedHours[day.id] = {
             active: config.active,
             start: typeof config.start === 'number' ? `${config.start.toString().padStart(2, '0')}:00` : config.start,
@@ -303,8 +316,8 @@ const ProfileSettingsForm: React.FC = () => {
           
           <div className="space-y-4">
             {DAYS.map((day) => (
-              <div key={day.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 bg-background rounded-lg border shadow-sm">
-                <div className="flex items-center gap-3 min-w-[120px]">
+              <div key={day.id} className="flex items-center justify-between gap-2 p-3 bg-background rounded-lg border shadow-sm">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <FormField
                     control={form.control}
                     name={`working_hours.${day.id}.active`}
@@ -317,52 +330,45 @@ const ProfileSettingsForm: React.FC = () => {
                       </FormControl>
                     )}
                   />
-                  <span className={cn("font-bold text-sm", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
+                  <span className={cn("font-bold text-xs sm:text-sm truncate", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
                     {day.label}
                   </span>
                 </div>
 
-                {form.watch(`working_hours.${day.id}.active`) && (
-                  <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                {form.watch(`working_hours.${day.id}.active`) ? (
+                  <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in duration-200">
                     <FormField
                       control={form.control}
                       name={`working_hours.${day.id}.start`}
                       render={({ field }) => (
                         <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
-                          <FormControl><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                          <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>
-                            {Array.from({ length: 24 * 4 }).map((_, i) => {
-                              const h = Math.floor(i / 4);
-                              const m = (i % 4) * 15;
-                              const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                              return <SelectItem key={time} value={time}>{time}</SelectItem>;
-                            })}
+                            {TIME_OPTIONS.map((time) => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}
                     />
-                    <span className="text-xs font-bold text-muted-foreground">to</span>
+                    <span className="text-[10px] font-bold text-muted-foreground">to</span>
                     <FormField
                       control={form.control}
                       name={`working_hours.${day.id}.end`}
                       render={({ field }) => (
                         <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
-                          <FormControl><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                          <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>
-                            {Array.from({ length: 24 * 4 }).map((_, i) => {
-                              const h = Math.floor(i / 4);
-                              const m = (i % 4) * 15;
-                              const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                              return <SelectItem key={time} value={time}>{time}</SelectItem>;
-                            })}
+                            {TIME_OPTIONS.map((time) => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}
                     />
                   </div>
-                )}
-                {!form.watch(`working_hours.${day.id}.active`) && (
-                  <span className="text-xs italic text-muted-foreground">Unavailable</span>
+                ) : (
+                  <span className="text-xs italic text-muted-foreground pr-2">Unavailable</span>
                 )}
               </div>
             ))}
