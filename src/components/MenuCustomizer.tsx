@@ -133,11 +133,11 @@ const MenuCustomizer: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Drag or use arrows to reorder. Toggle switches to show/hide pages.
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Use arrows to reorder. Toggle switches to show/hide pages.
         </p>
-        <Button variant="outline" size="sm" onClick={resetToDefault}>
+        <Button variant="outline" size="sm" onClick={resetToDefault} className="w-full sm:w-auto font-bold">
           Reset to Default
         </Button>
       </div>
@@ -151,38 +151,40 @@ const MenuCustomizer: React.FC = () => {
             <div
               key={item.id}
               className={cn(
-                "flex items-center justify-between p-3 border rounded-lg bg-card transition-all",
+                "flex items-center justify-between p-3 border rounded-lg bg-card transition-all gap-3",
                 !item.visible && "opacity-60 bg-muted/30"
               )}
             >
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex flex-col gap-0.5 shrink-0">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-7 w-7"
                     disabled={index === 0}
                     onClick={() => moveItem(index, "up")}
                   >
-                    <ArrowUp className="h-3 w-3" />
+                    <ArrowUp className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-7 w-7"
                     disabled={index === menuItems.length - 1}
                     onClick={() => moveItem(index, "down")}
                   >
-                    <ArrowDown className="h-3 w-3" />
+                    <ArrowDown className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-primary/70" />
-                  <Label className="font-bold text-sm cursor-default">{item.label}</Label>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Icon className="h-4 w-4 text-primary/70 shrink-0" />
+                  <Label className="font-bold text-xs sm:text-sm cursor-default truncate block">
+                    {item.label}
+                  </Label>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 {item.visible ? (
                   <Eye className="h-4 w-4 text-green-600" />
                 ) : (

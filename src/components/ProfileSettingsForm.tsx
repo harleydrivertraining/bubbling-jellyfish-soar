@@ -211,16 +211,16 @@ const ProfileSettingsForm: React.FC = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="flex items-center space-x-4">
-          <Avatar className="h-16 w-16">
-            <AvatarImage src={form.watch("logo_url") || undefined} />
-            <AvatarFallback><User className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <Avatar className="h-20 w-20 border-2 border-muted">
+            <AvatarImage src={form.watch("logo_url") || undefined} className="object-contain" />
+            <AvatarFallback><User className="h-10 w-10 text-muted-foreground" /></AvatarFallback>
           </Avatar>
           <FormField
             control={form.control}
             name="logo_url"
             render={({ field }) => (
-              <FormItem className="flex-1">
+              <FormItem className="flex-1 w-full">
                 <FormLabel>Logo URL</FormLabel>
                 <FormControl>
                   <Input placeholder="https://example.com/logo.png" {...field} value={field.value || ""} />
@@ -243,7 +243,7 @@ const ProfileSettingsForm: React.FC = () => {
               )}>
                 {pinValue || "NOT ASSIGNED"}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-[10px] text-muted-foreground mt-1 text-center">
                 Give this PIN to your students so they can sign in.
               </p>
             </div>
@@ -313,9 +313,9 @@ const ProfileSettingsForm: React.FC = () => {
             <Clock className="h-4 w-4" /> Working Hours
           </h3>
           
-          <div className="space-y-4">
+          <div className="space-y-3">
             {DAYS.map((day) => (
-              <div key={day.id} className="grid grid-cols-[1fr_auto] items-center gap-4 p-3 bg-background rounded-lg border shadow-sm">
+              <div key={day.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-background rounded-lg border shadow-sm">
                 <div className="flex items-center gap-3 min-w-0">
                   <FormField
                     control={form.control}
@@ -325,17 +325,16 @@ const ProfileSettingsForm: React.FC = () => {
                         <Switch 
                           checked={field.value} 
                           onCheckedChange={field.onChange} 
-                          className="scale-75 sm:scale-100"
                         />
                       </FormControl>
                     )}
                   />
-                  <span className={cn("font-bold text-xs sm:text-sm truncate", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
+                  <span className={cn("font-bold text-sm truncate", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
                     {day.label}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-end">
+                <div className="flex items-center justify-between sm:justify-end gap-2">
                   {form.watch(`working_hours.${day.id}.active`) ? (
                     <div className="flex items-center gap-1.5 sm:gap-2">
                       <FormField
@@ -343,7 +342,7 @@ const ProfileSettingsForm: React.FC = () => {
                         name={`working_hours.${day.id}.start`}
                         render={({ field }) => (
                           <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
-                            <FormControl><SelectTrigger className="w-[70px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
+                            <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-9 text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
                             <SelectContent>
                               {TIME_OPTIONS.map((time) => (
                                 <SelectItem key={time} value={time}>{time}</SelectItem>
@@ -358,7 +357,7 @@ const ProfileSettingsForm: React.FC = () => {
                         name={`working_hours.${day.id}.end`}
                         render={({ field }) => (
                           <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
-                            <FormControl><SelectTrigger className="w-[70px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
+                            <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-9 text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
                             <SelectContent>
                               {TIME_OPTIONS.map((time) => (
                                 <SelectItem key={time} value={time}>{time}</SelectItem>
@@ -369,7 +368,7 @@ const ProfileSettingsForm: React.FC = () => {
                       />
                     </div>
                   ) : (
-                    <span className="text-[10px] sm:text-xs italic text-muted-foreground pr-2">Off</span>
+                    <span className="text-xs italic text-muted-foreground pr-2">Off Duty</span>
                   )}
                 </div>
               </div>
@@ -399,8 +398,8 @@ const ProfileSettingsForm: React.FC = () => {
                         <RadioGroupItem value="gaps" className="sr-only" />
                       </FormControl>
                       <FormLabel className={cn(
-                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer",
-                        field.value === "gaps" && "border-primary"
+                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all",
+                        field.value === "gaps" && "border-primary bg-primary/5"
                       )}>
                         <Clock className="mb-3 h-6 w-6" />
                         <span className="font-bold text-sm">Specific Gaps Only</span>
@@ -412,8 +411,8 @@ const ProfileSettingsForm: React.FC = () => {
                         <RadioGroupItem value="open" className="sr-only" />
                       </FormControl>
                       <FormLabel className={cn(
-                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer",
-                        field.value === "open" && "border-primary"
+                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all",
+                        field.value === "open" && "border-primary bg-primary/5"
                       )}>
                         <CalendarRange className="mb-3 h-6 w-6" />
                         <span className="font-bold text-sm">Open Schedule</span>
@@ -480,7 +479,7 @@ const ProfileSettingsForm: React.FC = () => {
               name="require_booking_approval"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
-                  <div className="space-y-0.5">
+                  <div className="space-y-0.5 pr-4">
                     <FormLabel className="text-sm font-bold">Require Approval</FormLabel>
                     <p className="text-[10px] text-muted-foreground">You must manually confirm every student booking.</p>
                   </div>
@@ -502,7 +501,7 @@ const ProfileSettingsForm: React.FC = () => {
           </div>
         </div>
 
-        <Button type="submit" className="w-full font-bold">Save Changes</Button>
+        <Button type="submit" className="w-full font-bold h-12 text-lg">Save Changes</Button>
       </form>
     </Form>
   );

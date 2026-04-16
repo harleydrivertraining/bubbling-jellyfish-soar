@@ -66,41 +66,43 @@ const Settings: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-20">
-      <div className="flex flex-col gap-1">
+    <div className="space-y-6 max-w-5xl mx-auto pb-24">
+      <div className="flex flex-col gap-1 px-1">
         <h1 className="text-3xl font-black tracking-tight">Settings</h1>
-        <p className="text-muted-foreground font-medium">
+        <p className="text-muted-foreground font-medium text-sm">
           {isStudent ? "Manage your security and account access." : "Manage your account and app preferences."}
         </p>
       </div>
       
       <div className="space-y-6">
-        {/* Top Navigation Tabs - Hidden for students */}
+        {/* Top Navigation Tabs - Scrollable on mobile */}
         {!isStudent && (
-          <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border w-full overflow-x-auto no-scrollbar">
-            {navItems.map((item) => (
-              <Button
-                key={item.id}
-                variant={activeTab === item.id ? "default" : "ghost"}
-                className={cn(
-                  "flex-1 min-w-[80px] sm:min-w-[120px] font-bold h-10 rounded-lg transition-all text-xs sm:text-sm px-2 sm:px-4",
-                  activeTab === item.id 
-                    ? "bg-background text-primary shadow-sm hover:bg-background" 
-                    : "text-muted-foreground hover:bg-transparent hover:text-primary"
-                )}
-                onClick={() => setActiveTab(item.id as SettingsTab)}
-              >
-                <item.icon className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" />
-                {item.label}
-              </Button>
-            ))}
+          <div className="px-1">
+            <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border w-full overflow-x-auto no-scrollbar scroll-smooth">
+              {navItems.map((item) => (
+                <Button
+                  key={item.id}
+                  variant={activeTab === item.id ? "default" : "ghost"}
+                  className={cn(
+                    "flex-1 min-w-[90px] sm:min-w-[120px] font-bold h-10 rounded-lg transition-all text-xs sm:text-sm px-2 sm:px-4",
+                    activeTab === item.id 
+                      ? "bg-background text-primary shadow-sm hover:bg-background" 
+                      : "text-muted-foreground hover:bg-transparent hover:text-primary"
+                  )}
+                  onClick={() => setActiveTab(item.id as SettingsTab)}
+                >
+                  <item.icon className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" />
+                  {item.label}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
 
         {/* Content Area */}
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 px-1">
           {activeTab === "profile" && !isStudent && (
-            <Card className="border-none shadow-sm bg-card">
+            <Card className="border-none shadow-sm bg-card overflow-hidden">
               <CardHeader className="p-4 sm:p-6">
                 <CardTitle>Profile Settings</CardTitle>
                 <CardDescription>Update your personal information and instructor preferences.</CardDescription>
@@ -112,13 +114,13 @@ const Settings: React.FC = () => {
           )}
 
           {activeTab === "notifications" && !isStudent && (
-            <div className="px-1 sm:px-0">
+            <div className="space-y-6">
               <NotificationSettingsForm />
             </div>
           )}
 
           {activeTab === "menu" && !isStudent && (
-            <Card className="border-none shadow-sm bg-card">
+            <Card className="border-none shadow-sm bg-card overflow-hidden">
               <CardHeader className="p-4 sm:p-6">
                 <CardTitle>Customise Menu</CardTitle>
                 <CardDescription>Rearrange or hide pages in your sidebar navigation.</CardDescription>
@@ -132,7 +134,7 @@ const Settings: React.FC = () => {
           {activeTab === "account" && (
             <div className="space-y-6">
               {!isStudent && (
-                <Card className="border-none shadow-sm bg-card">
+                <Card className="border-none shadow-sm bg-card overflow-hidden">
                   <CardHeader className="p-4 sm:p-6">
                     <CardTitle className="flex items-center gap-2">
                       <Mail className="h-5 w-5 text-primary" />
@@ -146,7 +148,7 @@ const Settings: React.FC = () => {
                 </Card>
               )}
 
-              <Card className="border-none shadow-sm bg-card">
+              <Card className="border-none shadow-sm bg-card overflow-hidden">
                 <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="flex items-center gap-2">
                     <Lock className="h-5 w-5 text-primary" />
@@ -159,7 +161,7 @@ const Settings: React.FC = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-destructive/20 bg-destructive/5 shadow-none">
+              <Card className="border-destructive/20 bg-destructive/5 shadow-none overflow-hidden">
                 <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="text-destructive text-lg">Sign Out</CardTitle>
                   <CardDescription>End your current session on this device.</CardDescription>

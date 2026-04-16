@@ -140,14 +140,14 @@ const NotificationSettingsForm: React.FC = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Card>
-          <CardHeader>
+        <Card className="overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-lg flex items-center gap-2">
               <Mail className="h-5 w-5 text-blue-600" /> Email Configuration
             </CardTitle>
             <CardDescription>Where and how you receive automated alerts.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -168,7 +168,7 @@ const NotificationSettingsForm: React.FC = () => {
                 name="email_notifications_enabled"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-muted/30 p-3 shadow-sm">
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 pr-4">
                       <FormLabel className="text-xs">Master Email Switch</FormLabel>
                     </div>
                     <FormControl>
@@ -183,12 +183,12 @@ const NotificationSettingsForm: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <Button 
                   type="button" 
                   variant="outline" 
                   size="sm" 
-                  className="font-bold border-blue-200 text-blue-700 hover:bg-blue-100"
+                  className="font-bold border-blue-200 text-blue-700 hover:bg-blue-100 w-full sm:w-auto"
                   onClick={handleTestEmail}
                   disabled={isTestingEmail}
                 >
@@ -198,14 +198,14 @@ const NotificationSettingsForm: React.FC = () => {
                     <><Send className="mr-2 h-4 w-4" /> Send Test Email</>
                   )}
                 </Button>
-                <p className="text-[10px] text-muted-foreground italic">
+                <p className="text-[10px] text-muted-foreground italic text-center sm:text-left">
                   Verifies your setup by sending a message to the email above.
                 </p>
               </div>
               
               {isDirty && (
                 <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
-                  <AlertTriangle className="h-3 w-3" />
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
                   <span>You have unsaved changes. Save before testing.</span>
                 </div>
               )}
@@ -214,27 +214,27 @@ const NotificationSettingsForm: React.FC = () => {
         </Card>
 
         {form.watch("email_notifications_enabled") && (
-          <Card className="animate-in fade-in slide-in-from-top-2 duration-200">
-            <CardHeader>
+          <Card className="animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+            <CardHeader className="p-4 sm:p-6">
               <CardTitle className="text-lg flex items-center gap-2">
                 <BellRing className="h-5 w-5 text-primary" /> Alert Preferences
               </CardTitle>
               <CardDescription>Choose which events trigger an email.</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3">
+            <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 grid grid-cols-1 gap-3">
               <FormField
                 control={form.control}
                 name="notif_lesson_booked"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border px-4 py-3 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <CalendarCheck className="h-5 w-5 text-blue-600" />
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-sm font-bold cursor-pointer">New Lesson Bookings</FormLabel>
-                        <p className="text-[10px] text-muted-foreground">When a student books an available slot</p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <CalendarCheck className="h-5 w-5 text-blue-600 shrink-0" />
+                      <div className="space-y-0.5 min-w-0">
+                        <FormLabel className="text-sm font-bold cursor-pointer truncate block">New Lesson Bookings</FormLabel>
+                        <p className="text-[10px] text-muted-foreground truncate block">When a student books an available slot</p>
                       </div>
                     </div>
-                    <FormControl>
+                    <FormControl className="shrink-0 ml-2">
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
