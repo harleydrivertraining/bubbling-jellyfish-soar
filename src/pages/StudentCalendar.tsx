@@ -109,6 +109,7 @@ const StudentCalendar: React.FC = () => {
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
+      // We only select the times to respect privacy while checking availability
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
         .select("id, start_time, end_time, status, lesson_type")
@@ -124,11 +125,6 @@ const StudentCalendar: React.FC = () => {
       // Taken = Scheduled, Completed, or Pending Approval
       const busy = allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled');
       const gaps = allBookings.filter(b => b.status === 'available');
-
-      console.log(`[Calendar Debug] Found ${busy.length} busy slots and ${gaps.length} manual gaps.`);
-      if (busy.length === 0 && allBookings.length > 0) {
-        console.warn("[Calendar Warning] No busy slots found. This usually means RLS policies are preventing you from seeing other students' bookings.");
-      }
 
       setExistingBookings(busy);
       setManualAvailableSlots(gaps);
@@ -301,16 +297,6 @@ const StudentCalendar: React.FC = () => {
           <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
         </Button>
       </div>
-
-      {existingBookings.length === 0 && !isLoading && (
-        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-[10px] text-amber-800 leading-relaxed">
-            <p className="font-bold">Visibility Note</p>
-            <p>If you see slots that should be busy, please ensure your instructor has enabled "Public Visibility" for their schedule in the database settings.</p>
-          </div>
-        </div>
-      )}
 
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-1">
