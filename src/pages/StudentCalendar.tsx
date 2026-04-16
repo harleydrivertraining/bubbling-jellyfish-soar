@@ -114,6 +114,7 @@ const StudentCalendar: React.FC = () => {
       if (bError) throw bError;
       
       const allBookings = bookingsData || [];
+      // Existing bookings include scheduled, completed, and pending_approval (to prevent double requests)
       setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
       setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
 
@@ -136,14 +137,38 @@ const StudentCalendar: React.FC = () => {
     const now = new Date();
     const noticeHours = instructor.min_booking_notice_hours ?? 48;
     const minStartTime = addHours(now, noticeHours);
+    const buffer = instructor.booking_buffer_mins || 0;
+
+    // Helper to check if a potential slot overlaps with any existing booking (including buffer)
+    const isSlotClashing = (slotStart: Date, slotEnd: Date) => {
+      return existingBookings.some(booking => {
+        const bStart = parseISO(booking.start_time);
+        const bEnd = parseISO(booking.end_time);
+        
+        // Add buffer to the existing booking's interval for checking
+        // This ensures the new slot doesn't start too soon after or end too close before an existing one
+        const bufferedBStart = subMinutes(bStart, buffer);
+        const bufferedBEnd = addMinutes(bEnd, buffer);
+
+        return areIntervalsOverlapping(
+          { start: slotStart, end: slotEnd },
+          { start: bufferedBStart, end: bufferedBEnd }
+        );
+      });
+    };
 
     // Mode 1: Manual Gaps Only
     if (mode === "gaps") {
       return manualAvailableSlots
         .filter(slot => {
           const start = parseISO(slot.start_time);
-          const duration = differenceInMinutes(parseISO(slot.end_time), start);
-          return isAfter(start, minStartTime) && Math.abs(duration - filterDuration) < 5;
+          const end = parseISO(slot.end_time);
+          const duration = differenceInMinutes(end, start);
+          
+          // Check notice period, duration match, and ensure no accidental clashes with newly added bookings
+          return isAfter(start, minStartTime) && 
+                 Math.abs(duration - filterDuration) < 5 &&
+                 !isSlotClashing(start, end);
         })
         .map(slot => ({
           ...slot,
@@ -153,7 +178,6 @@ const StudentCalendar: React.FC = () => {
 
     // Mode 2: Open Schedule Generation
     const interval = instructor.booking_interval_mins || 30;
-    const buffer = instructor.booking_buffer_mins || 15;
     const startHour = instructor.calendar_start_hour ?? 9;
     const endHour = instructor.calendar_end_hour ?? 18;
 
@@ -181,21 +205,7 @@ const StudentCalendar: React.FC = () => {
         }
 
         // Check for overlaps with existing bookings + buffer
-        const hasOverlap = existingBookings.some(booking => {
-          const bStart = parseISO(booking.start_time);
-          const bEnd = parseISO(booking.end_time);
-          
-          // Add buffer to the existing booking's interval for checking
-          const bufferedBStart = subMinutes(bStart, buffer);
-          const bufferedBEnd = addMinutes(bEnd, buffer);
-
-          return areIntervalsOverlapping(
-            { start: slotStart, end: slotEnd },
-            { start: bufferedBStart, end: bufferedBEnd }
-          );
-        });
-
-        if (!hasOverlap) {
+        if (!isSlotClashing(slotStart, slotEnd)) {
           slots.push({
             id: `gen-${slotStart.getTime()}`,
             start_time: slotStart.toISOString(),
