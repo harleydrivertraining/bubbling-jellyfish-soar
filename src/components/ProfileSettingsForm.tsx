@@ -43,7 +43,6 @@ const DAYS = [
   { id: "0", label: "Sunday" },
 ];
 
-// Helper to generate 15-min time options
 const generateTimeOptions = () => {
   const options = [];
   for (let hour = 0; hour < 24; hour++) {
@@ -316,8 +315,8 @@ const ProfileSettingsForm: React.FC = () => {
           
           <div className="space-y-4">
             {DAYS.map((day) => (
-              <div key={day.id} className="flex items-center justify-between gap-2 p-3 bg-background rounded-lg border shadow-sm">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div key={day.id} className="grid grid-cols-[1fr_auto] items-center gap-4 p-3 bg-background rounded-lg border shadow-sm">
+                <div className="flex items-center gap-3 min-w-0">
                   <FormField
                     control={form.control}
                     name={`working_hours.${day.id}.active`}
@@ -326,6 +325,7 @@ const ProfileSettingsForm: React.FC = () => {
                         <Switch 
                           checked={field.value} 
                           onCheckedChange={field.onChange} 
+                          className="scale-75 sm:scale-100"
                         />
                       </FormControl>
                     )}
@@ -335,41 +335,43 @@ const ProfileSettingsForm: React.FC = () => {
                   </span>
                 </div>
 
-                {form.watch(`working_hours.${day.id}.active`) ? (
-                  <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in duration-200">
-                    <FormField
-                      control={form.control}
-                      name={`working_hours.${day.id}.start`}
-                      render={({ field }) => (
-                        <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
-                          <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {TIME_OPTIONS.map((time) => (
-                              <SelectItem key={time} value={time}>{time}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    <span className="text-[10px] font-bold text-muted-foreground">to</span>
-                    <FormField
-                      control={form.control}
-                      name={`working_hours.${day.id}.end`}
-                      render={({ field }) => (
-                        <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
-                          <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {TIME_OPTIONS.map((time) => (
-                              <SelectItem key={time} value={time}>{time}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
-                ) : (
-                  <span className="text-xs italic text-muted-foreground pr-2">Unavailable</span>
-                )}
+                <div className="flex items-center justify-end">
+                  {form.watch(`working_hours.${day.id}.active`) ? (
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <FormField
+                        control={form.control}
+                        name={`working_hours.${day.id}.start`}
+                        render={({ field }) => (
+                          <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
+                            <FormControl><SelectTrigger className="w-[70px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              {TIME_OPTIONS.map((time) => (
+                                <SelectItem key={time} value={time}>{time}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      <span className="text-[10px] sm:text-xs font-bold text-muted-foreground">to</span>
+                      <FormField
+                        control={form.control}
+                        name={`working_hours.${day.id}.end`}
+                        render={({ field }) => (
+                          <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
+                            <FormControl><SelectTrigger className="w-[70px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              {TIME_OPTIONS.map((time) => (
+                                <SelectItem key={time} value={time}>{time}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-[10px] sm:text-xs italic text-muted-foreground pr-2">Off</span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

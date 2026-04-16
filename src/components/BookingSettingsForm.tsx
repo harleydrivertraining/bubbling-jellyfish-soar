@@ -47,7 +47,6 @@ const DAYS = [
   { id: "0", label: "Sunday" },
 ];
 
-// Helper to generate 15-min time options
 const generateTimeOptions = () => {
   const options = [];
   for (let hour = 0; hour < 24; hour++) {
@@ -354,8 +353,8 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
               </CollapsibleTrigger>
               <CollapsibleContent className="p-2 sm:p-4 pt-0 space-y-2 animate-in slide-in-from-top-2 duration-200">
                 {DAYS.map((day) => (
-                  <div key={day.id} className="flex items-center justify-between gap-2 p-2 bg-background rounded-lg border shadow-sm">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div key={day.id} className="grid grid-cols-[1fr_auto] items-center gap-4 p-3 bg-background rounded-lg border shadow-sm">
+                    <div className="flex items-center gap-3 min-w-0">
                       <FormField
                         control={form.control}
                         name={`working_hours.${day.id}.active`}
@@ -364,51 +363,53 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                             <Switch 
                               checked={field.value} 
                               onCheckedChange={field.onChange} 
-                              className="scale-75"
+                              className="scale-75 sm:scale-100"
                             />
                           </FormControl>
                         )}
                       />
-                      <span className={cn("font-bold text-[11px] sm:text-xs truncate", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
+                      <span className={cn("font-bold text-xs sm:text-sm truncate", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
                         {day.label}
                       </span>
                     </div>
 
-                    {form.watch(`working_hours.${day.id}.active`) ? (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <FormField
-                          control={form.control}
-                          name={`working_hours.${day.id}.start`}
-                          render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] px-2"><SelectValue /></SelectTrigger></FormControl>
-                              <SelectContent>
-                                {TIME_OPTIONS.map((time) => (
-                                  <SelectItem key={time} value={time}>{time}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                        <span className="text-[10px] font-bold text-muted-foreground">to</span>
-                        <FormField
-                          control={form.control}
-                          name={`working_hours.${day.id}.end`}
-                          render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl><SelectTrigger className="w-[75px] sm:w-24 h-8 text-[10px] px-2"><SelectValue /></SelectTrigger></FormControl>
-                              <SelectContent>
-                                {TIME_OPTIONS.map((time) => (
-                                  <SelectItem key={time} value={time}>{time}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-[10px] italic text-muted-foreground pr-2">Off</span>
-                    )}
+                    <div className="flex items-center justify-end">
+                      {form.watch(`working_hours.${day.id}.active`) ? (
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <FormField
+                            control={form.control}
+                            name={`working_hours.${day.id}.start`}
+                            render={({ field }) => (
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl><SelectTrigger className="w-[70px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                  {TIME_OPTIONS.map((time) => (
+                                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                          <span className="text-[10px] sm:text-xs font-bold text-muted-foreground">to</span>
+                          <FormField
+                            control={form.control}
+                            name={`working_hours.${day.id}.end`}
+                            render={({ field }) => (
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl><SelectTrigger className="w-[70px] sm:w-24 h-8 text-[10px] sm:text-xs px-2"><SelectValue /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                  {TIME_OPTIONS.map((time) => (
+                                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-[10px] sm:text-xs italic text-muted-foreground pr-2">Off</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </CollapsibleContent>
