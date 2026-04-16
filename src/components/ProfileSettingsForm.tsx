@@ -69,8 +69,8 @@ const formSchema = z.object({
   ),
   working_hours: z.record(z.object({
     active: z.boolean(),
-    start: z.number(),
-    end: z.number()
+    start: z.string(),
+    end: z.string()
   }))
 });
 
@@ -94,13 +94,13 @@ const ProfileSettingsForm: React.FC = () => {
       booking_interval_mins: 30,
       booking_buffer_mins: 15,
       working_hours: {
-        "1": { active: true, start: 9, end: 17 },
-        "2": { active: true, start: 9, end: 17 },
-        "3": { active: true, start: 9, end: 17 },
-        "4": { active: true, start: 9, end: 17 },
-        "5": { active: true, start: 9, end: 17 },
-        "6": { active: false, start: 9, end: 17 },
-        "0": { active: false, start: 9, end: 17 },
+        "1": { active: true, start: "09:00", end: "17:00" },
+        "2": { active: true, start: "09:00", end: "17:00" },
+        "3": { active: true, start: "09:00", end: "17:00" },
+        "4": { active: true, start: "09:00", end: "17:00" },
+        "5": { active: true, start: "09:00", end: "17:00" },
+        "6": { active: false, start: "09:00", end: "17:00" },
+        "0": { active: false, start: "09:00", end: "17:00" },
       }
     },
   });
@@ -120,6 +120,19 @@ const ProfileSettingsForm: React.FC = () => {
 
       if (data) {
         setUserRole(data.role);
+        
+        // Convert legacy numeric hours to strings if necessary
+        const rawHours = data.working_hours || {};
+        const formattedHours: any = {};
+        DAYS.forEach(day => {
+          const config = rawHours[day.id] || { active: false, start: 9, end: 17 };
+          formattedHours[day.id] = {
+            active: config.active,
+            start: typeof config.start === 'number' ? `${config.start.toString().padStart(2, '0')}:00` : config.start,
+            end: typeof config.end === 'number' ? `${config.end.toString().padStart(2, '0')}:00` : config.end,
+          };
+        });
+
         form.reset({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
@@ -132,7 +145,7 @@ const ProfileSettingsForm: React.FC = () => {
           booking_mode: data.booking_mode || "gaps",
           booking_interval_mins: data.booking_interval_mins ?? 30,
           booking_buffer_mins: data.booking_buffer_mins ?? 15,
-          working_hours: data.working_hours || form.getValues("working_hours")
+          working_hours: formattedHours
         });
       }
     } catch (error: any) {
@@ -315,12 +328,15 @@ const ProfileSettingsForm: React.FC = () => {
                       control={form.control}
                       name={`working_hours.${day.id}.start`}
                       render={({ field }) => (
-                        <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
+                        <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
                           <FormControl><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>
-                            {Array.from({ length: 24 }).map((_, i) => (
-                              <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
-                            ))}
+                            {Array.from({ length: 24 * 4 }).map((_, i) => {
+                              const h = Math.floor(i / 4);
+                              const m = (i % 4) * 15;
+                              const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                              return <SelectItem key={time} value={time}>{time}</SelectItem>;
+                            })}
                           </SelectContent>
                         </Select>
                       )}
@@ -330,12 +346,15 @@ const ProfileSettingsForm: React.FC = () => {
                       control={form.control}
                       name={`working_hours.${day.id}.end`}
                       render={({ field }) => (
-                        <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
+                        <Select onValueChange={(val) => field.onChange(val)} value={field.value}>
                           <FormControl><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>
-                            {Array.from({ length: 24 }).map((_, i) => (
-                              <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
-                            ))}
+                            {Array.from({ length: 24 * 4 }).map((_, i) => {
+                              const h = Math.floor(i / 4);
+                              const m = (i % 4) * 15;
+                              const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                              return <SelectItem key={time} value={time}>{time}</SelectItem>;
+                            })}
                           </SelectContent>
                         </Select>
                       )}

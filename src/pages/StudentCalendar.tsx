@@ -191,15 +191,21 @@ const StudentCalendar: React.FC = () => {
       const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
       const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
+      // Helper to handle both legacy numeric hours and new string format
+      const parseTime = (time: string | number | undefined, defaultTime: string) => {
+        const t = time ?? defaultTime;
+        if (typeof t === 'number') return [t, 0];
+        return t.split(':').map(Number);
+      };
+
       daysInRange.forEach(day => {
         const dayOfWeek = getDay(day).toString();
         const dayConfig = schedule[dayOfWeek];
 
         if (!dayConfig || !dayConfig.active) return;
 
-        // Parse "HH:mm" strings
-        const [startH, startM] = (dayConfig.start || "09:00").split(':').map(Number);
-        const [endH, endM] = (dayConfig.end || "17:00").split(':').map(Number);
+        const [startH, startM] = parseTime(dayConfig.start, "09:00");
+        const [endH, endM] = parseTime(dayConfig.end, "17:00");
 
         const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
         const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
@@ -283,7 +289,7 @@ const StudentCalendar: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-md mx-auto pb-20">
+    <div className="space-y-6 max-md mx-auto pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" asChild className="-ml-2">
