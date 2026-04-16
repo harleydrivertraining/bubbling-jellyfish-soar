@@ -18,7 +18,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   Calendar as CalendarIcon,
-  Car
+  Car,
+  Filter
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,7 @@ const StudentCalendar: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedSlot, setSelectedSlot] = useState<Booking | null>(null);
   const [isBooking, setIsBooking] = useState(false);
+  const [filterDuration, setFilterDuration] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -84,7 +86,7 @@ const StudentCalendar: React.FC = () => {
 
       const { data: instructorProfile } = await supabase
         .from("profiles")
-        .select("first_name, last_name, calendar_start_hour, calendar_end_hour, min_booking_notice_hours, require_booking_approval")
+        .select("first_name, last_name, hourly_rate, calendar_start_hour, calendar_end_hour, min_booking_notice_hours, require_booking_approval")
         .eq("id", sData.user_id)
         .single();
       
@@ -114,6 +116,15 @@ const StudentCalendar: React.FC = () => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
 
+  const filteredAvailableSlots = useMemo(() => {
+    if (!filterDuration) return availableSlots;
+    return availableSlots.filter(slot => {
+      const duration = differenceInMinutes(parseISO(slot.end_time), parseISO(slot.start_time));
+      // Use a small margin for rounding (e.g., 59 mins vs 60 mins)
+      return Math.abs(duration - filterDuration) < 5;
+    });
+  }, [availableSlots, filterDuration]);
+
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
@@ -121,11 +132,11 @@ const StudentCalendar: React.FC = () => {
   }, [currentMonth]);
 
   const slotsForSelectedDate = useMemo(() => {
-    return availableSlots.filter(slot => isSameDay(parseISO(slot.start_time), selectedDate));
-  }, [availableSlots, selectedDate]);
+    return filteredAvailableSlots.filter(slot => isSameDay(parseISO(slot.start_time), selectedDate));
+  }, [filteredAvailableSlots, selectedDate]);
 
   const hasSlots = (date: Date) => {
-    return availableSlots.some(slot => isSameDay(parseISO(slot.start_time), date));
+    return filteredAvailableSlots.some(slot => isSameDay(parseISO(slot.start_time), date));
   };
 
   const handleConfirmBooking = async () => {
@@ -180,6 +191,35 @@ const StudentCalendar: React.FC = () => {
             <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Dashboard</Link>
           </Button>
           <h1 className="text-2xl font-black tracking-tight">Book a Lesson</h1>
+        </div>
+      </div>
+
+      {/* Duration Selector */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 px-1">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Select Lesson Length</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[60, 90, 120].map((mins) => (
+            <button
+              key={mins}
+              onClick={() => setFilterDuration(filterDuration === mins ? null : mins)}
+              className={cn(
+                "flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all",
+                filterDuration === mins 
+                  ? "border-primary bg-primary/5 shadow-sm" 
+                  : "border-muted bg-card hover:border-muted-foreground/30"
+              )}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-tight opacity-70">
+                {mins === 60 ? "1 Hour" : mins === 90 ? "1.5 Hours" : "2 Hours"}
+              </span>
+              <span className="text-lg font-black text-primary">
+                £{((mins / 60) * (instructor?.hourly_rate || 0)).toFixed(2)}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
