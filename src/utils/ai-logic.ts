@@ -286,6 +286,57 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
+    if (context?.pendingTestResult) {
+      const data = { ...context.pendingTestResult };
+      const step = data.step;
+
+      if (step === 'student') {
+        const { student, ambiguous, options } = resolveStudentFromInput(text, students);
+        if (ambiguous) {
+          return { 
+            success: true, 
+            message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`,
+            newContext: context 
+          };
+        }
+        if (!student) return { success: false, message: "I couldn't find a student with that name. Please try again or type 'cancel'.", newContext: context };
+        
+        data.student_id = student.id;
+        data.student_name = student.name;
+        data.step = 'outcome';
+        return { success: true, message: `Got it, a test result for **${student.name}**. Did they pass or fail?`, newContext: { pendingTestResult: data } };
+      }
+
+      if (step === 'outcome') {
+        const passed = input.includes("pass");
+        data.passed = passed;
+        data.step = 'faults';
+        return { success: true, message: `Understood, they **${passed ? 'passed' : 'failed'}**. How many driving faults and serious faults did they have? (e.g., '3 driving and 0 serious')`, newContext: { pendingTestResult: data } };
+      }
+
+      if (step === 'faults') {
+        const drivingMatch = input.match(/(\d+)\s*(?:driving|minor)/i);
+        const seriousMatch = input.match(/(\d+)\s*(?:serious|major)/i);
+        
+        data.driving_faults = drivingMatch ? parseInt(drivingMatch[1]) : 0;
+        data.serious_faults = seriousMatch ? parseInt(seriousMatch[1]) : 0;
+        
+        const { error } = await supabase.from("driving_tests").insert({
+          user_id: userId,
+          student_id: data.student_id,
+          test_date: data.date || format(new Date(), "yyyy-MM-dd"),
+          passed: data.passed,
+          driving_faults: data.driving_faults,
+          serious_faults: data.serious_faults,
+          examiner_action: input.includes("examiner action") || input.includes("intervention"),
+          notes: `Added via AI Assistant`
+        });
+
+        if (error) return { success: false, message: "Failed to record test result: " + error.message };
+        return { success: true, message: `Success! I've recorded the **${data.passed ? 'pass' : 'fail'}** for **${data.student_name}** with ${data.driving_faults} driving faults and ${data.serious_faults} serious faults.`, actionTaken: "test_result", newContext: null };
+      }
+    }
+
     // --- TO DO LIST PATTERNS ---
     const isTodoKeyword = input.includes("task") || input.includes("todo") || input.includes("to-do") || input.includes("reminder") || input.includes("remind") || input.includes("forget");
     
@@ -355,6 +406,73 @@ export const processAICommand = async (text: string, userId: string, context?: a
       if (active.length === 0) return { success: true, message: "Your to do list is empty! You're all caught up." };
       const list = active.map((t, i) => `${i + 1}. ${t.task}`).join("\n");
       return { success: true, message: `Here are your active tasks:\n\n${list}`, actionTaken: "list_todos" };
+    }
+
+    // --- DRIVING TEST RESULTS ---
+    const isTestKeyword = input.includes("test result") || input.includes("driving test") || input.includes("test record");
+    const isOutcomeKeyword = input.includes("passed") || input.includes("failed") || input.includes("pass") || input.includes("fail");
+
+    if (isTestKeyword || isOutcomeKeyword) {
+      const { student, ambiguous, options } = resolveStudentFromInput(input, students);
+      const { date } = parseDateTime(input);
+      
+      if (ambiguous) {
+        return { 
+          success: true, 
+          message: `I found multiple students matching that name: **${options.map(o => o.name).join(', ')}**. Which one did you mean?`, 
+          newContext: { pendingTestResult: { step: 'student', date: format(date, "yyyy-MM-dd") } } 
+        };
+      }
+
+      const passed = input.includes("passed") || input.includes("pass");
+      const failed = input.includes("failed") || input.includes("fail");
+      
+      const drivingMatch = input.match(/(\d+)\s*(?:driving|minor)/i);
+      const seriousMatch = input.match(/(\d+)\s*(?:serious|major)/i);
+
+      if (!student) {
+        return { 
+          success: true, 
+          message: "Sure! I can help you record a test result. What is the student's name?", 
+          newContext: { pendingTestResult: { step: 'student', date: format(date, "yyyy-MM-dd"), passed: passed || (failed ? false : undefined) } } 
+        };
+      }
+
+      if (!passed && !failed) {
+        return { 
+          success: true, 
+          message: `Got it, a test result for **${student.name}**. Did they pass or fail?`, 
+          newContext: { pendingTestResult: { step: 'outcome', student_id: student.id, student_name: student.name, date: format(date, "yyyy-MM-dd") } } 
+        };
+      }
+
+      // If we have student and outcome, we can try to save or ask for faults
+      const drivingFaults = drivingMatch ? parseInt(drivingMatch[1]) : 0;
+      const seriousFaults = seriousMatch ? parseInt(seriousMatch[1]) : 0;
+
+      // If faults aren't mentioned and it's a fail, we should probably ask
+      if (!drivingMatch && !seriousMatch) {
+        return { 
+          success: true, 
+          message: `Understood, **${student.name}** ${passed ? 'passed' : 'failed'}. How many driving faults and serious faults did they have?`, 
+          newContext: { pendingTestResult: { step: 'faults', student_id: student.id, student_name: student.name, date: format(date, "yyyy-MM-dd"), passed: passed } } 
+        };
+      }
+
+      // Final creation
+      const { error } = await supabase.from("driving_tests").insert({
+        user_id: userId,
+        student_id: student.id,
+        test_date: format(date, "yyyy-MM-dd"),
+        passed: passed,
+        driving_faults: drivingFaults,
+        serious_faults: seriousFaults,
+        examiner_action: input.includes("examiner action") || input.includes("intervention"),
+        notes: `Added via AI Assistant`
+      });
+
+      if (error) return { success: false, message: "Failed to record test result: " + error.message };
+      return { success: true, message: `Success! I've recorded the **${passed ? 'pass' : 'fail'}** for **${student.name}** with ${drivingFaults} driving faults and ${seriousFaults} serious faults.`, actionTaken: "test_result" };
     }
 
     // --- BOOKING & GAPS PATTERNS ---
