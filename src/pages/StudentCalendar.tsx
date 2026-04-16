@@ -18,7 +18,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   Calendar as CalendarIcon,
-  Filter
+  Filter,
+  RefreshCw
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -50,7 +51,9 @@ import {
   subMinutes,
   setHours,
   setMinutes,
-  endOfDay
+  endOfDay,
+  startOfDay,
+  getTime
 } from "date-fns";
 
 interface Booking {
@@ -65,6 +68,7 @@ interface Booking {
 const StudentCalendar: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [studentData, setStudentData] = useState<any>(null);
   const [instructor, setInstructor] = useState<any>(null);
   const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
@@ -76,11 +80,13 @@ const StudentCalendar: React.FC = () => {
   const [isBooking, setIsBooking] = useState(false);
   const [filterDuration, setFilterDuration] = useState<number>(60);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!user) return;
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
 
     try {
+      // 1. Get Student Record
       const { data: sData, error: sError } = await supabase
         .from("students")
         .select("*")
@@ -90,6 +96,7 @@ const StudentCalendar: React.FC = () => {
       if (sError) throw sError;
       setStudentData(sData);
 
+      // 2. Get Instructor Profile
       const { data: instructorProfile } = await supabase
         .from("profiles")
         .select("*")
@@ -98,6 +105,7 @@ const StudentCalendar: React.FC = () => {
       
       setInstructor(instructorProfile);
 
+      // 3. Fetch Bookings for the visible range
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
@@ -111,17 +119,18 @@ const StudentCalendar: React.FC = () => {
       if (bError) throw bError;
       
       const allBookings = bookingsData || [];
-      // Filter out cancelled bookings. Everything else (scheduled, completed, pending, available) matters.
-      const activeBookings = allBookings.filter(b => b.status !== 'cancelled');
       
-      setExistingBookings(activeBookings.filter(b => b.status !== 'available'));
-      setManualAvailableSlots(activeBookings.filter(b => b.status === 'available'));
+      // Separate "Available" slots from "Taken" slots
+      // Taken slots = Scheduled, Completed, or Pending Approval
+      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
+      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
 
     } catch (error: any) {
       console.error("Error fetching calendar data:", error);
       showError("Failed to load calendar.");
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [user, currentMonth]);
 
@@ -147,7 +156,17 @@ const StudentCalendar: React.FC = () => {
           const duration = differenceInMinutes(end, start);
           
           // Check notice period and duration match
-          return isAfter(start, minStartTime) && Math.abs(duration - filterDuration) < 5;
+          if (isBefore(start, minStartTime)) return false;
+          if (Math.abs(duration - filterDuration) > 5) return false;
+
+          // Ensure no overlap with existing bookings (including buffer)
+          const hasClash = existingBookings.some(b => {
+            const bStart = subMinutes(parseISO(b.start_time), buffer);
+            const bEnd = addMinutes(parseISO(b.end_time), buffer);
+            return isBefore(start, bEnd) && isAfter(end, bStart);
+          });
+
+          return !hasClash;
         })
         .map(slot => ({
           ...slot,
@@ -167,11 +186,11 @@ const StudentCalendar: React.FC = () => {
     const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
     daysInRange.forEach(day => {
-      // Skip past days
+      // Skip past days or days within notice period
       if (isBefore(endOfDay(day), minStartTime)) return;
 
-      let currentPointer = setMinutes(setHours(day, startHour), 0);
-      const dayEnd = setMinutes(setHours(day, endHour), 0);
+      let currentPointer = setMinutes(setHours(startOfDay(day), startHour), 0);
+      const dayEnd = setMinutes(setHours(startOfDay(day), endHour), 0);
 
       while (isBefore(addMinutes(currentPointer, filterDuration), dayEnd)) {
         const slotStart = currentPointer;
@@ -193,6 +212,7 @@ const StudentCalendar: React.FC = () => {
           const bufferedBStart = subMinutes(bStart, buffer);
           const bufferedBEnd = addMinutes(bEnd, buffer);
 
+          // Strict overlap check
           return isBefore(slotStart, bufferedBEnd) && isAfter(slotEnd, bufferedBStart);
         });
 
@@ -293,6 +313,15 @@ const StudentCalendar: React.FC = () => {
           </Button>
           <h1 className="text-2xl font-black tracking-tight">Book a Lesson</h1>
         </div>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => fetchData(true)} 
+          disabled={isRefreshing}
+          className="h-8 w-8"
+        >
+          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+        </Button>
       </div>
 
       <div className="space-y-3">
