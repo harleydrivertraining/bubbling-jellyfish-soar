@@ -311,15 +311,22 @@ export const processAICommand = async (text: string, userId: string, context?: a
         const passed = input.includes("pass");
         data.passed = passed;
         data.step = 'faults';
-        return { success: true, message: `Understood, they **${passed ? 'passed' : 'failed'}**. How many driving faults and serious faults did they have? (e.g., '3 driving and 0 serious')`, newContext: { pendingTestResult: data } };
+        if (passed) {
+          data.serious_faults = 0;
+          return { success: true, message: `Understood, they **passed**! How many driving faults did they have?`, newContext: { pendingTestResult: data } };
+        } else {
+          return { success: true, message: `Understood, they **failed**. How many driving faults and serious faults did they have? (e.g., '3 driving and 1 serious')`, newContext: { pendingTestResult: data } };
+        }
       }
 
       if (step === 'faults') {
-        const drivingMatch = input.match(/(\d+)\s*(?:driving|minor)/i);
+        const drivingMatch = input.match(/(\d+)\s*(?:driving|minor)/i) || input.match(/^\s*(\d+)\s*$/);
         const seriousMatch = input.match(/(\d+)\s*(?:serious|major)/i);
         
         data.driving_faults = drivingMatch ? parseInt(drivingMatch[1]) : 0;
-        data.serious_faults = seriousMatch ? parseInt(seriousMatch[1]) : 0;
+        if (!data.passed) {
+          data.serious_faults = seriousMatch ? parseInt(seriousMatch[1]) : 0;
+        }
         
         const { error } = await supabase.from("driving_tests").insert({
           user_id: userId,
@@ -333,7 +340,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
         });
 
         if (error) return { success: false, message: "Failed to record test result: " + error.message };
-        return { success: true, message: `Success! I've recorded the **${data.passed ? 'pass' : 'fail'}** for **${data.student_name}** with ${data.driving_faults} driving faults and ${data.serious_faults} serious faults.`, actionTaken: "test_result", newContext: null };
+        return { success: true, message: `Success! I've recorded the **${data.passed ? 'pass' : 'fail'}** for **${data.student_name}** with ${data.driving_faults} driving faults${data.passed ? '' : ' and ' + data.serious_faults + ' serious faults'}.`, actionTaken: "test_result", newContext: null };
       }
     }
 
@@ -448,15 +455,23 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       // If we have student and outcome, we can try to save or ask for faults
       const drivingFaults = drivingMatch ? parseInt(drivingMatch[1]) : 0;
-      const seriousFaults = seriousMatch ? parseInt(seriousMatch[1]) : 0;
+      const seriousFaults = passed ? 0 : (seriousMatch ? parseInt(seriousMatch[1]) : 0);
 
-      // If faults aren't mentioned and it's a fail, we should probably ask
-      if (!drivingMatch && !seriousMatch) {
-        return { 
-          success: true, 
-          message: `Understood, **${student.name}** ${passed ? 'passed' : 'failed'}. How many driving faults and serious faults did they have?`, 
-          newContext: { pendingTestResult: { step: 'faults', student_id: student.id, student_name: student.name, date: format(date, "yyyy-MM-dd"), passed: passed } } 
-        };
+      // If faults aren't mentioned, we should probably ask
+      if (!drivingMatch && (!passed && !seriousMatch)) {
+        if (passed) {
+          return { 
+            success: true, 
+            message: `Understood, **${student.name}** passed! How many driving faults did they have?`, 
+            newContext: { pendingTestResult: { step: 'faults', student_id: student.id, student_name: student.name, date: format(date, "yyyy-MM-dd"), passed: true, serious_faults: 0 } } 
+          };
+        } else {
+          return { 
+            success: true, 
+            message: `Understood, **${student.name}** failed. How many driving faults and serious faults did they have?`, 
+            newContext: { pendingTestResult: { step: 'faults', student_id: student.id, student_name: student.name, date: format(date, "yyyy-MM-dd"), passed: false } } 
+          };
+        }
       }
 
       // Final creation
@@ -472,7 +487,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
       });
 
       if (error) return { success: false, message: "Failed to record test result: " + error.message };
-      return { success: true, message: `Success! I've recorded the **${passed ? 'pass' : 'fail'}** for **${student.name}** with ${drivingFaults} driving faults and ${seriousFaults} serious faults.`, actionTaken: "test_result" };
+      return { success: true, message: `Success! I've recorded the **${passed ? 'pass' : 'fail'}** for **${student.name}** with ${drivingFaults} driving faults${passed ? '' : ' and ' + seriousFaults + ' serious faults'}.`, actionTaken: "test_result" };
     }
 
     // --- BOOKING & GAPS PATTERNS ---
