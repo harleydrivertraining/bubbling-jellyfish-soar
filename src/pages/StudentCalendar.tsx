@@ -19,7 +19,8 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
   Filter,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -121,8 +122,16 @@ const StudentCalendar: React.FC = () => {
       
       // Separate "Available" slots from "Taken" slots
       // Taken = Scheduled, Completed, or Pending Approval
-      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
-      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
+      const busy = allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled');
+      const gaps = allBookings.filter(b => b.status === 'available');
+
+      console.log(`[Calendar Debug] Found ${busy.length} busy slots and ${gaps.length} manual gaps.`);
+      if (busy.length === 0 && allBookings.length > 0) {
+        console.warn("[Calendar Warning] No busy slots found. This usually means RLS policies are preventing you from seeing other students' bookings.");
+      }
+
+      setExistingBookings(busy);
+      setManualAvailableSlots(gaps);
 
     } catch (error: any) {
       console.error("Error fetching calendar data:", error);
@@ -164,8 +173,6 @@ const StudentCalendar: React.FC = () => {
     const slots: any[] = [];
 
     if (mode === "gaps") {
-      // Mode 1: Manual Gaps
-      // We treat each manual gap as a window where we can generate slots
       manualAvailableSlots.forEach(gap => {
         const gapStartMs = parseISO(gap.start_time).getTime();
         const gapEndMs = parseISO(gap.end_time).getTime();
@@ -177,14 +184,13 @@ const StudentCalendar: React.FC = () => {
               id: `gap-${gap.id}-${currentPointerMs}`,
               start_time: new Date(currentPointerMs).toISOString(),
               end_time: new Date(currentPointerMs + durationMs).toISOString(),
-              isGenerated: true // We treat these as generated because they might be sub-slots of a larger gap
+              isGenerated: true
             });
           }
           currentPointerMs += intervalMs;
         }
       });
     } else {
-      // Mode 2: Open Schedule
       const startHour = instructor.calendar_start_hour ?? 9;
       const endHour = instructor.calendar_end_hour ?? 18;
 
@@ -295,6 +301,16 @@ const StudentCalendar: React.FC = () => {
           <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
         </Button>
       </div>
+
+      {existingBookings.length === 0 && !isLoading && (
+        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-[10px] text-amber-800 leading-relaxed">
+            <p className="font-bold">Visibility Note</p>
+            <p>If you see slots that should be busy, please ensure your instructor has enabled "Public Visibility" for their schedule in the database settings.</p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-1">
