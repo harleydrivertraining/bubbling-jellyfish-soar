@@ -57,6 +57,7 @@ import {
   startOfDay,
   getDay
 } from "date-fns";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Booking {
   id: string;
@@ -88,7 +89,6 @@ const StudentCalendar: React.FC = () => {
     else setIsRefreshing(true);
 
     try {
-      // 1. Get Student Record
       const { data: sData, error: sError } = await supabase
         .from("students")
         .select("*")
@@ -98,7 +98,6 @@ const StudentCalendar: React.FC = () => {
       if (sError) throw sError;
       setStudentData(sData);
 
-      // 2. Get Instructor Profile
       const { data: instructorProfile } = await supabase
         .from("profiles")
         .select("*")
@@ -107,7 +106,6 @@ const StudentCalendar: React.FC = () => {
       
       setInstructor(instructorProfile);
 
-      // 3. Fetch Bookings for the visible range
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
@@ -191,7 +189,6 @@ const StudentCalendar: React.FC = () => {
       const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
       const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
 
-      // Helper to handle both legacy numeric hours and new string format
       const parseTime = (time: string | number | undefined, defaultTime: string) => {
         const t = time ?? defaultTime;
         if (typeof t === 'number') return [t, 0];
@@ -285,41 +282,41 @@ const StudentCalendar: React.FC = () => {
   };
 
   if (isSessionLoading || isLoading) {
-    return <div className="p-6 space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-[400px] w-full" /></div>;
+    return <div className="p-6 space-y-6 max-w-6xl mx-auto"><Skeleton className="h-10 w-48" /><Skeleton className="h-[500px] w-full" /></div>;
   }
 
   return (
-    <div className="space-y-6 max-md mx-auto pb-20">
+    <div className="space-y-8 max-w-6xl mx-auto pb-20 px-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" asChild className="-ml-2">
             <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Dashboard</Link>
           </Button>
-          <h1 className="text-2xl font-black tracking-tight">Book a Lesson</h1>
+          <h1 className="text-3xl font-black tracking-tight">Book a Lesson</h1>
         </div>
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => fetchData(true)} 
           disabled={isRefreshing}
-          className="h-8 w-8"
+          className="h-10 w-10"
         >
-          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+          <RefreshCw className={cn("h-5 w-5", isRefreshing && "animate-spin")} />
         </Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center gap-2 px-1">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <span className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Select Lesson Length</span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-3 max-w-2xl">
           {[60, 90, 120].map((mins) => (
             <button
               key={mins}
               onClick={() => setFilterDuration(mins)}
               className={cn(
-                "flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all",
+                "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all",
                 filterDuration === mins 
                   ? "border-primary bg-primary/5 shadow-sm" 
                   : "border-muted bg-card hover:border-muted-foreground/30"
@@ -328,7 +325,7 @@ const StudentCalendar: React.FC = () => {
               <span className="text-[10px] font-bold uppercase tracking-tight opacity-70">
                 {mins === 60 ? "1 Hour" : mins === 90 ? "1.5 Hours" : "2 Hours"}
               </span>
-              <span className="text-lg font-black text-primary">
+              <span className="text-xl font-black text-primary">
                 £{((mins / 60) * (instructor?.hourly_rate || 0)).toFixed(2)}
               </span>
             </button>
@@ -336,126 +333,139 @@ const StudentCalendar: React.FC = () => {
         </div>
       </div>
 
-      <Card className="shadow-sm border-none overflow-hidden">
-        <CardHeader className="bg-primary text-primary-foreground p-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-bold">
-              {format(currentMonth, "MMMM yyyy")}
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                <ChevronRight className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-7 mb-2">
-            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-              <div key={i} className="text-center text-[10px] font-black text-muted-foreground uppercase py-2">
-                {day}
+      <div className="grid gap-8 lg:grid-cols-[1fr_380px] items-start">
+        {/* Left Column: Calendar */}
+        <Card className="shadow-md border-none overflow-hidden">
+          <CardHeader className="bg-primary text-primary-foreground p-6">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl font-bold">
+                {format(currentMonth, "MMMM yyyy")}
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="icon" className="h-10 w-10 text-white hover:bg-white/20" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+                  <ChevronLeft className="h-6 w-6" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10 text-white hover:bg-white/20" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+                  <ChevronRight className="h-6 w-6" />
+                </Button>
               </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-y-2">
-            {days.map((day, i) => {
-              const isSelected = isSameDay(day, selectedDate);
-              const isCurrentMonth = isSameMonth(day, currentMonth);
-              const available = hasSlots(day);
-              
-              return (
-                <div key={i} className="flex justify-center items-center aspect-square">
-                  <button
-                    onClick={() => setSelectedDate(day)}
-                    className={cn(
-                      "h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold transition-all relative",
-                      !isCurrentMonth && "text-muted-foreground/30",
-                      isCurrentMonth && "text-foreground",
-                      isSelected && "bg-primary text-primary-foreground scale-110 shadow-md",
-                      (available && !isSelected) && "border-2 border-blue-500 text-blue-600"
-                    )}
-                  >
-                    {format(day, "d")}
-                    {(available && !isSelected) && (
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-blue-500" />
-                    )}
-                  </button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-7 mb-4">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
+                <div key={i} className="text-center text-[10px] font-black text-muted-foreground uppercase py-2">
+                  {day}
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="font-black text-lg flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary" />
-            {isSameDay(selectedDate, new Date()) ? "Today's Slots" : format(selectedDate, "EEEE, do MMM")}
-          </h3>
-          <Badge variant="secondary" className="font-bold">
-            {slotsForSelectedDate.length} Available
-          </Badge>
-        </div>
-
-        {slotsForSelectedDate.length === 0 ? (
-          <Card className="border-dashed bg-muted/20">
-            <CardContent className="p-8 text-center space-y-2">
-              <CalendarIcon className="h-8 w-8 text-muted-foreground/40 mx-auto" />
-              <p className="text-sm text-muted-foreground font-medium">No slots available on this day.</p>
-              <p className="text-[10px] text-muted-foreground uppercase font-bold">Try another date highlighted in blue</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3">
-            {slotsForSelectedDate.map((slot) => {
-              const start = parseISO(slot.start_time);
-              const duration = differenceInMinutes(parseISO(slot.end_time), start) / 60;
-
-              return (
-                <Card key={slot.id} className="overflow-hidden border-l-4 border-l-blue-500 hover:shadow-md transition-all">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-black text-lg">{format(start, "p")}</p>
-                        <Badge variant="outline" className="text-[10px] font-bold uppercase h-5">
-                          {duration.toFixed(1)}h Lesson
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground font-medium">
-                        Ends at {format(parseISO(slot.end_time), "p")}
-                      </p>
-                    </div>
-
-                    <Button 
-                      size="sm" 
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-2 sm:gap-4">
+              {days.map((day, i) => {
+                const isSelected = isSameDay(day, selectedDate);
+                const isCurrentMonth = isSameMonth(day, currentMonth);
+                const available = hasSlots(day);
+                
+                return (
+                  <div key={i} className="flex justify-center items-center aspect-square">
+                    <button
+                      onClick={() => setSelectedDate(day)}
                       className={cn(
-                        "font-bold", 
-                        instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"
+                        "h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center text-sm font-bold transition-all relative",
+                        !isCurrentMonth && "text-muted-foreground/30",
+                        isCurrentMonth && "text-foreground",
+                        isSelected && "bg-primary text-primary-foreground scale-110 shadow-lg",
+                        (available && !isSelected) && "border-2 border-blue-500 text-blue-600 bg-blue-50/50"
                       )}
-                      onClick={() => setSelectedSlot(slot)}
                     >
-                      {instructor?.require_booking_approval ? "Request" : "Book Now"}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      {format(day, "d")}
+                      {(available && !isSelected) && (
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Right Column: Slots */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-black text-xl flex items-center gap-2">
+              <Clock className="h-6 w-6 text-primary" />
+              {isSameDay(selectedDate, new Date()) ? "Today" : format(selectedDate, "EEE, do MMM")}
+            </h3>
+            <Badge variant="secondary" className="font-bold px-3 py-1">
+              {slotsForSelectedDate.length} Available
+            </Badge>
           </div>
-        )}
+
+          <ScrollArea className="h-[500px] pr-4">
+            {slotsForSelectedDate.length === 0 ? (
+              <Card className="border-dashed bg-muted/20 h-full flex items-center justify-center">
+                <CardContent className="p-12 text-center space-y-4">
+                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto">
+                    <CalendarIcon className="h-8 w-8 text-muted-foreground/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground font-bold uppercase tracking-tight">No slots available</p>
+                    <p className="text-xs text-muted-foreground">Try another date highlighted in blue on the calendar.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {slotsForSelectedDate.map((slot) => {
+                  const start = parseISO(slot.start_time);
+                  const duration = differenceInMinutes(parseISO(slot.end_time), start) / 60;
+
+                  return (
+                    <Card key={slot.id} className="overflow-hidden border-l-4 border-l-blue-500 hover:shadow-md transition-all group">
+                      <CardContent className="p-5 flex items-center justify-between">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <p className="font-black text-xl">{format(start, "p")}</p>
+                            <Badge variant="outline" className="text-[10px] font-bold uppercase h-5 bg-blue-50/50">
+                              {duration.toFixed(1)}h Lesson
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                            <Clock className="h-3 w-3" />
+                            Ends at {format(parseISO(slot.end_time), "p")}
+                          </p>
+                        </div>
+
+                        <Button 
+                          size="sm" 
+                          className={cn(
+                            "font-bold h-10 px-6 transition-all", 
+                            instructor?.require_booking_approval 
+                              ? "bg-orange-600 hover:bg-orange-700" 
+                              : "bg-blue-600 hover:bg-blue-700"
+                          )}
+                          onClick={() => setSelectedSlot(slot)}
+                        >
+                          {instructor?.require_booking_approval ? "Request" : "Book"}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
       </div>
 
       <Dialog open={!!selectedSlot} onOpenChange={(open) => !open && setSelectedSlot(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {instructor?.require_booking_approval ? <ClipboardCheck className="h-5 w-5 text-orange-600" /> : <Sparkles className="h-5 w-5 text-blue-600" />}
+            <DialogTitle className="flex items-center gap-2 text-xl font-black">
+              {instructor?.require_booking_approval ? <ClipboardCheck className="h-6 w-6 text-orange-600" /> : <Sparkles className="h-6 w-6 text-blue-600" />}
               {instructor?.require_booking_approval ? "Request Booking" : "Confirm Booking"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-base font-medium">
               {instructor?.require_booking_approval 
                 ? "This slot requires instructor approval. Send a request?" 
                 : "Would you like to book this lesson slot?"}
@@ -463,36 +473,36 @@ const StudentCalendar: React.FC = () => {
           </DialogHeader>
           
           {selectedSlot && (
-            <div className="py-4 space-y-4">
-              <div className="p-4 bg-muted rounded-xl space-y-2 border">
-                <div className="flex items-center gap-2 text-sm font-bold">
-                  <CalendarDays className="h-4 w-4 text-primary" />
+            <div className="py-6 space-y-4">
+              <div className="p-5 bg-muted rounded-2xl space-y-3 border shadow-inner">
+                <div className="flex items-center gap-3 text-base font-bold">
+                  <CalendarDays className="h-5 w-5 text-primary" />
                   {format(parseISO(selectedSlot.start_time), "EEEE, MMMM do")}
                 </div>
-                <div className="flex items-center gap-2 text-sm font-bold">
-                  <Clock className="h-4 w-4 text-primary" />
+                <div className="flex items-center gap-3 text-base font-bold">
+                  <Clock className="h-5 w-5 text-primary" />
                   {format(parseISO(selectedSlot.start_time), "p")} — {format(parseISO(selectedSlot.end_time), "p")}
                 </div>
               </div>
               
-              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50/50 p-3 rounded-lg border border-blue-100">
-                <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                <p>
+              <div className="flex items-start gap-3 text-xs text-muted-foreground bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <Info className="h-5 w-5 text-blue-500 shrink-0" />
+                <p className="leading-relaxed">
                   {instructor?.require_booking_approval 
-                    ? "Your instructor will be notified and can approve or decline your request." 
+                    ? "Your instructor will be notified and can approve or decline your request. You'll see the status on your dashboard." 
                     : "Once confirmed, this lesson will be added to your schedule immediately."}
                 </p>
               </div>
             </div>
           )}
 
-          <DialogFooter className="flex gap-2 sm:gap-0">
-            <Button variant="ghost" onClick={() => setSelectedSlot(null)} disabled={isBooking} className="font-bold">Cancel</Button>
+          <DialogFooter className="flex gap-3 sm:gap-0">
+            <Button variant="ghost" onClick={() => setSelectedSlot(null)} disabled={isBooking} className="font-bold h-12">Cancel</Button>
             <Button 
               onClick={handleConfirmBooking} 
               disabled={isBooking} 
               className={cn(
-                "font-bold flex-1 sm:flex-none", 
+                "font-black h-12 flex-1 sm:flex-none text-lg", 
                 instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"
               )}
             >
