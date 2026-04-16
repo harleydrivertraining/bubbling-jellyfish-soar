@@ -27,9 +27,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Clock, Shield, BellRing, CheckSquare, AlertCircle } from "lucide-react";
+import { User, Clock, Shield, BellRing, CheckSquare, AlertCircle, CalendarRange, Timer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 const formSchema = z.object({
   first_name: z.string().optional().nullable(),
@@ -48,6 +50,15 @@ const formSchema = z.object({
     z.number().min(0)
   ),
   require_booking_approval: z.boolean().default(false),
+  booking_mode: z.enum(["gaps", "open"]).default("gaps"),
+  booking_interval_mins: z.preprocess(
+    (val) => (val === "" ? 30 : Number(val)),
+    z.number().min(15).max(120)
+  ),
+  booking_buffer_mins: z.preprocess(
+    (val) => (val === "" ? 15 : Number(val)),
+    z.number().min(0).max(60)
+  ),
 });
 
 const ProfileSettingsForm: React.FC = () => {
@@ -68,6 +79,9 @@ const ProfileSettingsForm: React.FC = () => {
       instructor_pin: "",
       min_booking_notice_hours: 48,
       require_booking_approval: false,
+      booking_mode: "gaps",
+      booking_interval_mins: 30,
+      booking_buffer_mins: 15,
     },
   });
 
@@ -97,6 +111,9 @@ const ProfileSettingsForm: React.FC = () => {
           instructor_pin: data.instructor_pin || "",
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
           require_booking_approval: data.require_booking_approval ?? false,
+          booking_mode: data.booking_mode || "gaps",
+          booking_interval_mins: data.booking_interval_mins ?? 30,
+          booking_buffer_mins: data.booking_buffer_mins ?? 15,
         });
       }
     } catch (error: any) {
@@ -125,6 +142,9 @@ const ProfileSettingsForm: React.FC = () => {
         calendar_end_hour: values.calendar_end_hour ? parseInt(values.calendar_end_hour) : 18,
         min_booking_notice_hours: values.min_booking_notice_hours,
         require_booking_approval: values.require_booking_approval,
+        booking_mode: values.booking_mode,
+        booking_interval_mins: values.booking_interval_mins,
+        booking_buffer_mins: values.booking_buffer_mins,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -143,6 +163,7 @@ const ProfileSettingsForm: React.FC = () => {
 
   const isStudent = userRole === 'student';
   const pinValue = form.watch("instructor_pin");
+  const bookingMode = form.watch("booking_mode");
 
   return (
     <Form {...form}>
@@ -244,32 +265,166 @@ const ProfileSettingsForm: React.FC = () => {
           />
         </div>
 
-        <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
-          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
-            <BellRing className="h-4 w-4" /> Booking Restrictions
-          </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="require_booking_approval"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
-                <div className="space-y-0.5">
-                  <FormLabel className="text-sm font-bold">Require Approval</FormLabel>
-                </div>
-                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="min_booking_notice_hours"
+            name="calendar_start_hour"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notice Period (Hours)</FormLabel>
-                <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} /></FormControl>
+                <FormLabel>Working Day Starts</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || "9"}>
+                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    {Array.from({ length: 24 }).map((_, i) => (
+                      <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormItem>
             )}
           />
+          <FormField
+            control={form.control}
+            name="calendar_end_hour"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Working Day Ends</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || "18"}>
+                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    {Array.from({ length: 24 }).map((_, i) => (
+                      <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="p-4 border rounded-xl bg-muted/30 space-y-6">
+          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
+            <CalendarRange className="h-4 w-4" /> Booking Preferences
+          </h3>
+
+          <FormField
+            control={form.control}
+            name="booking_mode"
+            render={({ field }) => (
+              <FormItem className="space-y-3">
+                <FormLabel>Student Booking Mode</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  >
+                    <FormItem>
+                      <FormControl>
+                        <RadioGroupItem value="gaps" className="sr-only" />
+                      </FormControl>
+                      <FormLabel className={cn(
+                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer",
+                        field.value === "gaps" && "border-primary"
+                      )}>
+                        <Clock className="mb-3 h-6 w-6" />
+                        <span className="font-bold text-sm">Specific Gaps Only</span>
+                        <span className="text-[10px] text-muted-foreground text-center mt-1">Students only see slots you manually mark as "Available"</span>
+                      </FormLabel>
+                    </FormItem>
+                    <FormItem>
+                      <FormControl>
+                        <RadioGroupItem value="open" className="sr-only" />
+                      </FormControl>
+                      <FormLabel className={cn(
+                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer",
+                        field.value === "open" && "border-primary"
+                      )}>
+                        <CalendarRange className="mb-3 h-6 w-6" />
+                        <span className="font-bold text-sm">Open Schedule</span>
+                        <span className="text-[10px] text-muted-foreground text-center mt-1">Students can book any free time in your working day</span>
+                      </FormLabel>
+                    </FormItem>
+                  </RadioGroup>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {bookingMode === "open" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <FormField
+                control={form.control}
+                name="booking_interval_mins"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Timer className="h-3 w-3" /> Start Intervals
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value.toString()}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="15">Every 15 mins</SelectItem>
+                        <SelectItem value="30">Every 30 mins</SelectItem>
+                        <SelectItem value="60">Every hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription className="text-[10px]">How often a lesson can start.</FormDescription>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="booking_buffer_mins"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Clock className="h-3 w-3" /> Travel Buffer
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value.toString()}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="0">No gap</SelectItem>
+                        <SelectItem value="15">15 mins</SelectItem>
+                        <SelectItem value="30">30 mins</SelectItem>
+                        <SelectItem value="45">45 mins</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription className="text-[10px]">Gap to leave between lessons.</FormDescription>
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+
+          <div className="space-y-4 pt-4 border-t">
+            <FormField
+              control={form.control}
+              name="require_booking_approval"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-sm font-bold">Require Approval</FormLabel>
+                    <p className="text-[10px] text-muted-foreground">You must manually confirm every student booking.</p>
+                  </div>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="min_booking_notice_hours"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notice Period (Hours)</FormLabel>
+                  <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} /></FormControl>
+                  <FormDescription className="text-[10px]">Students cannot book lessons starting sooner than this.</FormDescription>
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
 
         <Button type="submit" className="w-full font-bold">Save Changes</Button>

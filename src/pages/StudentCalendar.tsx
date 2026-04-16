@@ -45,7 +45,12 @@ import {
   addMonths, 
   subMonths,
   parseISO,
-  differenceInMinutes
+  differenceInMinutes,
+  addMinutes,
+  setHours,
+  setMinutes,
+  isWithinInterval,
+  areIntervalsOverlapping
 } from "date-fns";
 
 interface Booking {
@@ -62,13 +67,14 @@ const StudentCalendar: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [studentData, setStudentData] = useState<any>(null);
   const [instructor, setInstructor] = useState<any>(null);
-  const [availableSlots, setAvailableSlots] = useState<Booking[]>([]);
+  const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
+  const [manualAvailableSlots, setManualAvailableSlots] = useState<Booking[]>([]);
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedSlot, setSelectedSlot] = useState<Booking | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<any>(null);
   const [isBooking, setIsBooking] = useState(false);
-  const [filterDuration, setFilterDuration] = useState<number | null>(null);
+  const [filterDuration, setFilterDuration] = useState<number>(60);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -86,24 +92,29 @@ const StudentCalendar: React.FC = () => {
 
       const { data: instructorProfile } = await supabase
         .from("profiles")
-        .select("first_name, last_name, hourly_rate, calendar_start_hour, calendar_end_hour, min_booking_notice_hours, require_booking_approval")
+        .select("*")
         .eq("id", sData.user_id)
         .single();
       
       setInstructor(instructorProfile);
 
-      const now = new Date().toISOString();
+      const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
+      const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
+
+      // Fetch all bookings to check for overlaps
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
         .select("*")
         .eq("user_id", sData.user_id)
-        .eq("status", "available")
-        .gt("start_time", now) // Only show future available slots
-        .gte("start_time", startOfMonth(currentMonth).toISOString())
-        .lte("end_time", endOfMonth(addMonths(currentMonth, 1)).toISOString());
+        .gte("start_time", rangeStart)
+        .lte("end_time", rangeEnd);
 
       if (bError) throw bError;
-      setAvailableSlots(bookingsData || []);
+      
+      const allBookings = bookingsData || [];
+      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
+      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
+
     } catch (error: any) {
       console.error("Error fetching calendar data:", error);
       showError("Failed to load calendar.");
@@ -116,14 +127,87 @@ const StudentCalendar: React.FC = () => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
 
-  const filteredAvailableSlots = useMemo(() => {
-    if (!filterDuration) return availableSlots;
-    return availableSlots.filter(slot => {
-      const duration = differenceInMinutes(parseISO(slot.end_time), parseISO(slot.start_time));
-      // Use a small margin for rounding (e.g., 59 mins vs 60 mins)
-      return Math.abs(duration - filterDuration) < 5;
+  const generatedSlots = useMemo(() => {
+    if (!instructor || !studentData) return [];
+    
+    const mode = instructor.booking_mode || "gaps";
+    const now = new Date();
+    const noticeHours = instructor.min_booking_notice_hours ?? 48;
+    const minStartTime = addHours(now, noticeHours);
+
+    // Mode 1: Manual Gaps Only
+    if (mode === "gaps") {
+      return manualAvailableSlots
+        .filter(slot => {
+          const start = parseISO(slot.start_time);
+          const duration = differenceInMinutes(parseISO(slot.end_time), start);
+          return isAfter(start, minStartTime) && Math.abs(duration - filterDuration) < 5;
+        })
+        .map(slot => ({
+          ...slot,
+          isGenerated: false
+        }));
+    }
+
+    // Mode 2: Open Schedule Generation
+    const interval = instructor.booking_interval_mins || 30;
+    const buffer = instructor.booking_buffer_mins || 15;
+    const startHour = instructor.calendar_start_hour ?? 9;
+    const endHour = instructor.calendar_end_hour ?? 18;
+
+    const slots: any[] = [];
+    const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
+    const endRange = endOfWeek(endOfMonth(addMonths(currentMonth, 1)), { weekStartsOn: 1 });
+    
+    const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
+
+    daysInRange.forEach(day => {
+      // Skip past days
+      if (isBefore(endOfDay(day), minStartTime)) return;
+
+      let currentPointer = setMinutes(setHours(day, startHour), 0);
+      const dayEnd = setMinutes(setHours(day, endHour), 0);
+
+      while (isBefore(addMinutes(currentPointer, filterDuration), dayEnd)) {
+        const slotStart = currentPointer;
+        const slotEnd = addMinutes(slotStart, filterDuration);
+
+        // Check if this slot is too soon
+        if (isBefore(slotStart, minStartTime)) {
+          currentPointer = addMinutes(currentPointer, interval);
+          continue;
+        }
+
+        // Check for overlaps with existing bookings + buffer
+        const hasOverlap = existingBookings.some(booking => {
+          const bStart = parseISO(booking.start_time);
+          const bEnd = parseISO(booking.end_time);
+          
+          // Add buffer to the existing booking's interval for checking
+          const bufferedBStart = subMinutes(bStart, buffer);
+          const bufferedBEnd = addMinutes(bEnd, buffer);
+
+          return areIntervalsOverlapping(
+            { start: slotStart, end: slotEnd },
+            { start: bufferedBStart, end: bufferedBEnd }
+          );
+        });
+
+        if (!hasOverlap) {
+          slots.push({
+            id: `gen-${slotStart.getTime()}`,
+            start_time: slotStart.toISOString(),
+            end_time: slotEnd.toISOString(),
+            isGenerated: true
+          });
+        }
+
+        currentPointer = addMinutes(currentPointer, interval);
+      }
     });
-  }, [availableSlots, filterDuration]);
+
+    return slots;
+  }, [instructor, studentData, existingBookings, manualAvailableSlots, filterDuration, currentMonth]);
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
@@ -132,11 +216,11 @@ const StudentCalendar: React.FC = () => {
   }, [currentMonth]);
 
   const slotsForSelectedDate = useMemo(() => {
-    return filteredAvailableSlots.filter(slot => isSameDay(parseISO(slot.start_time), selectedDate));
-  }, [filteredAvailableSlots, selectedDate]);
+    return generatedSlots.filter(slot => isSameDay(parseISO(slot.start_time), selectedDate));
+  }, [generatedSlots, selectedDate]);
 
   const hasSlots = (date: Date) => {
-    return filteredAvailableSlots.some(slot => isSameDay(parseISO(slot.start_time), date));
+    return generatedSlots.some(slot => isSameDay(parseISO(slot.start_time), date));
   };
 
   const handleConfirmBooking = async () => {
@@ -150,17 +234,33 @@ const StudentCalendar: React.FC = () => {
         ? `${studentData.name} - Pending Approval` 
         : `${studentData.name} - Driving lesson`;
 
-      const { error } = await supabase
-        .from("bookings")
-        .update({
-          student_id: studentData.id,
-          status: newStatus,
-          title: displayTitle,
-          lesson_type: "Driving lesson"
-        })
-        .eq("id", selectedSlot.id);
-
-      if (error) throw error;
+      if (selectedSlot.isGenerated) {
+        // Create a new booking record
+        const { error } = await supabase
+          .from("bookings")
+          .insert({
+            user_id: studentData.user_id,
+            student_id: studentData.id,
+            status: newStatus,
+            title: displayTitle,
+            lesson_type: "Driving lesson",
+            start_time: selectedSlot.start_time,
+            end_time: selectedSlot.end_time
+          });
+        if (error) throw error;
+      } else {
+        // Update existing manual available slot
+        const { error } = await supabase
+          .from("bookings")
+          .update({
+            student_id: studentData.id,
+            status: newStatus,
+            title: displayTitle,
+            lesson_type: "Driving lesson"
+          })
+          .eq("id", selectedSlot.id);
+        if (error) throw error;
+      }
 
       await supabase.from("notifications").insert({
         user_id: studentData.user_id,
@@ -204,7 +304,7 @@ const StudentCalendar: React.FC = () => {
           {[60, 90, 120].map((mins) => (
             <button
               key={mins}
-              onClick={() => setFilterDuration(filterDuration === mins ? null : mins)}
+              onClick={() => setFilterDuration(mins)}
               className={cn(
                 "flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all",
                 filterDuration === mins 
@@ -303,14 +403,9 @@ const StudentCalendar: React.FC = () => {
             {slotsForSelectedDate.map((slot) => {
               const start = parseISO(slot.start_time);
               const duration = differenceInMinutes(parseISO(slot.end_time), start) / 60;
-              const noticeHours = instructor?.min_booking_notice_hours ?? 48;
-              const isTooSoon = isBefore(start, addHours(new Date(), noticeHours));
 
               return (
-                <Card key={slot.id} className={cn(
-                  "overflow-hidden border-l-4 transition-all",
-                  isTooSoon ? "border-l-muted opacity-60" : "border-l-blue-500 hover:shadow-md"
-                )}>
+                <Card key={slot.id} className="overflow-hidden border-l-4 border-l-blue-500 hover:shadow-md transition-all">
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -324,23 +419,16 @@ const StudentCalendar: React.FC = () => {
                       </p>
                     </div>
 
-                    {isTooSoon ? (
-                      <div className="text-right">
-                        <Badge variant="secondary" className="text-[8px] font-black uppercase">Too Soon</Badge>
-                        <p className="text-[8px] text-muted-foreground mt-1">{noticeHours}h notice req.</p>
-                      </div>
-                    ) : (
-                      <Button 
-                        size="sm" 
-                        className={cn(
-                          "font-bold", 
-                          instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"
-                        )}
-                        onClick={() => setSelectedSlot(slot)}
-                      >
-                        {instructor?.require_booking_approval ? "Request" : "Book Now"}
-                      </Button>
-                    )}
+                    <Button 
+                      size="sm" 
+                      className={cn(
+                        "font-bold", 
+                        instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"
+                      )}
+                      onClick={() => setSelectedSlot(slot)}
+                    >
+                      {instructor?.require_booking_approval ? "Request" : "Book Now"}
+                    </Button>
                   </CardContent>
                 </Card>
               );
