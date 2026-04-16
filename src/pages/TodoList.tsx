@@ -116,8 +116,9 @@ const TodoList: React.FC = () => {
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
               disabled={addMutation.isPending}
+              className="flex-1"
             />
-            <Button type="submit" disabled={addMutation.isPending || !newTask.trim()}>
+            <Button type="submit" disabled={addMutation.isPending || !newTask.trim()} className="shrink-0">
               <Plus className="h-4 w-4 mr-2" /> Add
             </Button>
           </form>
@@ -135,19 +136,20 @@ const TodoList: React.FC = () => {
           ) : (
             <div className="grid gap-2">
               {activeTodos.map((todo) => (
-                <Card key={todo.id} className="hover:bg-muted/30 transition-colors">
-                  <CardContent className="p-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                <Card key={todo.id} className="hover:bg-muted/30 transition-colors overflow-hidden">
+                  <CardContent className="p-4 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
                       <Checkbox 
                         checked={todo.completed} 
                         onCheckedChange={(checked) => toggleMutation.mutate({ id: todo.id, completed: !!checked })}
+                        className="mt-1"
                       />
-                      <span className="text-sm font-medium truncate">{todo.task}</span>
+                      <span className="text-sm font-medium break-words leading-relaxed">{todo.task}</span>
                     </div>
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
                       onClick={() => deleteMutation.mutate(todo.id)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -167,19 +169,20 @@ const TodoList: React.FC = () => {
             </h3>
             <div className="grid gap-2 opacity-60">
               {completedTodos.map((todo) => (
-                <Card key={todo.id} className="bg-muted/50">
-                  <CardContent className="p-3 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                <Card key={todo.id} className="bg-muted/50 overflow-hidden">
+                  <CardContent className="p-3 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
                       <Checkbox 
                         checked={todo.completed} 
                         onCheckedChange={(checked) => toggleMutation.mutate({ id: todo.id, completed: !!checked })}
+                        className="mt-1"
                       />
-                      <span className="text-sm font-medium line-through truncate">{todo.task}</span>
+                      <span className="text-sm font-medium line-through break-words leading-relaxed">{todo.task}</span>
                     </div>
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
                       onClick={() => deleteMutation.mutate(todo.id)}
                     >
                       <Trash2 className="h-4 w-4" />

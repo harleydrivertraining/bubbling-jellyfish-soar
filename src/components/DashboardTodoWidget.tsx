@@ -90,7 +90,7 @@ const DashboardTodoWidget: React.FC = () => {
   };
 
   return (
-    <Card className="shadow-sm h-full flex flex-col">
+    <Card className="shadow-sm h-full flex flex-col overflow-hidden">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -114,8 +114,9 @@ const DashboardTodoWidget: React.FC = () => {
                     value={newTask}
                     onChange={(e) => setNewTask(e.target.value)}
                     autoFocus
+                    className="flex-1"
                   />
-                  <Button type="submit" disabled={addMutation.isPending || !newTask.trim()}>
+                  <Button type="submit" disabled={addMutation.isPending || !newTask.trim()} className="shrink-0">
                     {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
                   </Button>
                 </form>
@@ -140,18 +141,19 @@ const DashboardTodoWidget: React.FC = () => {
         ) : (
           <div className="divide-y">
             {todos.map((todo) => (
-              <div key={todo.id} className="p-3 flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors group">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div key={todo.id} className="p-3 flex items-start justify-between gap-3 hover:bg-muted/30 transition-colors group">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
                   <Checkbox 
                     checked={todo.completed} 
                     onCheckedChange={(checked) => toggleMutation.mutate({ id: todo.id, completed: !!checked })}
+                    className="mt-1"
                   />
-                  <span className="text-sm font-medium truncate">{todo.task}</span>
+                  <span className="text-sm font-medium break-words leading-relaxed">{todo.task}</span>
                 </div>
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                   onClick={() => deleteMutation.mutate(todo.id)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
