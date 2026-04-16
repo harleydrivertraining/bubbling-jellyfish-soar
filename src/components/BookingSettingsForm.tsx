@@ -32,6 +32,16 @@ import { Clock, CalendarRange, Timer, Shield, Loader2, AlertCircle, CalendarDays
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+const DAYS = [
+  { id: "1", label: "Monday" },
+  { id: "2", label: "Tuesday" },
+  { id: "3", label: "Wednesday" },
+  { id: "4", label: "Thursday" },
+  { id: "5", label: "Friday" },
+  { id: "6", label: "Saturday" },
+  { id: "0", label: "Sunday" },
+];
+
 const formSchema = z.object({
   min_booking_notice_hours: z.preprocess(
     (val) => (val === "" ? 48 : Number(val)),
@@ -51,6 +61,11 @@ const formSchema = z.object({
     (val) => (val === "" ? 15 : Number(val)),
     z.number().min(0).max(60)
   ),
+  working_hours: z.record(z.object({
+    active: z.boolean(),
+    start: z.number(),
+    end: z.number()
+  }))
 });
 
 interface BookingSettingsFormProps {
@@ -73,6 +88,15 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
       booking_mode: "gaps",
       booking_interval_mins: 30,
       booking_buffer_mins: 15,
+      working_hours: {
+        "1": { active: true, start: 9, end: 17 },
+        "2": { active: true, start: 9, end: 17 },
+        "3": { active: true, start: 9, end: 17 },
+        "4": { active: true, start: 9, end: 17 },
+        "5": { active: true, start: 9, end: 17 },
+        "6": { active: false, start: 9, end: 17 },
+        "0": { active: false, start: 9, end: 17 },
+      }
     },
   });
 
@@ -84,7 +108,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("min_booking_notice_hours, max_booking_advance_weeks, require_booking_approval, booking_mode, booking_interval_mins, booking_buffer_mins, instructor_pin")
+        .select("min_booking_notice_hours, max_booking_advance_weeks, require_booking_approval, booking_mode, booking_interval_mins, booking_buffer_mins, instructor_pin, working_hours")
         .eq("id", user.id)
         .single();
 
@@ -99,6 +123,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
           booking_mode: (data.booking_mode as "gaps" | "open") || "gaps",
           booking_interval_mins: data.booking_interval_mins ?? 30,
           booking_buffer_mins: data.booking_buffer_mins ?? 15,
+          working_hours: data.working_hours || form.getValues("working_hours")
         });
       }
     } catch (error: any) {
@@ -127,6 +152,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         booking_mode: values.booking_mode,
         booking_interval_mins: values.booking_interval_mins,
         booking_buffer_mins: values.booking_buffer_mins,
+        working_hours: values.working_hours,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
@@ -243,47 +269,117 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         </div>
 
         {bookingMode === "open" && (
-          <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-            <FormField
-              control={form.control}
-              name="booking_interval_mins"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold flex items-center gap-1.5">
-                    <Timer className="h-3 w-3" /> Intervals
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value.toString()}>
-                    <FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="15">15 mins</SelectItem>
-                      <SelectItem value="30">30 mins</SelectItem>
-                      <SelectItem value="60">1 hour</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="booking_buffer_mins"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold flex items-center gap-1.5">
-                    <Clock className="h-3 w-3" /> Buffer
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value.toString()}>
-                    <FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="0">None</SelectItem>
-                      <SelectItem value="15">15 mins</SelectItem>
-                      <SelectItem value="30">30 mins</SelectItem>
-                      <SelectItem value="45">45 mins</SelectItem>
-                      <SelectItem value="60">1 hour</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
+          <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="booking_interval_mins"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-bold flex items-center gap-1.5">
+                      <Timer className="h-3 w-3" /> Intervals
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value.toString()}>
+                      <FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="15">15 mins</SelectItem>
+                        <SelectItem value="30">30 mins</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="booking_buffer_mins"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-bold flex items-center gap-1.5">
+                      <Clock className="h-3 w-3" /> Buffer
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value.toString()}>
+                      <FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="0">None</SelectItem>
+                        <SelectItem value="15">15 mins</SelectItem>
+                        <SelectItem value="30">30 mins</SelectItem>
+                        <SelectItem value="45">45 mins</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
+              <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                <Clock className="h-3 w-3" /> Weekly Working Hours
+              </h3>
+              
+              <div className="space-y-3">
+                {DAYS.map((day) => (
+                  <div key={day.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 bg-background rounded-lg border shadow-sm">
+                    <div className="flex items-center gap-3 min-w-[100px]">
+                      <FormField
+                        control={form.control}
+                        name={`working_hours.${day.id}.active`}
+                        render={({ field }) => (
+                          <FormControl>
+                            <Switch 
+                              checked={field.value} 
+                              onCheckedChange={field.onChange} 
+                              className="scale-75"
+                            />
+                          </FormControl>
+                        )}
+                      />
+                      <span className={cn("font-bold text-xs", !form.watch(`working_hours.${day.id}.active`) && "text-muted-foreground")}>
+                        {day.label}
+                      </span>
+                    </div>
+
+                    {form.watch(`working_hours.${day.id}.active`) && (
+                      <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                        <FormField
+                          control={form.control}
+                          name={`working_hours.${day.id}.start`}
+                          render={({ field }) => (
+                            <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
+                              <FormControl><SelectTrigger className="w-20 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                {Array.from({ length: 24 }).map((_, i) => (
+                                  <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        <span className="text-[10px] font-bold text-muted-foreground">to</span>
+                        <FormField
+                          control={form.control}
+                          name={`working_hours.${day.id}.end`}
+                          render={({ field }) => (
+                            <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
+                              <FormControl><SelectTrigger className="w-20 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                {Array.from({ length: 24 }).map((_, i) => (
+                                  <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+                    )}
+                    {!form.watch(`working_hours.${day.id}.active`) && (
+                      <span className="text-[10px] italic text-muted-foreground">Off</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
