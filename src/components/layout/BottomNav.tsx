@@ -41,7 +41,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
   const labelClasses = "text-[10px] font-bold mt-1 uppercase tracking-tight";
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-t border-border shadow-[0_-4px_12px_-1px_rgba(0,0,0,0.1)] pb-safe">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-lg border-t border-border shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.15)] pb-safe">
       <div className="flex items-center justify-between h-16 px-2">
         {/* Menu Trigger */}
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -90,8 +90,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
           <span className={cn(labelClasses, "text-muted-foreground")}>Alerts</span>
         </div>
       </div>
-      {/* Extra padding for modern mobile home indicators */}
-      <div className="h-6 w-full bg-transparent" />
+      {/* Increased spacer height to clear Android system navigation bar/gestures */}
+      <div className="h-8 w-full bg-transparent" />
     </div>
   );
 };
