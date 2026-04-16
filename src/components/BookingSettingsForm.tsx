@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Clock, CalendarRange, Timer, Shield, Loader2 } from "lucide-react";
+import { Clock, CalendarRange, Timer, Shield, Loader2, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +57,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
   const { user } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [instructorPin, setInstructorPin] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -73,6 +74,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
   const fetchSettings = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
+    setFetchError(null);
     
     try {
       const { data, error } = await supabase
@@ -88,14 +90,15 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         form.reset({
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
           require_booking_approval: data.require_booking_approval ?? false,
-          booking_mode: data.booking_mode || "gaps",
+          booking_mode: (data.booking_mode as "gaps" | "open") || "gaps",
           booking_interval_mins: data.booking_interval_mins ?? 30,
           booking_buffer_mins: data.booking_buffer_mins ?? 15,
         });
       }
     } catch (error: any) {
       console.error("Error fetching booking settings:", error);
-      showError("Failed to load settings.");
+      setFetchError(error.message);
+      showError("Failed to load settings. Please ensure database columns are added.");
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +139,26 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+        <div className="space-y-2">
+          <p className="font-bold text-lg">Database Error</p>
+          <p className="text-sm text-muted-foreground">
+            It looks like the new booking columns haven't been added to your database yet.
+          </p>
+        </div>
+        <div className="p-3 bg-muted rounded text-[10px] font-mono text-left overflow-auto max-h-32">
+          {fetchError}
+        </div>
+        <Button onClick={fetchSettings} variant="outline" className="w-full">
+          Try Again
+        </Button>
       </div>
     );
   }
