@@ -90,11 +90,13 @@ const StudentCalendar: React.FC = () => {
       
       setInstructor(instructorProfile);
 
+      const now = new Date().toISOString();
       const { data: bookingsData, error: bError } = await supabase
         .from("bookings")
         .select("*")
         .eq("user_id", sData.user_id)
         .eq("status", "available")
+        .gt("start_time", now) // Only show future available slots
         .gte("start_time", startOfMonth(currentMonth).toISOString())
         .lte("end_time", endOfMonth(addMonths(currentMonth, 1)).toISOString());
 
