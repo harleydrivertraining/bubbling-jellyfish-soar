@@ -197,8 +197,12 @@ const StudentCalendar: React.FC = () => {
 
         if (!dayConfig || !dayConfig.active) return;
 
-        const dayStartMs = setMinutes(setHours(startOfDay(day), dayConfig.start), 0).getTime();
-        const dayEndMs = setMinutes(setHours(startOfDay(day), dayConfig.end), 0).getTime();
+        // Parse "HH:mm" strings
+        const [startH, startM] = (dayConfig.start || "09:00").split(':').map(Number);
+        const [endH, endM] = (dayConfig.end || "17:00").split(':').map(Number);
+
+        const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
+        const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
 
         let currentPointerMs = dayStartMs;
         while (currentPointerMs + durationMs <= dayEndMs) {

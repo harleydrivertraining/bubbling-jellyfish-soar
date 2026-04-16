@@ -28,9 +28,14 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Clock, CalendarRange, Timer, Shield, Loader2, AlertCircle, CalendarDays } from "lucide-react";
+import { Clock, CalendarRange, Timer, Shield, Loader2, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const DAYS = [
   { id: "1", label: "Monday" },
@@ -41,6 +46,20 @@ const DAYS = [
   { id: "6", label: "Saturday" },
   { id: "0", label: "Sunday" },
 ];
+
+// Helper to generate 15-min time options
+const generateTimeOptions = () => {
+  const options = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let min = 0; min < 60; min += 15) {
+      const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+      options.push(time);
+    }
+  }
+  return options;
+};
+
+const TIME_OPTIONS = generateTimeOptions();
 
 const formSchema = z.object({
   min_booking_notice_hours: z.preprocess(
@@ -63,8 +82,8 @@ const formSchema = z.object({
   ),
   working_hours: z.record(z.object({
     active: z.boolean(),
-    start: z.number(),
-    end: z.number()
+    start: z.string(),
+    end: z.string()
   }))
 });
 
@@ -76,7 +95,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
   const { user } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isHoursExpanded, setIsHoursExpanded] = useState(false);
   const [instructorPin, setInstructorPin] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -89,13 +108,13 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
       booking_interval_mins: 30,
       booking_buffer_mins: 15,
       working_hours: {
-        "1": { active: true, start: 9, end: 17 },
-        "2": { active: true, start: 9, end: 17 },
-        "3": { active: true, start: 9, end: 17 },
-        "4": { active: true, start: 9, end: 17 },
-        "5": { active: true, start: 9, end: 17 },
-        "6": { active: false, start: 9, end: 17 },
-        "0": { active: false, start: 9, end: 17 },
+        "1": { active: true, start: "09:00", end: "17:00" },
+        "2": { active: true, start: "09:00", end: "17:00" },
+        "3": { active: true, start: "09:00", end: "17:00" },
+        "4": { active: true, start: "09:00", end: "17:00" },
+        "5": { active: true, start: "09:00", end: "17:00" },
+        "6": { active: false, start: "09:00", end: "17:00" },
+        "0": { active: false, start: "09:00", end: "17:00" },
       }
     },
   });
@@ -103,7 +122,6 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
   const fetchSettings = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
-    setFetchError(null);
     
     try {
       const { data, error } = await supabase
@@ -116,6 +134,19 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
 
       if (data) {
         setInstructorPin(data.instructor_pin);
+        
+        // Convert legacy numeric hours to strings if necessary
+        const rawHours = data.working_hours || {};
+        const formattedHours: any = {};
+        DAYS.forEach(day => {
+          const config = rawHours[day.id] || { active: false, start: 9, end: 17 };
+          formattedHours[day.id] = {
+            active: config.active,
+            start: typeof config.start === 'number' ? `${config.start.toString().padStart(2, '0')}:00` : config.start,
+            end: typeof config.end === 'number' ? `${config.end.toString().padStart(2, '0')}:00` : config.end,
+          };
+        });
+
         form.reset({
           min_booking_notice_hours: data.min_booking_notice_hours ?? 48,
           max_booking_advance_weeks: data.max_booking_advance_weeks ?? 12,
@@ -123,12 +154,11 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
           booking_mode: (data.booking_mode as "gaps" | "open") || "gaps",
           booking_interval_mins: data.booking_interval_mins ?? 30,
           booking_buffer_mins: data.booking_buffer_mins ?? 15,
-          working_hours: data.working_hours || form.getValues("working_hours")
+          working_hours: formattedHours
         });
       }
     } catch (error: any) {
       console.error("Error fetching booking settings:", error);
-      setFetchError(error.message);
       showError("Failed to load settings.");
     } finally {
       setIsLoading(false);
@@ -269,7 +299,7 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
         </div>
 
         {bookingMode === "open" && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -313,12 +343,17 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
               />
             </div>
 
-            <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
-              <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                <Clock className="h-3 w-3" /> Weekly Working Hours
-              </h3>
-              
-              <div className="space-y-3">
+            <Collapsible open={isHoursExpanded} onOpenChange={setIsHoursExpanded} className="border rounded-xl bg-muted/30 overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full flex items-center justify-between p-4 h-auto hover:bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-bold uppercase">Weekly Working Hours</span>
+                  </div>
+                  {isHoursExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
                 {DAYS.map((day) => (
                   <div key={day.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 bg-background rounded-lg border shadow-sm">
                     <div className="flex items-center gap-3 min-w-[100px]">
@@ -341,16 +376,16 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                     </div>
 
                     {form.watch(`working_hours.${day.id}.active`) && (
-                      <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-2">
                         <FormField
                           control={form.control}
                           name={`working_hours.${day.id}.start`}
                           render={({ field }) => (
-                            <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
-                              <FormControl><SelectTrigger className="w-20 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl><SelectTrigger className="w-24 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
                               <SelectContent>
-                                {Array.from({ length: 24 }).map((_, i) => (
-                                  <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                                {TIME_OPTIONS.map((time) => (
+                                  <SelectItem key={time} value={time}>{time}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -361,11 +396,11 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                           control={form.control}
                           name={`working_hours.${day.id}.end`}
                           render={({ field }) => (
-                            <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value.toString()}>
-                              <FormControl><SelectTrigger className="w-20 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl><SelectTrigger className="w-24 h-7 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
                               <SelectContent>
-                                {Array.from({ length: 24 }).map((_, i) => (
-                                  <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                                {TIME_OPTIONS.map((time) => (
+                                  <SelectItem key={time} value={time}>{time}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -378,8 +413,8 @@ const BookingSettingsForm: React.FC<BookingSettingsFormProps> = ({ onSuccess }) 
                     )}
                   </div>
                 ))}
-              </div>
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         )}
 
