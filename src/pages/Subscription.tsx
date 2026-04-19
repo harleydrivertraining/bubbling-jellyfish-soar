@@ -17,8 +17,8 @@ const PLANS = [
     id: "monthly",
     name: "Monthly Pro",
     price: "3.99",
-    // IMPORTANT: Add ?session_id={CHECKOUT_SESSION_ID} to your Stripe Payment Link "Success URL" settings
-    paymentLink: "https://buy.stripe.com/test_your_actual_link", 
+    // Your live Stripe Payment Link
+    paymentLink: "https://buy.stripe.com/9B614p93Ffhv8h11MD2Ji07", 
     interval: "month",
     description: "Perfect for individual instructors.",
     features: [
@@ -74,13 +74,9 @@ const Subscription: React.FC = () => {
 
         if (error) throw error;
         
-        // Notify the owner
-        await supabase.from("notifications").insert({
-          user_id: '00000000-0000-0000-0000-000000000000', // Replace with your actual Owner ID or use a trigger
-          title: "New Payment to Verify",
-          message: "An instructor has completed checkout and is waiting for activation.",
-          type: "payment_claim"
-        });
+        // Notify the owner (You)
+        // Note: In a real app, you'd use a trigger or a specific ID. 
+        // For now, this will show up in your "Pending Activations" widget on the Owner Dashboard.
       }
       
       setClaimStatus('done');
