@@ -33,7 +33,8 @@ import {
   Sparkles,
   Inbox,
   MessageSquare,
-  ListTodo
+  ListTodo,
+  CreditCard
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -95,6 +96,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: "mileage", to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
   { id: "accounts", to: "/accounts", icon: PoundSterling, label: "Accounts" },
   { id: "topics", to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
+  { id: "subscription", to: "/subscription", icon: CreditCard, label: "Subscription" },
   { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
   { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
 ];
@@ -123,8 +125,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // If the saved config doesn't have the 'todo' item in it, it's an old config
-        // We'll merge it but ensure 'todo' follows 'schedule' if it's missing from the saved list
         const visibleItems = parsed
           .filter((p: any) => p.visible)
           .map((p: any) => {
@@ -140,7 +140,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
       }
     }
 
-    // Filter for students
     if (userRole === 'student') {
       items = [
         { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
