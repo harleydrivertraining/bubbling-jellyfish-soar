@@ -5,9 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
-import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox, RefreshCw, ListTodo } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox, RefreshCw, ListTodo, Zap, Infinity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -54,7 +53,7 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 ];
 
 const Dashboard: React.FC = () => {
-  const { user, isLoading: isSessionLoading } = useSession();
+  const { user, isLoading: isSessionLoading, subscriptionStatus } = useSession();
   const queryClient = useQueryClient();
   const isFetching = useIsFetching();
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
@@ -698,13 +697,29 @@ const Dashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {profile?.first_name || "Instructor"}</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               {profile?.instructor_pin && (
                 <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
                   <Shield className="h-3.5 w-3.5" />
                   <span>Your Student PIN: <span className="font-mono tracking-widest">{profile.instructor_pin}</span></span>
                 </div>
               )}
+              
+              {/* Subscription Status Badge */}
+              {subscriptionStatus === 'lifetime' ? (
+                <Badge className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-full">
+                  <Infinity className="h-3.5 w-3.5 mr-1.5" /> Lifetime Access
+                </Badge>
+              ) : subscriptionStatus === 'trialing' ? (
+                <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full">
+                  <Clock className="h-3.5 w-3.5 mr-1.5" /> Trial Mode
+                </Badge>
+              ) : subscriptionStatus === 'active' ? (
+                <Badge className="bg-green-600 hover:bg-green-700 font-bold px-3 py-1 rounded-full">
+                  <Zap className="h-3.5 w-3.5 mr-1.5" /> Pro Account
+                </Badge>
+              ) : null}
+
               <Button 
                 variant="ghost" 
                 size="icon" 
