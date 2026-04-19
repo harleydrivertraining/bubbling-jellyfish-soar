@@ -54,7 +54,7 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 ];
 
 const Dashboard: React.FC = () => {
-  const { user, isLoading: isSessionLoading, subscriptionStatus } = useSession();
+  const { user, isLoading: isSessionLoading, subscriptionStatus, userRole } = useSession();
   const queryClient = useQueryClient();
   const isFetching = useIsFetching();
   const [revenueTimeframe, setRevenueTimeframe] = useState<RevenueTimeframe>("weekly");
@@ -80,23 +80,22 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // Main Profile Query
-  const { data: profile, isLoading: isProfileLoading, isError: isProfileError } = useQuery({
-    queryKey: ['profile', user?.id],
+  // Fetch only the specific instructor settings we need (hourly rate, pin)
+  const { data: instructorSettings } = useQuery({
+    queryKey: ['instructor-settings', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, hourly_rate, role, instructor_pin, require_booking_approval")
+        .select("first_name, hourly_rate, instructor_pin")
         .eq("id", user!.id)
         .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
-    staleTime: 1000 * 60 * 30, // Profile rarely changes
+    enabled: !!user && userRole === 'instructor',
+    staleTime: 1000 * 60 * 5,
   });
 
-  const userRole = profile?.role?.toLowerCase();
   const isInstructor = userRole === 'instructor';
 
   // Pending Requests Query
@@ -147,7 +146,7 @@ const Dashboard: React.FC = () => {
 
   // Revenue Query
   const { data: revenue } = useQuery({
-    queryKey: ['revenue', user?.id, revenueTimeframe, profile?.hourly_rate],
+    queryKey: ['revenue', user?.id, revenueTimeframe, instructorSettings?.hourly_rate],
     queryFn: async () => {
       const now = new Date();
       let startDate: Date, endDate: Date;
@@ -166,9 +165,9 @@ const Dashboard: React.FC = () => {
         
       let totalMins = 0;
       data?.forEach(b => totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)));
-      return (totalMins / 60) * (profile?.hourly_rate || 0);
+      return (totalMins / 60) * (instructorSettings?.hourly_rate || 0);
     },
-    enabled: !!user && isInstructor && !!profile?.hourly_rate,
+    enabled: !!user && isInstructor && !!instructorSettings?.hourly_rate,
   });
 
   // Booked Hours Query
@@ -221,7 +220,7 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Service Info Query - Optimized to avoid N+1
+  // Service Info Query
   const { data: serviceInfo } = useQuery({
     queryKey: ['service-info', user?.id],
     queryFn: async () => {
@@ -232,7 +231,6 @@ const Dashboard: React.FC = () => {
 
       if (!cars || cars.length === 0) return null;
 
-      // Fetch all latest mileage entries in one go
       const { data: allMileage } = await supabase
         .from("car_mileage_entries")
         .select("car_id, current_mileage, entry_date")
@@ -437,7 +435,6 @@ const Dashboard: React.FC = () => {
               <CardContent className="p-3 pt-0">
                 <div className="text-3xl sm:text-4xl font-black">{(bookedHours ?? 0).toFixed(1)} <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">hrs</span></div>
               </CardContent>
-            </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">
@@ -454,7 +451,7 @@ const Dashboard: React.FC = () => {
                 </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                {profile?.hourly_rate ? (
+                {instructorSettings?.hourly_rate ? (
                   <div className="text-3xl sm:text-4xl font-black">£{(revenue ?? 0).toFixed(2)}</div>
                 ) : (
                   <div className="text-[10px] sm:text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">rate</Link></div>
@@ -602,23 +599,13 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  if (isSessionLoading || isProfileLoading) {
+  if (isSessionLoading) {
     return (
       <div className="space-y-6 p-6">
         <Skeleton className="h-10 w-48" />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
         </div>
-      </div>
-    );
-  }
-
-  if (isProfileError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <AlertCircle className="h-12 w-12 text-destructive" />
-        <h2 className="text-xl font-bold">Failed to load profile</h2>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
       </div>
     );
   }
@@ -631,12 +618,12 @@ const Dashboard: React.FC = () => {
       <div className="space-y-8 w-full px-4 lg:px-8 py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {profile?.first_name || "Instructor"}</h1>
+            <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorSettings?.first_name || "Instructor"}</h1>
             <div className="flex flex-wrap items-center gap-3">
-              {profile?.instructor_pin && (
+              {instructorSettings?.instructor_pin && (
                 <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
                   <Shield className="h-3.5 w-3.5" />
-                  <span>Student PIN: <span className="font-mono tracking-widest">{profile.instructor_pin}</span></span>
+                  <span>Student PIN: <span className="font-mono tracking-widest">{instructorSettings.instructor_pin}</span></span>
                 </div>
               )}
               {subscriptionStatus === 'lifetime' ? (
