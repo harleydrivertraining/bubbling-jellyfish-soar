@@ -1,26 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { startOfMonth, endOfMonth, addMonths } from "date-fns";
-
-interface Booking {
-  id: string;
-  title: string;
-  description?: string;
-  start_time: string;
-  end_time: string;
-  status: "scheduled" | "completed" | "cancelled" | "available";
-  lesson_type: string;
-  student_id: string;
-  is_paid: boolean;
-  targets_for_next_session?: string;
-  students: {
-    name: string;
-  };
-}
 
 interface SessionContextType {
   session: Session | null;
@@ -28,9 +11,6 @@ interface SessionContextType {
   isLoading: boolean;
   subscriptionStatus: string | null;
   userRole: string | null;
-  initialBookings: Booking[] | null;
-  isLoadingInitialBookings: boolean;
-  refreshInitialBookings: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -41,11 +21,9 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null);
-  const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(false);
+  
   const navigate = useNavigate();
   const location = useLocation();
-  const isInitialMount = useRef(true);
 
   const fetchProfileData = useCallback(async (userId: string) => {
     try {
@@ -64,115 +42,59 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, []);
 
-  const fetchInitialBookings = useCallback(async (userId: string) => {
-    // We use a functional update or check a ref to avoid dependency loops
-    setIsLoadingInitialBookings(true);
-    
-    try {
-      const now = new Date();
-      const rangeStart = startOfMonth(addMonths(now, -3));
-      const rangeEnd = endOfMonth(addMonths(now, 3));
-
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("id, title, description, start_time, end_time, student_id, status, lesson_type, is_paid, targets_for_next_session, students(name)")
-        .eq("user_id", userId)
-        .gte("start_time", rangeStart.toISOString())
-        .lte("end_time", rangeEnd.toISOString());
-
-      if (error) throw error;
-      setInitialBookings(data as unknown as Booking[] || []);
-    } catch (error) {
-      console.error("Error fetching initial bookings:", error);
-      setInitialBookings([]);
-    } finally {
-      setIsLoadingInitialBookings(false);
-    }
-  }, []); // Removed isLoadingInitialBookings from dependencies
-
-  const refreshInitialBookings = async () => {
-    if (user) {
-      await fetchInitialBookings(user.id);
-    }
-  };
-
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (isLoading) {
-        setIsLoading(false);
-      }
-    }, 6000);
-
-    const getInitialSession = async () => {
+    // 1. Get initial session
+    const initSession = async () => {
       try {
-        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
         
-        if (sessionError) throw sessionError;
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
 
+        if (initialSession?.user) {
+          await fetchProfileData(initialSession.user.id);
+        }
+
+        // Handle initial routing
         const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
         const isPublicRoute = publicRoutes.includes(location.pathname);
 
-        if (initialSession) {
-          setSession(initialSession);
-          setUser(initialSession.user);
-          fetchProfileData(initialSession.user.id);
-          fetchInitialBookings(initialSession.user.id);
-          
-          if (isPublicRoute) {
-            navigate("/", { replace: true });
-          }
-        } else {
-          if (!isPublicRoute) {
-            navigate("/login", { replace: true });
-          }
+        if (initialSession && isPublicRoute) {
+          navigate("/", { replace: true });
+        } else if (!initialSession && !isPublicRoute) {
+          navigate("/login", { replace: true });
         }
       } catch (error) {
-        console.error("Error getting initial session:", error);
+        console.error("Session init error:", error);
       } finally {
         setIsLoading(false);
-        clearTimeout(timer);
       }
     };
 
-    if (isInitialMount.current) {
-      getInitialSession();
-      isInitialMount.current = false;
-    }
+    initSession();
 
+    // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
-      const isPublicRoute = publicRoutes.includes(location.pathname);
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        
         if (currentSession?.user) {
-          fetchProfileData(currentSession.user.id);
-          fetchInitialBookings(currentSession.user.id);
-        }
-        
-        if (isPublicRoute && event === 'SIGNED_IN') {
-          navigate("/", { replace: true });
+          await fetchProfileData(currentSession.user.id);
         }
       } else if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUser(null);
         setSubscriptionStatus(null);
         setUserRole(null);
-        setInitialBookings(null);
-        if (!isPublicRoute) {
-          navigate("/login", { replace: true });
-        }
+        navigate("/login", { replace: true });
       }
     });
 
     return () => {
       subscription.unsubscribe();
-      clearTimeout(timer);
     };
-  }, [navigate, location.pathname, fetchInitialBookings, fetchProfileData]);
+  }, [navigate, fetchProfileData]); // Removed location.pathname to prevent unnecessary re-runs
 
+  // 3. Real-time profile listener for status changes
   useEffect(() => {
     if (!user) return;
 
@@ -215,10 +137,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       user, 
       isLoading, 
       subscriptionStatus,
-      userRole,
-      initialBookings, 
-      isLoadingInitialBookings,
-      refreshInitialBookings
+      userRole
     }}>
       {children}
     </SessionContext.Provider>
