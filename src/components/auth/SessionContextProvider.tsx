@@ -46,6 +46,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
     const initialize = async () => {
       try {
+        // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (mounted) {
@@ -64,6 +65,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
     initialize();
 
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!mounted) return;
 
@@ -85,6 +87,16 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       subscription.unsubscribe();
     };
   }, [fetchProfileData]);
+
+  // We provide a simple loading UI here that doesn't depend on Router
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-muted-foreground font-medium animate-pulse">Loading your session...</p>
+      </div>
+    );
+  }
 
   return (
     <SessionContext.Provider value={{ 
