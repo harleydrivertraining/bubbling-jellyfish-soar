@@ -6,7 +6,33 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, ClipboardCheck, Check, X, Inbox, RefreshCw } from "lucide-react";
+import { 
+  Users, 
+  CalendarDays, 
+  PoundSterling, 
+  Car, 
+  Hourglass, 
+  BookOpen, 
+  Clock, 
+  ArrowRight, 
+  Gauge, 
+  TrendingUp, 
+  ShieldAlert, 
+  Calendar, 
+  ChevronDown, 
+  ChevronUp, 
+  Settings2, 
+  GraduationCap, 
+  Shield, 
+  ClipboardCheck, 
+  Check, 
+  X, 
+  Inbox, 
+  RefreshCw,
+  Hand,
+  Zap,
+  Infinity
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -607,51 +633,49 @@ const Dashboard: React.FC = () => {
   if (userRole === 'student') return <StudentDashboard />;
 
   return (
-    <>
-      <div className="space-y-8 w-full px-4 lg:px-8 py-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorSettings?.first_name || "Instructor"}</h1>
-            <div className="flex flex-wrap items-center gap-3">
-              {instructorSettings?.instructor_pin && (
-                <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
-                  <Shield className="h-3.5 w-3.5" />
-                  <span>Student PIN: <span className="font-mono tracking-widest">{instructorSettings.instructor_pin}</span></span>
-                </div>
-              )}
-              {subscriptionStatus === 'lifetime' ? (
-                <Badge className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-full"><Infinity className="h-3.5 w-3.5 mr-1.5" /> Lifetime</Badge>
-              ) : subscriptionStatus === 'trialing' ? (
-                <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full"><Clock className="h-3.5 w-3.5 mr-1.5" /> Trial</Badge>
-              ) : subscriptionStatus === 'active' ? (
-                <Badge className="bg-green-600 hover:bg-green-700 font-bold px-3 py-1 rounded-full"><Zap className="h-3.5 w-3.5 mr-1.5" /> Pro</Badge>
-              ) : null}
-              <Button variant="ghost" size="icon" onClick={handleRefresh} className="h-8 w-8 rounded-full hover:bg-primary/10" title="Refresh Data">
-                <RefreshCw className={cn("h-4 w-4", isFetching > 0 && "animate-spin")} />
-              </Button>
-            </div>
+    <div className="space-y-8 w-full px-4 lg:px-8 py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-black tracking-tight text-foreground">{getGreeting()}, {instructorSettings?.first_name || "Instructor"}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            {instructorSettings?.instructor_pin && (
+              <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
+                <Shield className="h-3.5 w-3.5" />
+                <span>Student PIN: <span className="font-mono tracking-widest">{instructorSettings.instructor_pin}</span></span>
+              </div>
+            )}
+            {subscriptionStatus === 'lifetime' ? (
+              <Badge className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-full"><Infinity className="h-3.5 w-3.5 mr-1.5" /> Lifetime</Badge>
+            ) : subscriptionStatus === 'trialing' ? (
+              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full"><Clock className="h-3.5 w-3.5 mr-1.5" /> Trial</Badge>
+            ) : subscriptionStatus === 'active' ? (
+              <Badge className="bg-green-600 hover:bg-green-700 font-bold px-3 py-1 rounded-full"><Zap className="h-3.5 w-3.5 mr-1.5" /> Pro</Badge>
+            ) : null}
+            <Button variant="ghost" size="icon" onClick={handleRefresh} className="h-8 w-8 rounded-full hover:bg-primary/10" title="Refresh Data">
+              <RefreshCw className={cn("h-4 w-4", isFetching > 0 && "animate-spin")} />
+            </Button>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {widgets.filter(w => w.visible).map((widget) => {
-            if (widget.id === "pending_requests" && (!pendingRequests || pendingRequests.length === 0)) return null;
-            return (
-              <div key={widget.id} className={cn(
-                widget.id === "quick_stats" && "lg:col-span-3",
-                widget.id === "pending_requests" && "lg:col-span-3",
-                widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
-                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "pending_requests") && "lg:col-span-1"
-              )}>
-                {renderWidget(widget.id)}
-              </div>
-            );
-          })}
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {widgets.filter(w => w.visible).map((widget) => {
+          if (widget.id === "pending_requests" && (!pendingRequests || pendingRequests.length === 0)) return null;
+          return (
+            <div key={widget.id} className={cn(
+              widget.id === "quick_stats" && "lg:col-span-3",
+              widget.id === "pending_requests" && "lg:col-span-3",
+              widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
+              (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "pending_requests") && "lg:col-span-1"
+            )}>
+              {renderWidget(widget.id)}
+            </div>
+          );
+        })}
+      </div>
 
-        <div className="flex justify-center pt-8 border-t">
-          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)} className="shadow-sm font-bold"><Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard</Button>
-        </div>
+      <div className="flex justify-center pt-8 border-t">
+        <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)} className="shadow-sm font-bold"><Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard</Button>
       </div>
 
       <DashboardCustomizer
@@ -661,7 +685,7 @@ const Dashboard: React.FC = () => {
         onUpdateWidgets={(newWidgets) => { setWidgets(newWidgets); localStorage.setItem("dashboard_widgets", JSON.stringify(newWidgets)); }}
         onReset={() => { setWidgets(DEFAULT_WIDGETS); localStorage.removeItem("dashboard_widgets"); }}
       />
-    </>
+    </div>
   );
 };
 
