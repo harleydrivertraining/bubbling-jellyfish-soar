@@ -117,7 +117,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          // Fetch profile but don't let it block the entire app if it's slow
           fetchProfileData(initialSession.user.id);
           fetchInitialBookings(initialSession.user.id);
           
@@ -175,6 +174,34 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       clearTimeout(timer);
     };
   }, [navigate, location.pathname, fetchInitialBookings, fetchProfileData]);
+
+  // Real-time profile listener for status changes
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`profile-updates-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`
+        },
+        (payload) => {
+          if (payload.new) {
+            setSubscriptionStatus(payload.new.subscription_status);
+            setUserRole(payload.new.role?.toLowerCase() || 'instructor');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   if (isLoading) {
     return (

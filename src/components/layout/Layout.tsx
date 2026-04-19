@@ -33,9 +33,13 @@ const Layout = () => {
     const isInstructor = userRole === 'instructor' || userRole === 'owner';
     
     // If instructor is not active and not on the subscription page, redirect them
-    if (isInstructor && subscriptionStatus !== 'active' && !isSubscriptionPage) {
-      // We allow 'trialing' status for now, but you can change this to strictly 'active'
-      if (subscriptionStatus !== 'trialing') {
+    if (isInstructor && !isSubscriptionPage) {
+      const hasAccess = 
+        subscriptionStatus === 'active' || 
+        subscriptionStatus === 'trialing' || 
+        subscriptionStatus === 'lifetime';
+
+      if (!hasAccess) {
         navigate("/subscription", { replace: true });
       }
     }
