@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, Lock, Mail } from "lucide-react";
+import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, Lock, Mail, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import ProfileSettingsForm from "@/components/ProfileSettingsForm";
@@ -11,10 +11,11 @@ import NotificationSettingsForm from "@/components/NotificationSettingsForm";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
 import ChangeEmailForm from "@/components/ChangeEmailForm";
 import MenuCustomizer from "@/components/MenuCustomizer";
+import BillingSettings from "@/components/BillingSettings";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type SettingsTab = "profile" | "notifications" | "menu" | "account";
+type SettingsTab = "profile" | "notifications" | "menu" | "billing" | "account";
 
 const Settings: React.FC = () => {
   const { user } = useSession();
@@ -62,6 +63,7 @@ const Settings: React.FC = () => {
     { id: "profile", label: "Profile", icon: UserCog },
     { id: "notifications", label: "Alerts", icon: Bell },
     { id: "menu", label: "Menu", icon: LayoutList },
+    { id: "billing", label: "Billing", icon: CreditCard },
     { id: "account", label: "Security", icon: ShieldCheck },
   ];
 
@@ -128,7 +130,10 @@ const Settings: React.FC = () => {
               <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                 <MenuCustomizer />
               </CardContent>
-            </Card>
+            )}
+
+          {activeTab === "billing" && !isStudent && (
+            <BillingSettings />
           )}
 
           {activeTab === "account" && (
