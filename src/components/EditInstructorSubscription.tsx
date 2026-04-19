@@ -12,7 +12,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { ShieldCheck, Zap, Ban, Loader2, Infinity } from "lucide-react";
+import { ShieldCheck, Zap, Ban, Loader2, Infinity, Clock } from "lucide-react";
 
 interface EditInstructorSubscriptionProps {
   instructorId: string;
@@ -33,18 +33,27 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
   const handleUpdate = async () => {
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
+      // We use select() to verify the update actually happened
+      const { data, error, count } = await supabase
         .from("profiles")
-        .update({ subscription_status: status })
-        .eq("id", instructorId);
+        .update({ 
+          subscription_status: status,
+          updated_at: new Date().toISOString() 
+        })
+        .eq("id", instructorId)
+        .select();
 
       if (error) throw error;
 
-      showSuccess(`Subscription updated for ${instructorName}`);
+      if (!data || data.length === 0) {
+        throw new Error("No changes were made. This might be due to database permissions (RLS).");
+      }
+
+      showSuccess(`Subscription set to ${status} for ${instructorName}`);
       onSuccess();
     } catch (error: any) {
       console.error("Update error:", error);
-      showError("Failed to update subscription: " + error.message);
+      showError(error.message || "Failed to update subscription.");
     } finally {
       setIsSubmitting(false);
     }
@@ -53,7 +62,7 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
   return (
     <div className="space-y-6 py-4">
       <div className="space-y-2">
-        <Label>Subscription Status for {instructorName}</Label>
+        <Label className="text-xs font-bold uppercase text-muted-foreground">Subscription Status for {instructorName}</Label>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-full h-12 font-bold">
             <SelectValue placeholder="Select status" />
@@ -62,43 +71,50 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
             <SelectItem value="active" className="py-3">
               <div className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-green-600" />
-                <span>Active (Monthly)</span>
+                <span className="font-bold">Active (Pro)</span>
               </div>
             </SelectItem>
             <SelectItem value="lifetime" className="py-3">
               <div className="flex items-center gap-2">
                 <Infinity className="h-4 w-4 text-blue-600" />
-                <span>Lifetime Access</span>
+                <span className="font-bold">Lifetime Access</span>
               </div>
             </SelectItem>
             <SelectItem value="trialing" className="py-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-orange-600" />
-                <span>Trialing</span>
+                <Clock className="h-4 w-4 text-orange-600" />
+                <span className="font-bold">Trialing</span>
               </div>
             </SelectItem>
             <SelectItem value="inactive" className="py-3">
               <div className="flex items-center gap-2">
                 <Ban className="h-4 w-4 text-destructive" />
-                <span>Inactive / Cancelled</span>
+                <span className="font-bold">Inactive / Cancelled</span>
               </div>
             </SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="bg-muted/50 p-4 rounded-lg text-xs text-muted-foreground space-y-2">
-        <p><strong>Active:</strong> Grants full access to all features.</p>
-        <p><strong>Lifetime:</strong> Permanent access that never expires.</p>
-        <p><strong>Inactive:</strong> Restricts access to the subscription page only.</p>
+      <div className="bg-muted/50 p-4 rounded-xl text-[11px] text-muted-foreground space-y-2 border">
+        <p><strong>Active:</strong> Full access to all professional features.</p>
+        <p><strong>Lifetime:</strong> Permanent professional access that never expires.</p>
+        <p><strong>Inactive:</strong> Restricts the instructor to the subscription page only.</p>
       </div>
 
       <Button 
         onClick={handleUpdate} 
-        className="w-full font-bold h-11" 
+        className="w-full font-bold h-12 text-lg" 
         disabled={isSubmitting}
       >
-        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : "Save Subscription Status"}
+        {isSubmitting ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            Updating...
+          </>
+        ) : (
+          "Save Subscription Status"
+        )}
       </Button>
     </div>
   );
