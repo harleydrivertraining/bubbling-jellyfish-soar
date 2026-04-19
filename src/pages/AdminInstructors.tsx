@@ -22,7 +22,8 @@ import {
   CreditCard,
   Infinity,
   Zap,
-  Ban
+  Ban,
+  Clock
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
