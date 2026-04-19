@@ -8,6 +8,7 @@ interface SessionContextType {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
+  isProfileLoading: boolean;
   subscriptionStatus: string | null;
   userRole: string | null;
 }
@@ -20,35 +21,26 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const initializationStarted = useRef(false);
 
   const fetchProfileData = useCallback(async (userId: string) => {
+    setIsProfileLoading(true);
     try {
-      // We use a timeout for the profile fetch so it doesn't hang the whole app
-      const profilePromise = supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("role, subscription_status")
         .eq("id", userId)
         .single();
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Profile fetch timeout")), 3000)
-      );
-
-      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
       
       if (!error && data) {
         setUserRole(data.role?.toLowerCase() || 'instructor');
         setSubscriptionStatus(data.subscription_status || 'trialing');
-      } else {
-        // Default to instructor/trialing if profile is missing or error occurs
-        setUserRole('instructor');
-        setSubscriptionStatus('trialing');
       }
     } catch (e) {
-      console.warn("Profile fetch failed or timed out, using defaults:", e);
-      setUserRole('instructor');
-      setSubscriptionStatus('trialing');
+      console.warn("Background profile fetch failed:", e);
+    } finally {
+      setIsProfileLoading(false);
     }
   }, []);
 
@@ -56,49 +48,35 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     if (initializationStarted.current) return;
     initializationStarted.current = true;
 
-    let mounted = true;
-
     const initialize = async () => {
-      // Safety timeout: If we're still "loading" after 6 seconds, force the app to show something
-      const forceLoadTimeout = setTimeout(() => {
-        if (mounted && isLoading) {
-          console.warn("Session initialization taking too long, forcing load state.");
-          setIsLoading(false);
-        }
-      }, 6000);
-
       try {
+        // 1. Get session immediately from local storage/cache
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
-        if (mounted) {
-          if (initialSession) {
-            setSession(initialSession);
-            setUser(initialSession.user);
-            await fetchProfileData(initialSession.user.id);
-          }
-          clearTimeout(forceLoadTimeout);
-          setIsLoading(false);
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
+          // Start fetching profile in background, DON'T await it here
+          fetchProfileData(initialSession.user.id);
         }
+        
+        // 2. Release the main app loader immediately
+        setIsLoading(false);
       } catch (error) {
-        console.error("Initialization error:", error);
-        if (mounted) {
-          clearTimeout(forceLoadTimeout);
-          setIsLoading(false);
-        }
+        console.error("Auth init error:", error);
+        setIsLoading(false);
       }
     };
 
     initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!mounted) return;
-
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (currentSession?.user) {
-          await fetchProfileData(currentSession.user.id);
+          fetchProfileData(currentSession.user.id);
         }
       } else if (event === 'SIGNED_OUT') {
         setSubscriptionStatus(null);
@@ -107,7 +85,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     });
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
     };
   }, [fetchProfileData]);
@@ -115,8 +92,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-muted-foreground font-medium animate-pulse">Securing Session...</p>
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
       </div>
     );
   }
@@ -126,6 +102,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       session, 
       user, 
       isLoading, 
+      isProfileLoading,
       subscriptionStatus,
       userRole
     }}>

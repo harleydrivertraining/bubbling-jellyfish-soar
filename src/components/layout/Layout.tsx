@@ -6,7 +6,7 @@ import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const { session, user, isLoading, subscriptionStatus, userRole } = useSession();
+  const { session, user, isLoading, isProfileLoading, subscriptionStatus, userRole } = useSession();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // Auth Guard: Redirect to login if not authenticated
@@ -29,9 +29,9 @@ const Layout = () => {
     }
   }, [session, isLoading, navigate]);
 
-  // Subscription Guard: Redirect to subscription page if inactive
+  // Subscription Guard: Only run when profile data is actually available
   useEffect(() => {
-    if (isLoading || !session) return;
+    if (isLoading || isProfileLoading || !session || !userRole) return;
 
     const isSubscriptionPage = location.pathname === "/subscription";
     const isInstructor = userRole === 'instructor' || userRole === 'owner';
@@ -46,7 +46,7 @@ const Layout = () => {
         navigate("/subscription", { replace: true });
       }
     }
-  }, [subscriptionStatus, userRole, session, isLoading, location.pathname, navigate]);
+  }, [subscriptionStatus, userRole, session, isLoading, isProfileLoading, location.pathname, navigate]);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -62,7 +62,7 @@ const Layout = () => {
     fetchLogo();
   }, [user]);
 
-  if (isLoading) return null; // Let SessionContextProvider handle the main loader
+  if (isLoading) return null;
 
   const getPageTitle = (pathname: string) => {
     if (pathname === "/") return "Dashboard";
@@ -96,6 +96,10 @@ const Layout = () => {
     return "Instructor App";
   };
 
+  // If we have a session but are still waiting for the role/subscription info,
+  // we show the layout shell but a loader in the content area.
+  const showContentLoader = session && !userRole && isProfileLoading;
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
@@ -116,14 +120,21 @@ const Layout = () => {
           </header>
         )}
 
-        {(isMobile === true || isMobile === undefined) && (
+        {isMobile === true && (
           <div className="sticky top-0 z-[40] flex justify-center p-2 bg-background/80 backdrop-blur-sm border-b">
             <BookingRequestAlert />
           </div>
         )}
         
         <main className={cn("flex-1 overflow-auto p-4 lg:p-6", isMobile ? "pb-32 pt-2" : "pb-6")}>
-          <Outlet />
+          {showContentLoader ? (
+            <div className="h-full flex flex-col items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary/40 mb-4" />
+              <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Loading Profile...</p>
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
         
         <footer className={cn("p-4 text-center text-sm text-gray-500 dark:text-gray-400", isMobile ? "pb-28" : "pb-4")}>
