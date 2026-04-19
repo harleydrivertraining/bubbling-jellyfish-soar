@@ -64,16 +64,13 @@ const OwnerDashboard: React.FC = () => {
         activeInstructorsThisWeek: activeRes.count ?? 0
       });
 
-      // 2. Fetch Claims with a simpler join to avoid errors
+      // 2. Fetch Claims
+      // We use a simpler query first to see if we get anything at all
       const { data: claimsData, error: claimsError } = await supabase
         .from("subscription_claims")
         .select(`
-          id, 
-          stripe_session_id, 
-          created_at, 
-          user_id, 
-          status,
-          profiles!subscription_claims_user_id_fkey (
+          *,
+          profiles (
             first_name, 
             last_name, 
             email
@@ -83,8 +80,10 @@ const OwnerDashboard: React.FC = () => {
         .order("created_at", { ascending: true });
 
       if (claimsError) {
-        console.error("Claims fetch error:", claimsError);
+        console.error("Detailed Claims Error:", claimsError);
+        showError("Database error: " + claimsError.message);
       } else {
+        console.log("Fetched Claims:", claimsData);
         setPendingClaims((claimsData as any[]) || []);
       }
 
@@ -249,8 +248,8 @@ const OwnerDashboard: React.FC = () => {
             <CardContent>
               <div className="text-4xl font-black">{stats?.openSupportRequests}</div>
             </CardContent>
-          </Card>
-        </Link>
+          </Link>
+        </div>
       </div>
     </div>
   );
