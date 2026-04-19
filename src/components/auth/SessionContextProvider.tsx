@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,7 +24,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   
   const navigate = useNavigate();
   const location = useLocation();
-  const isInitialMount = useRef(true);
 
   const fetchProfileData = useCallback(async (userId: string) => {
     try {
@@ -37,33 +36,51 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       if (!error && data) {
         setUserRole(data.role?.toLowerCase() || 'instructor');
         setSubscriptionStatus(data.subscription_status || 'trialing');
+      } else {
+        // Fallback for new users or missing profiles
+        setUserRole('instructor');
+        setSubscriptionStatus('trialing');
       }
     } catch (e) {
       console.error("Profile fetch error:", e);
     }
   }, []);
 
-  // Initial session check
   useEffect(() => {
-    const initSession = async () => {
+    let mounted = true;
+
+    // Safety timeout: If session doesn't load in 5 seconds, clear the loading state
+    const timer = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn("Session initialization timed out. Clearing loading state.");
+        setIsLoading(false);
+      }
+    }, 5000);
+
+    const initialize = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
-        if (initialSession) {
-          setSession(initialSession);
-          setUser(initialSession.user);
-          await fetchProfileData(initialSession.user.id);
+        if (mounted) {
+          if (initialSession) {
+            setSession(initialSession);
+            setUser(initialSession.user);
+            await fetchProfileData(initialSession.user.id);
+          }
+          setIsLoading(false);
+          clearTimeout(timer);
         }
       } catch (error) {
-        console.error("Session init error:", error);
-      } finally {
-        setIsLoading(false);
+        console.error("Initialization error:", error);
+        if (mounted) setIsLoading(false);
       }
     };
 
-    initSession();
+    initialize();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (!mounted) return;
+
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
@@ -74,15 +91,19 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       } else if (event === 'SIGNED_OUT') {
         setSubscriptionStatus(null);
         setUserRole(null);
+        // Force redirect to login on sign out
+        navigate("/login", { replace: true });
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
+      clearTimeout(timer);
     };
-  }, [fetchProfileData]);
+  }, [fetchProfileData, navigate]);
 
-  // Navigation Guard
+  // Navigation Guard - Only runs when loading is finished
   useEffect(() => {
     if (isLoading) return;
 
@@ -90,39 +111,13 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     const isPublicRoute = publicRoutes.includes(location.pathname);
 
     if (!session && !isPublicRoute) {
+      console.log("No session found, redirecting to login");
       navigate("/login", { replace: true });
     } else if (session && isPublicRoute) {
+      console.log("Session found on public route, redirecting to home");
       navigate("/", { replace: true });
     }
   }, [session, isLoading, location.pathname, navigate]);
-
-  // Real-time profile listener
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel(`profile-updates-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-          filter: `id=eq.${user.id}`
-        },
-        (payload) => {
-          if (payload.new) {
-            setSubscriptionStatus(payload.new.subscription_status);
-            setUserRole(payload.new.role?.toLowerCase() || 'instructor');
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
 
   if (isLoading) {
     return (
