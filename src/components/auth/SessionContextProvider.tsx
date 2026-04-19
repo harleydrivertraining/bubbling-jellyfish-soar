@@ -48,15 +48,19 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const isInitialMount = useRef(true);
 
   const fetchProfileData = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("role, subscription_status")
-      .eq("id", userId)
-      .single();
-    
-    if (!error && data) {
-      setUserRole(data.role?.toLowerCase() || 'instructor');
-      setSubscriptionStatus(data.subscription_status || 'trialing');
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role, subscription_status")
+        .eq("id", userId)
+        .single();
+      
+      if (!error && data) {
+        setUserRole(data.role?.toLowerCase() || 'instructor');
+        setSubscriptionStatus(data.subscription_status || 'trialing');
+      }
+    } catch (e) {
+      console.error("Profile fetch error:", e);
     }
   }, []);
 
@@ -93,17 +97,28 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   useEffect(() => {
+    // Safety timeout: If session check takes more than 6 seconds, force loading to false
+    const timer = setTimeout(() => {
+      if (isLoading) {
+        console.warn("Session initialization timed out, forcing load.");
+        setIsLoading(false);
+      }
+    }, 6000);
+
     const getInitialSession = async () => {
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
         
+        if (sessionError) throw sessionError;
+
         const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
         const isPublicRoute = publicRoutes.includes(location.pathname);
 
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          await fetchProfileData(initialSession.user.id);
+          // Fetch profile but don't let it block the entire app if it's slow
+          fetchProfileData(initialSession.user.id);
           fetchInitialBookings(initialSession.user.id);
           
           if (isPublicRoute) {
@@ -118,6 +133,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         console.error("Error getting initial session:", error);
       } finally {
         setIsLoading(false);
+        clearTimeout(timer);
       }
     };
 
@@ -135,7 +151,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         setUser(currentSession?.user ?? null);
         
         if (currentSession?.user) {
-          await fetchProfileData(currentSession.user.id);
+          fetchProfileData(currentSession.user.id);
           fetchInitialBookings(currentSession.user.id);
         }
         
@@ -154,7 +170,10 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timer);
+    };
   }, [navigate, location.pathname, fetchInitialBookings, fetchProfileData]);
 
   if (isLoading) {
