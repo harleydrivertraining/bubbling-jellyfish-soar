@@ -26,6 +26,8 @@ interface SessionContextType {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
+  subscriptionStatus: string | null;
+  userRole: string | null;
   initialBookings: Booking[] | null;
   isLoadingInitialBookings: boolean;
   refreshInitialBookings: () => Promise<void>;
@@ -36,12 +38,27 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [initialBookings, setInitialBookings] = useState<Booking[] | null>(null);
   const [isLoadingInitialBookings, setIsLoadingInitialBookings] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const isInitialMount = useRef(true);
+
+  const fetchProfileData = useCallback(async (userId: string) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role, subscription_status")
+      .eq("id", userId)
+      .single();
+    
+    if (!error && data) {
+      setUserRole(data.role?.toLowerCase() || 'instructor');
+      setSubscriptionStatus(data.subscription_status || 'trialing');
+    }
+  }, []);
 
   const fetchInitialBookings = useCallback(async (userId: string) => {
     if (isLoadingInitialBookings) return;
@@ -78,7 +95,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     const getInitialSession = async () => {
       try {
-        // This retrieves the session from localStorage if it exists
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
@@ -87,14 +103,13 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
+          await fetchProfileData(initialSession.user.id);
           fetchInitialBookings(initialSession.user.id);
           
-          // Only redirect to home if they are currently on a login/signup page
           if (isPublicRoute) {
             navigate("/", { replace: true });
           }
         } else {
-          // If no session and not on a public route, send to login
           if (!isPublicRoute) {
             navigate("/login", { replace: true });
           }
@@ -120,6 +135,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         setUser(currentSession?.user ?? null);
         
         if (currentSession?.user) {
+          await fetchProfileData(currentSession.user.id);
           fetchInitialBookings(currentSession.user.id);
         }
         
@@ -129,6 +145,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
+        setSubscriptionStatus(null);
+        setUserRole(null);
         setInitialBookings(null);
         if (!isPublicRoute) {
           navigate("/login", { replace: true });
@@ -137,7 +155,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, location.pathname, fetchInitialBookings]);
+  }, [navigate, location.pathname, fetchInitialBookings, fetchProfileData]);
 
   if (isLoading) {
     return (
@@ -153,6 +171,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       session, 
       user, 
       isLoading, 
+      subscriptionStatus,
+      userRole,
       initialBookings, 
       isLoadingInitialBookings,
       refreshInitialBookings

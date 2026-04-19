@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import MobileMenuButton from "./MobileMenuButton";
 import BottomNav from "./BottomNav";
@@ -18,13 +18,28 @@ import AIAssistant from "@/components/AIAssistant";
 const Layout = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const { user } = useSession();
+  const { user, subscriptionStatus, userRole } = useSession();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
   };
+
+  // Subscription Guard Logic
+  useEffect(() => {
+    const isSubscriptionPage = location.pathname === "/subscription";
+    const isInstructor = userRole === 'instructor' || userRole === 'owner';
+    
+    // If instructor is not active and not on the subscription page, redirect them
+    if (isInstructor && subscriptionStatus !== 'active' && !isSubscriptionPage) {
+      // We allow 'trialing' status for now, but you can change this to strictly 'active'
+      if (subscriptionStatus !== 'trialing') {
+        navigate("/subscription", { replace: true });
+      }
+    }
+  }, [subscriptionStatus, userRole, location.pathname, navigate]);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -49,9 +64,9 @@ const Layout = () => {
     fetchLogo();
   }, [user]);
 
-  // Helper to get page title based on route
   const getPageTitle = (pathname: string) => {
     if (pathname === "/") return "Dashboard";
+    if (pathname === "/subscription") return "Subscription";
     if (pathname.startsWith("/students/")) return "Student Profile";
     if (pathname === "/students") return "Students";
     if (pathname === "/schedule") return "Schedule";
@@ -84,11 +99,9 @@ const Layout = () => {
   return (
     <React.Fragment>
       <div className="flex min-h-screen bg-background text-foreground">
-        {/* Desktop Sidebar */}
         {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
 
         <div className="flex flex-col flex-1">
-          {/* Header - Desktop Only */}
           {isMobile === false && (
             <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
               <div className="flex items-center gap-4">
@@ -116,7 +129,6 @@ const Layout = () => {
             </header>
           )}
 
-          {/* Mobile Top Alert Bar - Show if mobile or still detecting */}
           {(isMobile === true || isMobile === undefined) && (
             <div className="sticky top-0 z-[40] flex justify-center p-2 bg-background/80 backdrop-blur-sm border-b">
               <BookingRequestAlert />
@@ -138,10 +150,8 @@ const Layout = () => {
           </footer>
         </div>
         
-        {/* Mobile Bottom Navigation */}
         <BottomNav logoUrl={logoUrl} />
 
-        {/* AI Assistant */}
         <AIAssistant />
       </div>
     </React.Fragment>

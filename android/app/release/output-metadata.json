@@ -4,15 +4,15 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "com.hdtstudent.app",
+  "applicationId": "com.hdt.app",
   "variantName": "release",
   "elements": [
     {
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 21,
-      "versionName": "3.5",
+      "versionCode": 22,
+      "versionName": "3.6",
       "outputFile": "app-release.apk"
     }
   ],

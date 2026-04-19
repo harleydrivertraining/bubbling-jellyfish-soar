@@ -38,6 +38,7 @@ const Accounts = lazy(() => import("./pages/Accounts"));
 const PendingRequests = lazy(() => import("./pages/PendingRequests"));
 const InstructorMessages = lazy(() => import("./pages/InstructorMessages"));
 const TodoList = lazy(() => import("./pages/TodoList"));
+const Subscription = lazy(() => import("./pages/Subscription"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
@@ -85,6 +86,7 @@ const AppContent = () => {
         <Route path="/signup-success" element={<SignupSuccess />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="subscription" element={<Subscription />} />
           <Route path="students" element={<Students />} />
           <Route path="students/:studentId" element={<StudentProfile />} />
           <Route path="schedule" element={<Schedule />} />
