@@ -11,7 +11,7 @@ const PLANS = [
   {
     id: "monthly",
     name: "Monthly Pro",
-    price: "14.99",
+    price: "3.99",
     interval: "month",
     description: "Perfect for individual instructors.",
     features: [
