@@ -1,22 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock, AlertCircle } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
 
 const PLANS = [
   {
     id: "monthly",
     name: "Monthly Pro",
     price: "3.99",
-    priceId: "price_your_actual_stripe_price_id", // Replace with your Stripe Price ID
+    // REPLACE THIS with your actual Stripe Payment Link URL
+    paymentLink: "https://buy.stripe.com/test_your_actual_link", 
     interval: "month",
     description: "Perfect for individual instructors.",
     features: [
@@ -32,33 +31,14 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { user, subscriptionStatus, userRole } = useSession();
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const { subscriptionStatus, userRole } = useSession();
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
   const isInstructor = userRole === 'instructor';
   const isRestricted = isInstructor && !isSubscribed;
 
-  const handleSubscribe = async (plan: typeof PLANS[0]) => {
-    setLoadingPlan(plan.id);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('stripe-management', {
-        body: { 
-          action: isSubscribed ? 'portal' : 'checkout', 
-          priceId: plan.priceId,
-          returnUrl: window.location.origin + "/subscription"
-        }
-      });
-
-      if (error) throw error;
-      if (data?.url) window.location.href = data.url;
-    } catch (err: any) {
-      console.error("Stripe error:", err);
-      showError("Could not connect to Stripe. Ensure your Edge Function is deployed and API keys are set.");
-    } finally {
-      setLoadingPlan(null);
-    }
+  const handleSubscribe = (link: string) => {
+    window.open(link, "_blank");
   };
 
   const getStatusBadge = () => {
@@ -87,7 +67,9 @@ const Subscription: React.FC = () => {
             <AlertCircle className="h-5 w-5" />
             <AlertTitle className="font-black text-lg">Please Subscribe to use the app</AlertTitle>
             <AlertDescription className="font-medium">
-              Your account is currently inactive. Choose a plan below to unlock all professional features and start managing your students.
+              Your account is currently inactive. Choose a plan below to unlock all professional features. 
+              <br /><br />
+              <span className="text-xs opacity-80">Note: After paying, your account will be activated by our team within 24 hours.</span>
             </AlertDescription>
           </Alert>
         </div>
@@ -101,11 +83,6 @@ const Subscription: React.FC = () => {
         <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
           {isSubscribed ? "Your Subscription" : "Choose Your Plan"}
         </h1>
-        <p className="text-lg text-muted-foreground font-medium">
-          {isSubscribed 
-            ? "You have full access to all professional features. Manage your billing below."
-            : "Unlock the full power of the Driving Instructor App and streamline your business today."}
-        </p>
       </div>
 
       <div className="flex justify-center w-full max-w-md">
@@ -146,33 +123,14 @@ const Subscription: React.FC = () => {
                   "w-full font-bold h-12 text-lg",
                   isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"
                 )}
-                variant={plan.highlight ? "default" : "outline"}
-                onClick={() => handleSubscribe(plan)}
-                disabled={loadingPlan !== null}
+                onClick={() => handleSubscribe(plan.paymentLink)}
               >
-                {loadingPlan === plan.id ? <Loader2 className="h-5 w-5 animate-spin" /> : 
-                 isSubscribed ? "Manage Subscription" : `Get Started with ${plan.name}`}
+                {isSubscribed ? "Manage Subscription" : `Get Started with ${plan.name}`}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </CardFooter>
           </Card>
         ))}
-      </div>
-
-      <div className="mt-12 flex flex-col items-center gap-4 text-center">
-        <div className="flex items-center gap-6 text-muted-foreground opacity-60">
-          <div className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase">Secure Payment</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase">Instant Activation</span>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground max-w-md">
-          Subscriptions are managed via Stripe. You can cancel or change your plan at any time from your account settings.
-        </p>
       </div>
     </div>
   );
