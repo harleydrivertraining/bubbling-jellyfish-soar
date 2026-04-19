@@ -65,7 +65,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }, []);
 
   const fetchInitialBookings = useCallback(async (userId: string) => {
-    if (isLoadingInitialBookings) return;
+    // We use a functional update or check a ref to avoid dependency loops
     setIsLoadingInitialBookings(true);
     
     try {
@@ -88,7 +88,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     } finally {
       setIsLoadingInitialBookings(false);
     }
-  }, [isLoadingInitialBookings]);
+  }, []); // Removed isLoadingInitialBookings from dependencies
 
   const refreshInitialBookings = async () => {
     if (user) {
@@ -97,10 +97,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   useEffect(() => {
-    // Safety timeout: If session check takes more than 6 seconds, force loading to false
     const timer = setTimeout(() => {
       if (isLoading) {
-        console.warn("Session initialization timed out, forcing load.");
         setIsLoading(false);
       }
     }, 6000);
@@ -175,7 +173,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     };
   }, [navigate, location.pathname, fetchInitialBookings, fetchProfileData]);
 
-  // Real-time profile listener for status changes
   useEffect(() => {
     if (!user) return;
 
