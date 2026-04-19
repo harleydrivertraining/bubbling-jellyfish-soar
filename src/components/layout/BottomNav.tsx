@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, CalendarDays, Menu, Sparkles, Bell, Bot } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Menu, Sparkles, Bell, Bot, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./Sidebar";
@@ -16,18 +16,17 @@ interface BottomNavProps {
 
 const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
   const location = useLocation();
-  const { user } = useSession();
+  const { user, subscriptionStatus, userRole } = useSession();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isStudent, setIsStudent] = useState(false);
 
   useEffect(() => {
-    const checkRole = async () => {
-      if (!user) return;
-      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-      setIsStudent(data?.role?.toLowerCase() === 'student');
-    };
-    checkRole();
-  }, [user]);
+    if (userRole === 'student') {
+      setIsStudent(true);
+    } else {
+      setIsStudent(false);
+    }
+  }, [userRole]);
 
   const toggleAssistant = () => {
     window.dispatchEvent(new Event('toggle-instructor-assistant'));
@@ -39,6 +38,28 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
   );
 
   const labelClasses = "text-[10px] font-bold mt-1 uppercase tracking-tight";
+
+  const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
+  const isInstructor = userRole === 'instructor';
+  const isRestricted = isInstructor && !isSubscribed;
+
+  if (isRestricted) {
+    return (
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-lg border-t border-border shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.15)] pb-safe">
+        <div className="flex items-center justify-around h-16 px-2">
+          <Link to="/subscription" className={navItemClasses(location.pathname === "/subscription")}>
+            <CreditCard className="h-5 w-5" />
+            <span className={labelClasses}>Subscribe</span>
+          </Link>
+          <Link to="/settings" className={navItemClasses(location.pathname === "/settings")}>
+            <Bot className="h-5 w-5" />
+            <span className={labelClasses}>Account</span>
+          </Link>
+        </div>
+        <div className="h-8 w-full bg-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-lg border-t border-border shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.15)] pb-safe">
@@ -90,7 +111,6 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
           <span className={cn(labelClasses, "text-muted-foreground")}>Alerts</span>
         </div>
       </div>
-      {/* Increased spacer height to clear Android system navigation bar/gestures */}
       <div className="h-8 w-full bg-transparent" />
     </div>
   );

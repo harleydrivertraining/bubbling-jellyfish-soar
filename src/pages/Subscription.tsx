@@ -3,10 +3,11 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock, AlertCircle } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const PLANS = [
   {
@@ -28,24 +29,22 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { user, subscriptionStatus } = useSession();
+  const { user, subscriptionStatus, userRole } = useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
-  const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing' || subscriptionStatus === 'lifetime';
+  const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
+  const isInstructor = userRole === 'instructor';
+  const isRestricted = isInstructor && !isSubscribed;
 
   const handleSubscribe = (planId: string) => {
     if (isSubscribed) {
-      // In a real app, this would redirect to the Stripe Customer Portal
       window.open("https://billing.stripe.com/p/login/test_your_portal_link", "_blank");
       return;
     }
 
     setLoadingPlan(planId);
-    // In a real implementation, this would call a Supabase Edge Function 
-    // to create a Stripe Checkout session and redirect the user.
     console.log(`Redirecting to Stripe for plan: ${planId}`);
     
-    // For now, we'll show a message
     setTimeout(() => {
       alert("Stripe Integration Required: To complete this, you'll need to connect your Stripe account in the Supabase dashboard.");
       setLoadingPlan(null);
@@ -57,13 +56,6 @@ const Subscription: React.FC = () => {
       return (
         <Badge className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-full mb-4">
           <Infinity className="h-3.5 w-3.5 mr-1.5" /> Lifetime Access Active
-        </Badge>
-      );
-    }
-    if (subscriptionStatus === 'trialing') {
-      return (
-        <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full mb-4">
-          <Clock className="h-3.5 w-3.5 mr-1.5" /> Trial Period Active
         </Badge>
       );
     }
@@ -79,6 +71,18 @@ const Subscription: React.FC = () => {
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4">
+      {isRestricted && (
+        <div className="w-full max-w-md mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+          <Alert variant="destructive" className="border-2 shadow-lg bg-destructive/5">
+            <AlertCircle className="h-5 w-5" />
+            <AlertTitle className="font-black text-lg">Please Subscribe to use the app</AlertTitle>
+            <AlertDescription className="font-medium">
+              Your account is currently inactive. Choose a plan below to unlock all professional features and start managing your students.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
       <div className="text-center max-w-2xl mb-12 space-y-4">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">
           <ShieldCheck className="h-3 w-3" />

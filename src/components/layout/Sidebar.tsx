@@ -102,10 +102,9 @@ const DEFAULT_NAV_ITEMS = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) => {
-  const { user } = useSession();
+  const { user, subscriptionStatus, userRole } = useSession();
   const navigate = useNavigate();
   const [isOwner, setIsOwner] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [navItems, setNavItems] = useState(DEFAULT_NAV_ITEMS);
 
   const handleLogout = async () => {
@@ -119,6 +118,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
   };
 
   const loadConfig = useCallback(() => {
+    const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
+    const isInstructor = userRole === 'instructor';
+
+    if (isInstructor && !isSubscribed) {
+      setNavItems([
+        { id: "subscription", to: "/subscription", icon: CreditCard, label: "Subscription" },
+        { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
+      ]);
+      return;
+    }
+
+    if (userRole === 'student') {
+      setNavItems([
+        { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
+        { id: "messages", to: "/?tab=messages", icon: Inbox, label: "Messages" },
+        { id: "available-slots", to: "/available-slots", icon: Sparkles, label: "Available Slots" },
+        { id: "progress-report", to: "/progress-report", icon: TrendingUp, label: "Progress Report" },
+        { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
+        { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
+      ]);
+      return;
+    }
+
     let items = [...DEFAULT_NAV_ITEMS];
     const saved = localStorage.getItem("sidebar_menu_config");
     
@@ -140,19 +162,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
       }
     }
 
-    if (userRole === 'student') {
-      items = [
-        { id: "dashboard", to: "/", icon: LayoutDashboard, label: "Dashboard" },
-        { id: "messages", to: "/?tab=messages", icon: Inbox, label: "Messages" },
-        { id: "available-slots", to: "/available-slots", icon: Sparkles, label: "Available Slots" },
-        { id: "progress-report", to: "/progress-report", icon: TrendingUp, label: "Progress Report" },
-        { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
-        { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
-      ];
-    }
-
     setNavItems(items);
-  }, [userRole]);
+  }, [userRole, subscriptionStatus]);
 
   useEffect(() => {
     loadConfig();
@@ -165,7 +176,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
       if (!user) return;
       const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
       const role = data?.role?.toLowerCase() || null;
-      setUserRole(role);
       setIsOwner(role === 'owner');
     };
     checkRole();

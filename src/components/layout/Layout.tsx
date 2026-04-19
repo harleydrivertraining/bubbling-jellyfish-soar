@@ -29,17 +29,17 @@ const Layout = () => {
     }
   }, [session, isLoading, navigate]);
 
-  // Subscription Guard: Only run when profile data is actually available
+  // Subscription Guard: Strictly enforce Pro/Lifetime for instructors
   useEffect(() => {
     if (isLoading || isProfileLoading || !session || !userRole) return;
 
     const isSubscriptionPage = location.pathname === "/subscription";
-    const isInstructor = userRole === 'instructor' || userRole === 'owner';
+    const isSettingsPage = location.pathname === "/settings";
+    const isInstructor = userRole === 'instructor';
     
-    if (isInstructor && !isSubscriptionPage) {
+    if (isInstructor && !isSubscriptionPage && !isSettingsPage) {
       const hasAccess = 
         subscriptionStatus === 'active' || 
-        subscriptionStatus === 'trialing' || 
         subscriptionStatus === 'lifetime';
 
       if (!hasAccess) {
@@ -96,9 +96,12 @@ const Layout = () => {
     return "Instructor App";
   };
 
-  // If we have a session but are still waiting for the role/subscription info,
-  // we show the layout shell but a loader in the content area.
   const showContentLoader = session && !userRole && isProfileLoading;
+
+  // Check if instructor is restricted
+  const isRestrictedInstructor = userRole === 'instructor' && 
+    subscriptionStatus !== 'active' && 
+    subscriptionStatus !== 'lifetime';
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -108,19 +111,25 @@ const Layout = () => {
         {isMobile === false && (
           <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className="h-8 w-8">
-                {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              </Button>
+              {!isRestrictedInstructor && (
+                <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className="h-8 w-8">
+                  {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                </Button>
+              )}
               <h2 className="text-lg font-semibold">{getPageTitle(location.pathname)}</h2>
             </div>
             <div className="flex items-center gap-4">
-              <BookingRequestAlert />
-              <NotificationBell />
+              {!isRestrictedInstructor && (
+                <>
+                  <BookingRequestAlert />
+                  <NotificationBell />
+                </>
+              )}
             </div>
           </header>
         )}
 
-        {isMobile === true && (
+        {isMobile === true && !isRestrictedInstructor && (
           <div className="sticky top-0 z-[40] flex justify-center p-2 bg-background/80 backdrop-blur-sm border-b">
             <BookingRequestAlert />
           </div>
@@ -143,7 +152,7 @@ const Layout = () => {
       </div>
       
       <BottomNav logoUrl={logoUrl} />
-      <AIAssistant />
+      {!isRestrictedInstructor && <AIAssistant />}
     </div>
   );
 };
