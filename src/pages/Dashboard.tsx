@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { format, isAfter, startOfMonth, endOfMonth, subYears, differenceInMinutes, startOfDay, endOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, differenceInDays } from "date-fns";
-import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, AlertCircle, Hand, ClipboardCheck, Check, X, Inbox, RefreshCw, ListTodo, Zap, Infinity } from "lucide-react";
+import { Users, CalendarDays, PoundSterling, Car, Hourglass, BookOpen, Clock, ArrowRight, Gauge, TrendingUp, ShieldAlert, Calendar, ChevronDown, ChevronUp, Settings2, GraduationCap, Shield, ClipboardCheck, Check, X, Inbox, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
@@ -63,7 +63,6 @@ const Dashboard: React.FC = () => {
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [widgets, setWidgets] = useState<DashboardWidget[]>(DEFAULT_WIDGETS);
 
-  // Load widgets from localStorage
   useEffect(() => {
     const savedWidgets = localStorage.getItem("dashboard_widgets");
     if (savedWidgets) {
@@ -80,7 +79,6 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // Fetch only the specific instructor settings we need (hourly rate, pin)
   const { data: instructorSettings } = useQuery({
     queryKey: ['instructor-settings', user?.id],
     queryFn: async () => {
@@ -98,7 +96,6 @@ const Dashboard: React.FC = () => {
 
   const isInstructor = userRole === 'instructor';
 
-  // Pending Requests Query
   const { data: pendingRequests } = useQuery({
     queryKey: ['pending-requests', user?.id],
     queryFn: async () => {
@@ -114,7 +111,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Students Count Query
   const { data: studentsCount } = useQuery({
     queryKey: ['students-count', user?.id],
     queryFn: async () => {
@@ -128,7 +124,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Bookings Query
   const { data: bookingsData } = useQuery({
     queryKey: ['dashboard-bookings', user?.id],
     queryFn: async () => {
@@ -144,7 +139,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Revenue Query
   const { data: revenue } = useQuery({
     queryKey: ['revenue', user?.id, revenueTimeframe, instructorSettings?.hourly_rate],
     queryFn: async () => {
@@ -170,7 +164,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor && !!instructorSettings?.hourly_rate,
   });
 
-  // Booked Hours Query
   const { data: bookedHours } = useQuery({
     queryKey: ['booked-hours', user?.id, selectedWeekStartISO],
     queryFn: async () => {
@@ -195,7 +188,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Driving Test Stats Query
   const { data: testStats } = useQuery({
     queryKey: ['test-stats-dashboard', user?.id],
     queryFn: async () => {
@@ -220,7 +212,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Service Info Query
   const { data: serviceInfo } = useQuery({
     queryKey: ['service-info', user?.id],
     queryFn: async () => {
@@ -266,7 +257,6 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Pre-paid Hours Query
   const { data: prePaidInfo } = useQuery({
     queryKey: ['prepaid-info', user?.id],
     queryFn: async () => {
@@ -617,7 +607,7 @@ const Dashboard: React.FC = () => {
   if (userRole === 'student') return <StudentDashboard />;
 
   return (
-    <React.Fragment>
+    <>
       <div className="space-y-8 w-full px-4 lg:px-8 py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -671,7 +661,7 @@ const Dashboard: React.FC = () => {
         onUpdateWidgets={(newWidgets) => { setWidgets(newWidgets); localStorage.setItem("dashboard_widgets", JSON.stringify(newWidgets)); }}
         onReset={() => { setWidgets(DEFAULT_WIDGETS); localStorage.removeItem("dashboard_widgets"); }}
       />
-    </React.Fragment>
+    </>
   );
 };
 
