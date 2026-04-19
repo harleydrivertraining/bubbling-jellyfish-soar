@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,6 +24,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   
   const navigate = useNavigate();
   const location = useLocation();
+  const isInitialMount = useRef(true);
 
   const fetchProfileData = useCallback(async (userId: string) => {
     try {
@@ -42,27 +43,16 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, []);
 
+  // Initial session check
   useEffect(() => {
-    // 1. Get initial session
     const initSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
-        setSession(initialSession);
-        setUser(initialSession?.user ?? null);
-
-        if (initialSession?.user) {
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
           await fetchProfileData(initialSession.user.id);
-        }
-
-        // Handle initial routing
-        const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
-        const isPublicRoute = publicRoutes.includes(location.pathname);
-
-        if (initialSession && isPublicRoute) {
-          navigate("/", { replace: true });
-        } else if (!initialSession && !isPublicRoute) {
-          navigate("/login", { replace: true });
         }
       } catch (error) {
         console.error("Session init error:", error);
@@ -73,11 +63,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
     initSession();
 
-    // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
-      const isPublicRoute = publicRoutes.includes(location.pathname);
-
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
@@ -85,25 +71,32 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (currentSession?.user) {
           await fetchProfileData(currentSession.user.id);
         }
-        // Redirect to home if user just signed in while on a public page
-        if (isPublicRoute && event === 'SIGNED_IN') {
-          navigate("/", { replace: true });
-        }
       } else if (event === 'SIGNED_OUT') {
         setSubscriptionStatus(null);
         setUserRole(null);
-        if (!isPublicRoute) {
-          navigate("/login", { replace: true });
-        }
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate, fetchProfileData]); // location.pathname is intentionally omitted to avoid loops, but used inside the listener
+  }, [fetchProfileData]);
 
-  // 3. Real-time profile listener for status changes
+  // Navigation Guard
+  useEffect(() => {
+    if (isLoading) return;
+
+    const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
+    const isPublicRoute = publicRoutes.includes(location.pathname);
+
+    if (!session && !isPublicRoute) {
+      navigate("/login", { replace: true });
+    } else if (session && isPublicRoute) {
+      navigate("/", { replace: true });
+    }
+  }, [session, isLoading, location.pathname, navigate]);
+
+  // Real-time profile listener
   useEffect(() => {
     if (!user) return;
 
