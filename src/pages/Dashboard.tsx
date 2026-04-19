@@ -553,7 +553,7 @@ const Dashboard: React.FC = () => {
           </Card>
         );
       }
-      case "service_info":
+      case "service_info": {
         const isServiceWarning = !!serviceInfo && serviceInfo.minMiles !== null && serviceInfo.minMiles < 1000;
         return (
           <Card key={id} className={cn("shadow-sm h-full", isServiceWarning ? "bg-orange-50 border-orange-200" : "")}>
@@ -572,7 +572,8 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
         );
-      case "prepaid_info":
+      }
+      case "prepaid_info": {
         const isPrepaidWarning = !!prePaidInfo && prePaidInfo.total !== null && prePaidInfo.total <= 2;
         return (
           <Card key={id} className={cn("shadow-sm h-full", isPrepaidWarning ? "bg-red-50 border-red-200" : "")}>
@@ -595,6 +596,7 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
         );
+      }
       default:
         return null;
     }
