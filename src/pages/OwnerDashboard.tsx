@@ -4,9 +4,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format, startOfWeek } from "date-fns";
@@ -21,22 +21,25 @@ interface PlatformStats {
   activeInstructorsThisWeek: number;
 }
 
-interface RecentSupport {
+interface PaymentClaim {
   id: string;
-  subject: string;
+  stripe_session_id: string;
   created_at: string;
   profiles: {
+    id: string;
     first_name: string;
     last_name: string;
+    email: string;
   };
 }
 
 const OwnerDashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [recentSupport, setRecentSupport] = useState<RecentSupport[]>([]);
+  const [pendingClaims, setPendingClaims] = useState<PaymentClaim[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const fetchOwnerData = useCallback(async () => {
     if (!user) return;
@@ -45,58 +48,26 @@ const OwnerDashboard: React.FC = () => {
     try {
       const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
 
-      // Fetch instructor count
-      const { count: instructorCount, error: instructorError } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .ilike("role", "instructor");
-
-      if (instructorError) throw instructorError;
-
-      // Fetch active instructors this week (based on updated_at)
-      const { count: activeInstructorCount, error: activeError } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .ilike("role", "instructor")
-        .gte("updated_at", weekStart.toISOString());
-
-      if (activeError) throw activeError;
-
-      // Fetch total students
-      const { count: studentCount, error: studentError } = await supabase
-        .from("students")
-        .select("id", { count: "exact", head: true });
-
-      if (studentError) throw studentError;
-
-      // Fetch open support requests
-      const { count: supportCount, error: supportError } = await supabase
-        .from("support_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "open");
-
-      if (supportError) throw supportError;
-
-      // Fetch recent support activity
-      const { data: recentSupportData, error: recentSupportError } = await supabase
-        .from("support_messages")
-        .select("*, profiles(first_name, last_name)")
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (recentSupportError) throw recentSupportError;
+      // Fetch stats
+      const [instRes, activeRes, studRes, suppRes, claimsRes] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "instructor"),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "instructor").gte("updated_at", weekStart.toISOString()),
+        supabase.from("students").select("id", { count: "exact", head: true }),
+        supabase.from("support_messages").select("id", { count: "exact", head: true }).eq("status", "open"),
+        supabase.from("subscription_claims").select("*, profiles(id, first_name, last_name, email)").eq("status", "pending").order("created_at", { ascending: true })
+      ]);
 
       setStats({
-        totalInstructors: instructorCount ?? 0,
-        totalStudents: studentCount ?? 0,
-        openSupportRequests: supportCount ?? 0,
-        activeInstructorsThisWeek: activeInstructorCount ?? 0
+        totalInstructors: instRes.count ?? 0,
+        totalStudents: studRes.count ?? 0,
+        openSupportRequests: suppRes.count ?? 0,
+        activeInstructorsThisWeek: activeRes.count ?? 0
       });
 
-      setRecentSupport(recentSupportData || []);
+      setPendingClaims(claimsRes.data as any || []);
     } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
-      showError("Failed to load platform statistics: " + error.message);
+      showError("Failed to load platform statistics.");
     } finally {
       setIsLoading(false);
     }
@@ -106,19 +77,49 @@ const OwnerDashboard: React.FC = () => {
     if (!isSessionLoading) fetchOwnerData();
   }, [isSessionLoading, fetchOwnerData]);
 
-  if (isSessionLoading || isLoading) {
-    return (
-      <div className="space-y-8 p-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-6 md:grid-cols-3">
-          {[1, 2, 3].map(i => <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent></Card>)}
-        </div>
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
+  const handleApproveClaim = async (claim: PaymentClaim) => {
+    setProcessingId(claim.id);
+    try {
+      // 1. Update Profile to Active
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ subscription_status: 'active' })
+        .eq("id", claim.profiles.id);
 
-  const showRLSWarning = stats && stats.totalInstructors === 0 && stats.totalStudents === 0;
+      if (profileError) throw profileError;
+
+      // 2. Update Claim to Approved
+      await supabase
+        .from("subscription_claims")
+        .update({ status: 'approved' })
+        .eq("id", claim.id);
+
+      // 3. Notify User
+      await supabase.from("notifications").insert({
+        user_id: claim.profiles.id,
+        title: "Account Activated!",
+        message: "Your professional subscription has been verified. Welcome to the Pro plan!",
+        type: "subscription_activated"
+      });
+
+      showSuccess(`Activated ${claim.profiles.first_name}'s account.`);
+      fetchOwnerData();
+    } catch (err: any) {
+      showError("Failed to approve: " + err.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectClaim = async (id: string) => {
+    await supabase.from("subscription_claims").update({ status: 'rejected' }).eq("id", id);
+    showSuccess("Claim rejected.");
+    fetchOwnerData();
+  };
+
+  if (isSessionLoading || isLoading) {
+    return <div className="space-y-8 p-6"><Skeleton className="h-10 w-64" /><div className="grid gap-6 md:grid-cols-3"><Skeleton className="h-32 w-full" /></div></div>;
+  }
 
   return (
     <div className="space-y-8 w-full px-4 lg:px-8 py-6 max-w-7xl mx-auto">
@@ -128,42 +129,62 @@ const OwnerDashboard: React.FC = () => {
             <ShieldCheck className="h-8 w-8 text-primary" />
             Owner Control Panel
           </h1>
-          <p className="text-muted-foreground font-medium mt-1">Platform-wide overview and management.</p>
         </div>
         <div className="flex items-center gap-3">
           <Dialog open={isBroadcastOpen} onOpenChange={setIsBroadcastOpen}>
             <DialogTrigger asChild>
-              <Button className="font-bold bg-primary hover:bg-primary/90">
-                <Megaphone className="mr-2 h-4 w-4" /> Global Broadcast
-              </Button>
+              <Button className="font-bold"><Megaphone className="mr-2 h-4 w-4" /> Global Broadcast</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Send Global Broadcast</DialogTitle>
-                <CardDescription>This will send a notification to every user on the platform.</CardDescription>
-              </DialogHeader>
-              <GlobalBroadcastForm onSuccess={() => setIsBroadcastOpen(false)} />
-            </DialogContent>
+            <DialogContent><GlobalBroadcastForm onSuccess={() => setIsBroadcastOpen(false)} /></DialogContent>
           </Dialog>
-          <Button onClick={fetchOwnerData} variant="outline" size="sm" className="font-bold">
-            <RefreshCw className="mr-2 h-4 w-4" /> Refresh Data
-          </Button>
+          <Button onClick={fetchOwnerData} variant="outline" size="sm" className="font-bold"><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
         </div>
       </div>
 
-      {showRLSWarning && (
-        <Card className="bg-amber-50 border-amber-200 text-amber-900">
-          <CardContent className="p-4 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-bold">No data found?</p>
-              <p className="opacity-90">If you expect to see instructors and students here, please ensure your Supabase <strong>Row Level Security (RLS)</strong> policies allow the 'owner' role to view all records in the <code>profiles</code> and <code>students</code> tables.</p>
+      {/* Pending Activations Widget */}
+      {pendingClaims.length > 0 && (
+        <Card className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-md overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-orange-800">
+              <CreditCard className="h-5 w-5 text-orange-600" />
+              Pending Activations ({pendingClaims.length})
+            </CardTitle>
+            <CardDescription className="text-orange-700/70">Instructors waiting for their subscription to be verified.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-orange-100">
+              {pendingClaims.map((claim) => (
+                <div key={claim.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
+                  <div className="min-w-0">
+                    <p className="font-bold text-orange-900">{claim.profiles.first_name} {claim.profiles.last_name}</p>
+                    <p className="text-xs text-orange-800/70 truncate">{claim.profiles.email}</p>
+                    <p className="text-[10px] font-mono text-orange-600 mt-1">Session: {claim.stripe_session_id.substring(0, 20)}...</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button 
+                      size="sm" 
+                      className="bg-green-600 hover:bg-green-700 font-bold h-9 px-4"
+                      onClick={() => handleApproveClaim(claim)}
+                      disabled={processingId === claim.id}
+                    >
+                      {processingId === claim.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-1.5 h-4 w-4" /> Activate</>}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-9"
+                      onClick={() => handleRejectClaim(claim.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Primary Stats Row */}
       <div className="grid gap-6 md:grid-cols-3">
         <Link to="/admin/instructors" className="block group">
           <Card className="border-l-4 border-l-primary shadow-sm group-hover:shadow-md transition-all">
@@ -173,9 +194,6 @@ const OwnerDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-black">{stats?.totalInstructors}</div>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                Active teaching accounts <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
-              </p>
             </CardContent>
           </Card>
         </Link>
@@ -187,7 +205,6 @@ const OwnerDashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-black">{stats?.totalStudents}</div>
-            <p className="text-xs text-muted-foreground mt-1">Learners across all instructors</p>
           </CardContent>
         </Card>
 
@@ -199,100 +216,9 @@ const OwnerDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-black">{stats?.openSupportRequests}</div>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                Requests needing attention <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
-              </p>
             </CardContent>
           </Card>
         </Link>
-      </div>
-
-      {/* Secondary Stats Row */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <Link to="/admin/instructors?filter=active" className="block group">
-          <Card className="border-l-4 border-l-indigo-500 shadow-sm group-hover:shadow-md transition-all">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Active This Week</CardTitle>
-              <UserCheck className="h-5 w-5 text-indigo-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-black">{stats?.activeInstructorsThisWeek}</div>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                Instructors active recently <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-        
-        {/* Placeholder for future stats to maintain grid layout */}
-        <div className="md:col-span-2" />
-      </div>
-
-      <div className="grid gap-8 lg:grid-cols-2">
-        <Card className="shadow-md border-none overflow-hidden">
-          <CardHeader className="bg-primary text-primary-foreground">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-bold flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Recent Support Activity
-              </CardTitle>
-              <Button asChild variant="secondary" size="sm">
-                <Link to="/admin/support">View All</Link>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {recentSupport.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground">No recent support requests.</div>
-            ) : (
-              <div className="divide-y">
-                {recentSupport.map((msg) => (
-                  <Link 
-                    key={msg.id} 
-                    to="/admin/support" 
-                    className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">{msg.subject}</p>
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-bold uppercase">
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" />
-                          {msg.profiles?.first_name} {msg.profiles?.last_name}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {format(new Date(msg.created_at), "MMM d, p")}
-                        </span>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="p-6 shadow-sm flex flex-col justify-center items-center text-center space-y-4">
-          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <ShieldCheck className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="text-xl font-bold">Platform Management</CardTitle>
-            <CardDescription className="mt-2">
-              As an owner, you have access to global settings and support tools. 
-              Use the sidebar to navigate between instructor support and platform configuration.
-            </CardDescription>
-          </div>
-          <div className="grid grid-cols-2 gap-3 w-full pt-4">
-            <Button asChild variant="outline" className="font-bold">
-              <Link to="/admin/instructors">Instructor List</Link>
-            </Button>
-            <Button asChild variant="outline" className="font-bold">
-              <Link to="/settings">Global Settings</Link>
-            </Button>
-          </div>
-        </Card>
       </div>
     </div>
   );

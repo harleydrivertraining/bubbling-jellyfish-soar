@@ -1,20 +1,23 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock, AlertCircle } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { showSuccess, showError } from "@/utils/toast";
 
 const PLANS = [
   {
     id: "monthly",
     name: "Monthly Pro",
     price: "3.99",
-    // REPLACE THIS with your actual Stripe Payment Link URL
+    // IMPORTANT: Add ?session_id={CHECKOUT_SESSION_ID} to your Stripe Payment Link "Success URL" settings
     paymentLink: "https://buy.stripe.com/test_your_actual_link", 
     interval: "month",
     description: "Perfect for individual instructors.",
@@ -31,11 +34,64 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { subscriptionStatus, userRole } = useSession();
+  const { user, subscriptionStatus, userRole } = useSession();
+  const [searchParams] = useSearchParams();
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimStatus, setClaimStatus] = useState<'none' | 'processing' | 'done'>('none');
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
   const isInstructor = userRole === 'instructor';
   const isRestricted = isInstructor && !isSubscribed;
+
+  // Detect return from Stripe
+  useEffect(() => {
+    const sessionId = searchParams.get("session_id");
+    if (sessionId && user && !isSubscribed && claimStatus === 'none') {
+      handleClaimPayment(sessionId);
+    }
+  }, [searchParams, user, isSubscribed]);
+
+  const handleClaimPayment = async (sessionId: string) => {
+    setIsClaiming(true);
+    setClaimStatus('processing');
+    
+    try {
+      // Check if this session was already claimed
+      const { data: existing } = await supabase
+        .from("subscription_claims")
+        .select("id")
+        .eq("stripe_session_id", sessionId)
+        .maybeSingle();
+
+      if (!existing) {
+        const { error } = await supabase
+          .from("subscription_claims")
+          .insert({
+            user_id: user?.id,
+            stripe_session_id: sessionId,
+            status: 'pending'
+          });
+
+        if (error) throw error;
+        
+        // Notify the owner
+        await supabase.from("notifications").insert({
+          user_id: '00000000-0000-0000-0000-000000000000', // Replace with your actual Owner ID or use a trigger
+          title: "New Payment to Verify",
+          message: "An instructor has completed checkout and is waiting for activation.",
+          type: "payment_claim"
+        });
+      }
+      
+      setClaimStatus('done');
+      showSuccess("Payment logged! An admin will activate your account shortly.");
+    } catch (err) {
+      console.error("Claim error:", err);
+      setClaimStatus('none');
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   const handleSubscribe = (link: string) => {
     window.open(link, "_blank");
@@ -61,15 +117,25 @@ const Subscription: React.FC = () => {
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4">
-      {isRestricted && (
+      {claimStatus === 'done' && (
+        <div className="w-full max-w-md mb-8 animate-in zoom-in-95 duration-300">
+          <Alert className="border-green-200 bg-green-50 text-green-900">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <AlertTitle className="font-black">Payment Received!</AlertTitle>
+            <AlertDescription className="font-medium">
+              We've logged your payment. Our team is verifying it now and will activate your professional features within 24 hours.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {isRestricted && claimStatus !== 'done' && (
         <div className="w-full max-w-md mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
           <Alert variant="destructive" className="border-2 shadow-lg bg-destructive/5">
             <AlertCircle className="h-5 w-5" />
             <AlertTitle className="font-black text-lg">Please Subscribe to use the app</AlertTitle>
             <AlertDescription className="font-medium">
               Your account is currently inactive. Choose a plan below to unlock all professional features. 
-              <br /><br />
-              <span className="text-xs opacity-80">Note: After paying, your account will be activated by our team within 24 hours.</span>
             </AlertDescription>
           </Alert>
         </div>
@@ -124,8 +190,10 @@ const Subscription: React.FC = () => {
                   isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"
                 )}
                 onClick={() => handleSubscribe(plan.paymentLink)}
+                disabled={isClaiming}
               >
-                {isSubscribed ? "Manage Subscription" : `Get Started with ${plan.name}`}
+                {isClaiming ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</> : 
+                 isSubscribed ? "Manage Subscription" : `Get Started with ${plan.name}`}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </CardFooter>
