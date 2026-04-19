@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2 } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format, startOfWeek } from "date-fns";
@@ -25,8 +25,9 @@ interface PaymentClaim {
   id: string;
   stripe_session_id: string;
   created_at: string;
+  user_id: string;
+  status: string;
   profiles: {
-    id: string;
     first_name: string;
     last_name: string;
     email: string;
@@ -48,13 +49,12 @@ const OwnerDashboard: React.FC = () => {
     try {
       const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
 
-      // Fetch stats
-      const [instRes, activeRes, studRes, suppRes, claimsRes] = await Promise.all([
+      // 1. Fetch Stats
+      const [instRes, activeRes, studRes, suppRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "instructor"),
         supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "instructor").gte("updated_at", weekStart.toISOString()),
         supabase.from("students").select("id", { count: "exact", head: true }),
-        supabase.from("support_messages").select("id", { count: "exact", head: true }).eq("status", "open"),
-        supabase.from("subscription_claims").select("*, profiles(id, first_name, last_name, email)").eq("status", "pending").order("created_at", { ascending: true })
+        supabase.from("support_messages").select("id", { count: "exact", head: true }).eq("status", "open")
       ]);
 
       setStats({
@@ -64,7 +64,30 @@ const OwnerDashboard: React.FC = () => {
         activeInstructorsThisWeek: activeRes.count ?? 0
       });
 
-      setPendingClaims(claimsRes.data as any || []);
+      // 2. Fetch Claims with a simpler join to avoid errors
+      const { data: claimsData, error: claimsError } = await supabase
+        .from("subscription_claims")
+        .select(`
+          id, 
+          stripe_session_id, 
+          created_at, 
+          user_id, 
+          status,
+          profiles!subscription_claims_user_id_fkey (
+            first_name, 
+            last_name, 
+            email
+          )
+        `)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+
+      if (claimsError) {
+        console.error("Claims fetch error:", claimsError);
+      } else {
+        setPendingClaims((claimsData as any[]) || []);
+      }
+
     } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
       showError("Failed to load platform statistics.");
@@ -84,7 +107,7 @@ const OwnerDashboard: React.FC = () => {
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ subscription_status: 'active' })
-        .eq("id", claim.profiles.id);
+        .eq("id", claim.user_id);
 
       if (profileError) throw profileError;
 
@@ -96,13 +119,13 @@ const OwnerDashboard: React.FC = () => {
 
       // 3. Notify User
       await supabase.from("notifications").insert({
-        user_id: claim.profiles.id,
+        user_id: claim.user_id,
         title: "Account Activated!",
         message: "Your professional subscription has been verified. Welcome to the Pro plan!",
         type: "subscription_activated"
       });
 
-      showSuccess(`Activated ${claim.profiles.first_name}'s account.`);
+      showSuccess(`Activated account for ${claim.profiles?.first_name || 'Instructor'}.`);
       fetchOwnerData();
     } catch (err: any) {
       showError("Failed to approve: " + err.message);
@@ -142,22 +165,31 @@ const OwnerDashboard: React.FC = () => {
       </div>
 
       {/* Pending Activations Widget */}
-      {pendingClaims.length > 0 && (
-        <Card className="border-l-4 border-l-orange-500 bg-orange-50/30 shadow-md overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-bold flex items-center gap-2 text-orange-800">
-              <CreditCard className="h-5 w-5 text-orange-600" />
-              Pending Activations ({pendingClaims.length})
-            </CardTitle>
-            <CardDescription className="text-orange-700/70">Instructors waiting for their subscription to be verified.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
+      <Card className={cn(
+        "border-l-4 shadow-md overflow-hidden transition-all",
+        pendingClaims.length > 0 ? "border-l-orange-500 bg-orange-50/30" : "border-l-muted bg-muted/5"
+      )}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <CreditCard className={cn("h-5 w-5", pendingClaims.length > 0 ? "text-orange-600" : "text-muted-foreground")} />
+            Pending Activations ({pendingClaims.length})
+          </CardTitle>
+          <CardDescription>Instructors waiting for their subscription to be verified.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {pendingClaims.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground italic text-sm flex items-center justify-center gap-2">
+              <Inbox className="h-4 w-4" /> No pending activations.
+            </div>
+          ) : (
             <div className="divide-y divide-orange-100">
               {pendingClaims.map((claim) => (
                 <div key={claim.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
                   <div className="min-w-0">
-                    <p className="font-bold text-orange-900">{claim.profiles.first_name} {claim.profiles.last_name}</p>
-                    <p className="text-xs text-orange-800/70 truncate">{claim.profiles.email}</p>
+                    <p className="font-bold text-orange-900">
+                      {claim.profiles?.first_name} {claim.profiles?.last_name || 'Unknown Instructor'}
+                    </p>
+                    <p className="text-xs text-orange-800/70 truncate">{claim.profiles?.email}</p>
                     <p className="text-[10px] font-mono text-orange-600 mt-1">Session: {claim.stripe_session_id.substring(0, 20)}...</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -181,9 +213,9 @@ const OwnerDashboard: React.FC = () => {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-3">
         <Link to="/admin/instructors" className="block group">
