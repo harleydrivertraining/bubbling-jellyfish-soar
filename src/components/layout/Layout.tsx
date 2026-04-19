@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import MobileMenuButton from "./MobileMenuButton";
 import BottomNav from "./BottomNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -20,19 +19,23 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const { user, subscriptionStatus, userRole } = useSession();
+  const { session, user, isLoading, subscriptionStatus, userRole } = useSession();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
-  const toggleSidebar = () => {
-    setIsCollapsed(!isCollapsed);
-  };
-
-  // Subscription Guard Logic
+  // Auth Guard: Redirect to login if not authenticated
   useEffect(() => {
+    if (!isLoading && !session) {
+      navigate("/login", { replace: true });
+    }
+  }, [session, isLoading, navigate]);
+
+  // Subscription Guard: Redirect to subscription page if inactive
+  useEffect(() => {
+    if (isLoading || !session) return;
+
     const isSubscriptionPage = location.pathname === "/subscription";
     const isInstructor = userRole === 'instructor' || userRole === 'owner';
     
-    // If instructor is not active and not on the subscription page, redirect them
     if (isInstructor && !isSubscriptionPage) {
       const hasAccess = 
         subscriptionStatus === 'active' || 
@@ -43,30 +46,23 @@ const Layout = () => {
         navigate("/subscription", { replace: true });
       }
     }
-  }, [subscriptionStatus, userRole, location.pathname, navigate]);
+  }, [subscriptionStatus, userRole, session, isLoading, location.pathname, navigate]);
 
   useEffect(() => {
     const fetchLogo = async () => {
       if (user) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("profiles")
           .select("logo_url")
           .eq("id", user.id)
           .single();
-
-        if (error) {
-          console.error("Error fetching logo URL:", error);
-          setLogoUrl(null);
-        } else if (data) {
-          setLogoUrl(data.logo_url);
-        }
-      } else {
-        setLogoUrl(null);
+        if (data) setLogoUrl(data.logo_url);
       }
     };
-
     fetchLogo();
   }, [user]);
+
+  if (isLoading) return null; // Let SessionContextProvider handle the main loader
 
   const getPageTitle = (pathname: string) => {
     if (pathname === "/") return "Dashboard";
@@ -101,64 +97,43 @@ const Layout = () => {
   };
 
   return (
-    <React.Fragment>
-      <div className="flex min-h-screen bg-background text-foreground">
-        {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
+    <div className="flex min-h-screen bg-background text-foreground">
+      {isMobile === false && <Sidebar isCollapsed={isCollapsed} logoUrl={logoUrl} />}
 
-        <div className="flex flex-col flex-1">
-          {isMobile === false && (
-            <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleSidebar}
-                  className="h-8 w-8"
-                >
-                  {isCollapsed ? (
-                    <ChevronRight className="h-4 w-4" />
-                  ) : (
-                    <ChevronLeft className="h-4 w-4" />
-                  )}
-                </Button>
-                <h2 className="text-lg font-semibold">
-                  {getPageTitle(location.pathname)}
-                </h2>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <BookingRequestAlert />
-                <NotificationBell />
-              </div>
-            </header>
-          )}
-
-          {(isMobile === true || isMobile === undefined) && (
-            <div className="sticky top-0 z-[40] flex justify-center p-2 bg-background/80 backdrop-blur-sm border-b">
-              <BookingRequestAlert />
+      <div className="flex flex-col flex-1">
+        {isMobile === false && (
+          <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className="h-8 w-8">
+                {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </Button>
+              <h2 className="text-lg font-semibold">{getPageTitle(location.pathname)}</h2>
             </div>
-          )}
-          
-          <main className={cn(
-            "flex-1 overflow-auto p-4 lg:p-6",
-            isMobile ? "pb-32 pt-2" : "pb-6"
-          )}>
-            <Outlet />
-          </main>
-          
-          <footer className={cn(
-            "p-4 text-center text-sm text-gray-500 dark:text-gray-400",
-            isMobile ? "pb-28" : "pb-4"
-          )}>
-            Driving Instructor App
-          </footer>
-        </div>
-        
-        <BottomNav logoUrl={logoUrl} />
+            <div className="flex items-center gap-4">
+              <BookingRequestAlert />
+              <NotificationBell />
+            </div>
+          </header>
+        )}
 
-        <AIAssistant />
+        {(isMobile === true || isMobile === undefined) && (
+          <div className="sticky top-0 z-[40] flex justify-center p-2 bg-background/80 backdrop-blur-sm border-b">
+            <BookingRequestAlert />
+          </div>
+        )}
+        
+        <main className={cn("flex-1 overflow-auto p-4 lg:p-6", isMobile ? "pb-32 pt-2" : "pb-6")}>
+          <Outlet />
+        </main>
+        
+        <footer className={cn("p-4 text-center text-sm text-gray-500 dark:text-gray-400", isMobile ? "pb-28" : "pb-4")}>
+          Driving Instructor App
+        </footer>
       </div>
-    </React.Fragment>
+      
+      <BottomNav logoUrl={logoUrl} />
+      <AIAssistant />
+    </div>
   );
 };
 

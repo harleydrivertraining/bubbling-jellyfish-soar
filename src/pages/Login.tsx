@@ -1,22 +1,32 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/integrations/supabase/client";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Phone, Lock, Shield, GraduationCap, UserCog } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
+import { useSession } from "@/components/auth/SessionContextProvider";
 
 const Login: React.FC = () => {
+  const navigate = useNavigate();
+  const { session, isLoading } = useSession();
   const [isStudentLoading, setIsStudentLoading] = useState(false);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
+
+  // If already logged in, go to dashboard
+  useEffect(() => {
+    if (!isLoading && session) {
+      navigate("/", { replace: true });
+    }
+  }, [session, isLoading, navigate]);
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +63,8 @@ const Login: React.FC = () => {
     }
   };
 
+  if (isLoading) return null;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -81,7 +93,7 @@ const Login: React.FC = () => {
                   variables: { default: { colors: { brand: "hsl(var(--primary))", brandAccent: "hsl(var(--primary-foreground))" } } },
                 }}
                 theme="light"
-                showLinks={false} // We handle links manually for better control
+                showLinks={false}
                 redirectTo={window.location.origin}
               />
               <div className="text-center pt-2">
