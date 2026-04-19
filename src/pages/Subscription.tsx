@@ -3,17 +3,20 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock, AlertCircle } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, CreditCard, ArrowRight, Infinity, Clock, AlertCircle, Loader2 } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { showError } from "@/utils/toast";
 
 const PLANS = [
   {
     id: "monthly",
     name: "Monthly Pro",
     price: "3.99",
+    priceId: "price_your_actual_stripe_price_id", // Replace with your Stripe Price ID
     interval: "month",
     description: "Perfect for individual instructors.",
     features: [
@@ -36,19 +39,26 @@ const Subscription: React.FC = () => {
   const isInstructor = userRole === 'instructor';
   const isRestricted = isInstructor && !isSubscribed;
 
-  const handleSubscribe = (planId: string) => {
-    if (isSubscribed) {
-      window.open("https://billing.stripe.com/p/login/test_your_portal_link", "_blank");
-      return;
-    }
-
-    setLoadingPlan(planId);
-    console.log(`Redirecting to Stripe for plan: ${planId}`);
+  const handleSubscribe = async (plan: typeof PLANS[0]) => {
+    setLoadingPlan(plan.id);
     
-    setTimeout(() => {
-      alert("Stripe Integration Required: To complete this, you'll need to connect your Stripe account in the Supabase dashboard.");
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-management', {
+        body: { 
+          action: isSubscribed ? 'portal' : 'checkout', 
+          priceId: plan.priceId,
+          returnUrl: window.location.origin + "/subscription"
+        }
+      });
+
+      if (error) throw error;
+      if (data?.url) window.location.href = data.url;
+    } catch (err: any) {
+      console.error("Stripe error:", err);
+      showError("Could not connect to Stripe. Ensure your Edge Function is deployed and API keys are set.");
+    } finally {
       setLoadingPlan(null);
-    }, 1000);
+    }
   };
 
   const getStatusBadge = () => {
@@ -137,10 +147,10 @@ const Subscription: React.FC = () => {
                   isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"
                 )}
                 variant={plan.highlight ? "default" : "outline"}
-                onClick={() => handleSubscribe(plan.id)}
+                onClick={() => handleSubscribe(plan)}
                 disabled={loadingPlan !== null}
               >
-                {loadingPlan === plan.id ? "Connecting..." : 
+                {loadingPlan === plan.id ? <Loader2 className="h-5 w-5 animate-spin" /> : 
                  isSubscribed ? "Manage Subscription" : `Get Started with ${plan.name}`}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>

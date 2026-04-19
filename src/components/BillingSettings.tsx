@@ -7,19 +7,31 @@ import { CreditCard, ExternalLink, Zap, Infinity, Clock, ShieldCheck, Loader2 } 
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { showError } from "@/utils/toast";
 
 const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleManageBilling = () => {
+  const handleManageBilling = async () => {
     setIsLoading(true);
-    // In a production app, this would call a Supabase Edge Function to create a Stripe Portal session
-    // For now, we'll use a placeholder link
-    setTimeout(() => {
-      window.open("https://billing.stripe.com/p/login/test_your_portal_link", "_blank");
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-management', {
+        body: { 
+          action: 'portal', 
+          returnUrl: window.location.origin + "/settings"
+        }
+      });
+
+      if (error) throw error;
+      if (data?.url) window.location.href = data.url;
+    } catch (err: any) {
+      console.error("Portal error:", err);
+      showError("Could not open billing portal. Ensure your Edge Function is deployed.");
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   const getStatusInfo = () => {
