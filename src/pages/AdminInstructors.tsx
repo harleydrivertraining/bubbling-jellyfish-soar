@@ -18,7 +18,11 @@ import {
   AlertTriangle,
   User,
   X,
-  Activity
+  Activity,
+  CreditCard,
+  Infinity,
+  Zap,
+  Ban
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -33,6 +37,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { startOfWeek } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import EditInstructorSubscription from "@/components/EditInstructorSubscription";
+import { cn } from "@/lib/utils";
 
 interface InstructorProfile {
   id: string;
@@ -42,6 +49,7 @@ interface InstructorProfile {
   logo_url: string | null;
   student_count: number;
   updated_at: string;
+  subscription_status: string | null;
 }
 
 const AdminInstructors: React.FC = () => {
@@ -52,6 +60,9 @@ const AdminInstructors: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  
+  const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
+  const [isSubDialogOpen, setIsSubDialogOpen] = useState(false);
 
   const filterType = searchParams.get("filter");
 
@@ -62,7 +73,6 @@ const AdminInstructors: React.FC = () => {
     setErrorDetail(null);
 
     try {
-      // 1. Verify owner role first
       const { data: myProfile, error: roleError } = await supabase
         .from("profiles")
         .select("role")
@@ -76,13 +86,11 @@ const AdminInstructors: React.FC = () => {
         return;
       }
 
-      // 2. Build query
       let query = supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, logo_url, role, updated_at")
+        .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status")
         .ilike("role", "instructor");
 
-      // Apply "Active This Week" filter if requested
       if (filterType === "active") {
         const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
         query = query.gte("updated_at", weekStart.toISOString());
@@ -90,12 +98,8 @@ const AdminInstructors: React.FC = () => {
 
       const { data: profiles, error: profilesError } = await query.order("last_name", { ascending: true });
 
-      if (profilesError) {
-        console.error("Profiles fetch error:", profilesError);
-        throw new Error("Database access denied. Error: " + profilesError.message);
-      }
+      if (profilesError) throw profilesError;
 
-      // 3. Fetch student counts
       let countMap: Record<string, number> = {};
       try {
         const { data: studentCounts } = await supabase
@@ -116,7 +120,8 @@ const AdminInstructors: React.FC = () => {
         email: p.email || "",
         logo_url: p.logo_url,
         student_count: countMap[p.id] || 0,
-        updated_at: p.updated_at
+        updated_at: p.updated_at,
+        subscription_status: p.subscription_status
       }));
 
       setInstructors(formatted);
@@ -140,6 +145,24 @@ const AdminInstructors: React.FC = () => {
 
   const clearFilter = () => {
     setSearchParams({});
+  };
+
+  const handleManageSub = (instructor: InstructorProfile) => {
+    setSelectedInstructor(instructor);
+    setIsSubDialogOpen(true);
+  };
+
+  const getStatusBadge = (status: string | null) => {
+    switch (status) {
+      case 'active':
+        return <Badge className="bg-green-600"><Zap className="h-3 w-3 mr-1" /> Active</Badge>;
+      case 'lifetime':
+        return <Badge className="bg-blue-600"><Infinity className="h-3 w-3 mr-1" /> Lifetime</Badge>;
+      case 'trialing':
+        return <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200"><Clock className="h-3 w-3 mr-1" /> Trial</Badge>;
+      default:
+        return <Badge variant="outline" className="text-muted-foreground"><Ban className="h-3 w-3 mr-1" /> Inactive</Badge>;
+    }
   };
 
   if (isSessionLoading || isLoading) {
@@ -231,12 +254,12 @@ const AdminInstructors: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="rounded-md border-t">
+          <div className="rounded-md border-t overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[300px]">Instructor</TableHead>
-                  <TableHead>Contact</TableHead>
+                  <TableHead className="w-[250px]">Instructor</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-center">Students</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -261,28 +284,33 @@ const AdminInstructors: React.FC = () => {
                           </Avatar>
                           <div className="min-w-0">
                             <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono truncate uppercase">{instructor.id.split('-')[0]}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{instructor.email}</p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-3.5 w-3.5" />
-                          <span className="truncate">{instructor.email || "No email"}</span>
-                        </div>
+                        {getStatusBadge(instructor.subscription_status)}
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex flex-col items-center">
-                          <span className="font-black text-lg">{instructor.student_count}</span>
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase">Active</span>
-                        </div>
+                        <span className="font-black text-lg">{instructor.student_count}</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="font-bold text-primary" asChild>
-                          <Link to={`/admin/support`}>
-                            Support <ExternalLink className="ml-1.5 h-3 w-3" />
-                          </Link>
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="font-bold border-primary/20 text-primary hover:bg-primary/5"
+                            onClick={() => handleManageSub(instructor)}
+                          >
+                            <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                            Manage Sub
+                          </Button>
+                          <Button variant="ghost" size="sm" className="font-bold text-muted-foreground" asChild>
+                            <Link to={`/admin/support`}>
+                              Support <ExternalLink className="ml-1.5 h-3 w-3" />
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -292,6 +320,28 @@ const AdminInstructors: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isSubDialogOpen} onOpenChange={setIsSubDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              Manage Subscription
+            </DialogTitle>
+          </DialogHeader>
+          {selectedInstructor && (
+            <EditInstructorSubscription
+              instructorId={selectedInstructor.id}
+              instructorName={`${selectedInstructor.first_name} ${selectedInstructor.last_name}`}
+              currentStatus={selectedInstructor.subscription_status}
+              onSuccess={() => {
+                setIsSubDialogOpen(false);
+                fetchInstructors();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
