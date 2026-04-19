@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import DashboardCustomizer, { DashboardWidget } from "@/components/DashboardCustomizer";
 import OwnerDashboard from "./OwnerDashboard";
 import StudentDashboard from "./StudentDashboard";
@@ -101,6 +102,7 @@ const Dashboard: React.FC = () => {
   const { data: pendingRequests } = useQuery({
     queryKey: ['pending-requests', user?.id],
     queryFn: async () => {
+      if (!user) return [];
       const { data } = await supabase
         .from("bookings")
         .select("id, title, start_time, end_time, student_id, students(name, auth_user_id)")
