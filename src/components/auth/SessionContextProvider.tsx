@@ -75,6 +75,9 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
     // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      const publicRoutes = ["/login", "/74985", "/signup-success", "/forgot-password", "/reset-password"];
+      const isPublicRoute = publicRoutes.includes(location.pathname);
+
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
@@ -82,17 +85,23 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (currentSession?.user) {
           await fetchProfileData(currentSession.user.id);
         }
+        // Redirect to home if user just signed in while on a public page
+        if (isPublicRoute && event === 'SIGNED_IN') {
+          navigate("/", { replace: true });
+        }
       } else if (event === 'SIGNED_OUT') {
         setSubscriptionStatus(null);
         setUserRole(null);
-        navigate("/login", { replace: true });
+        if (!isPublicRoute) {
+          navigate("/login", { replace: true });
+        }
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate, fetchProfileData]); // Removed location.pathname to prevent unnecessary re-runs
+  }, [navigate, fetchProfileData]); // location.pathname is intentionally omitted to avoid loops, but used inside the listener
 
   // 3. Real-time profile listener for status changes
   useEffect(() => {
