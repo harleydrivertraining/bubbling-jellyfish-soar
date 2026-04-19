@@ -27,7 +27,7 @@ interface PaymentClaim {
   created_at: string;
   user_id: string;
   status: string;
-  profiles: {
+  profiles?: {
     first_name: string;
     last_name: string;
     email: string;
@@ -64,30 +64,40 @@ const OwnerDashboard: React.FC = () => {
         activeInstructorsThisWeek: activeRes.count ?? 0
       });
 
-      // 2. Fetch Claims
+      // 2. Fetch Claims and Profiles separately to avoid join errors
       const { data: claimsData, error: claimsError } = await supabase
         .from("subscription_claims")
-        .select(`
-          *,
-          profiles (
-            first_name, 
-            last_name, 
-            email
-          )
-        `)
+        .select("*")
         .eq("status", "pending")
         .order("created_at", { ascending: true });
 
-      if (claimsError) {
-        console.error("Detailed Claims Error:", claimsError);
-        showError("Database error: " + claimsError.message);
+      if (claimsError) throw claimsError;
+
+      if (claimsData && claimsData.length > 0) {
+        const userIds = Array.from(new Set(claimsData.map(c => c.user_id)));
+        
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email")
+          .in("id", userIds);
+
+        if (profilesError) throw profilesError;
+
+        const profileMap = new Map(profilesData?.map(p => [p.id, p]));
+        
+        const mergedClaims = claimsData.map(claim => ({
+          ...claim,
+          profiles: profileMap.get(claim.user_id)
+        }));
+
+        setPendingClaims(mergedClaims);
       } else {
-        setPendingClaims((claimsData as any[]) || []);
+        setPendingClaims([]);
       }
 
     } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
-      showError("Failed to load platform statistics.");
+      showError("Failed to load platform statistics: " + error.message);
     } finally {
       setIsLoading(false);
     }
