@@ -93,6 +93,7 @@ const Dashboard: React.FC = () => {
       return data;
     },
     enabled: !!user,
+    staleTime: 1000 * 60 * 30, // Profile rarely changes
   });
 
   const userRole = profile?.role?.toLowerCase();
@@ -167,7 +168,7 @@ const Dashboard: React.FC = () => {
       data?.forEach(b => totalMins += differenceInMinutes(new Date(b.end_time), new Date(b.start_time)));
       return (totalMins / 60) * (profile?.hourly_rate || 0);
     },
-    enabled: !!user && isInstructor,
+    enabled: !!user && isInstructor && !!profile?.hourly_rate,
   });
 
   // Booked Hours Query
@@ -220,7 +221,7 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  // Service Info Query
+  // Service Info Query - Optimized to avoid N+1
   const { data: serviceInfo } = useQuery({
     queryKey: ['service-info', user?.id],
     queryFn: async () => {
@@ -231,10 +232,12 @@ const Dashboard: React.FC = () => {
 
       if (!cars || cars.length === 0) return null;
 
-      const mileageResults = await Promise.all(cars.map(async (car) => {
-        const { data } = await supabase.from("car_mileage_entries").select("current_mileage").eq("car_id", car.id).order("entry_date", { ascending: false }).limit(1).maybeSingle();
-        return { carId: car.id, currentMileage: data?.current_mileage || car.initial_mileage };
-      }));
+      // Fetch all latest mileage entries in one go
+      const { data: allMileage } = await supabase
+        .from("car_mileage_entries")
+        .select("car_id, current_mileage, entry_date")
+        .eq("user_id", user!.id)
+        .order("entry_date", { ascending: false });
 
       let minMiles: number | null = null;
       let carName: string | null = null;
@@ -242,7 +245,8 @@ const Dashboard: React.FC = () => {
 
       cars.forEach(car => {
         if (car.service_interval_miles && car.service_interval_miles > 0) {
-          const currentMileage = mileageResults.find(m => m.carId === car.id)?.currentMileage || car.initial_mileage;
+          const latestEntry = allMileage?.find(m => m.car_id === car.id);
+          const currentMileage = latestEntry?.current_mileage || car.initial_mileage;
           const milesUntil = ((Math.floor(currentMileage / car.service_interval_miles) + 1) * car.service_interval_miles) - currentMileage;
           
           const acquisitionDate = parseISO(car.acquisition_date);
@@ -299,7 +303,6 @@ const Dashboard: React.FC = () => {
     
     if (error) showError("Failed to approve.");
     else {
-      // Notify student
       if (authUserId) {
         const req = pendingRequests?.find(r => r.id === id);
         await supabase.from("notifications").insert({
@@ -309,7 +312,6 @@ const Dashboard: React.FC = () => {
           type: "booking_confirmed"
         });
       }
-
       showSuccess("Booking approved!");
       queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-bookings'] });
@@ -317,7 +319,6 @@ const Dashboard: React.FC = () => {
   };
 
   const handleReject = async (id: string, authUserId: string | null, startTime: string) => {
-    // Notify student first
     if (authUserId && startTime) {
       await supabase.from("notifications").insert({
         user_id: authUserId,
@@ -326,7 +327,6 @@ const Dashboard: React.FC = () => {
         type: "booking_rejected"
       });
     }
-
     const { error } = await supabase
       .from("bookings")
       .update({ status: "available", student_id: null, title: "Available Slot" })
@@ -334,7 +334,7 @@ const Dashboard: React.FC = () => {
     
     if (error) showError("Failed to reject.");
     else {
-      showSuccess("Booking rejected and slot returned to available.");
+      showSuccess("Booking rejected.");
       queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
     }
   };
@@ -372,7 +372,6 @@ const Dashboard: React.FC = () => {
       case "pending_requests": {
         const hasRequests = pendingRequests && pendingRequests.length > 0;
         if (!hasRequests) return null;
-
         return (
           <Card key={id} className="shadow-md overflow-hidden transition-all border-l-4 border-l-orange-500 bg-orange-50/30">
             <CardHeader className="pb-2">
@@ -380,9 +379,6 @@ const Dashboard: React.FC = () => {
                 <ClipboardCheck className="h-5 w-5 text-orange-600" />
                 Booking Requests ({pendingRequests.length})
               </CardTitle>
-              <CardDescription className="text-orange-700/70">
-                Students are waiting for you to confirm these slots.
-              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-orange-100">
@@ -396,21 +392,8 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button 
-                        size="sm" 
-                        className="bg-green-600 hover:bg-green-700 font-bold h-8"
-                        onClick={() => handleApprove(req.id, req.students?.name, req.students?.auth_user_id)}
-                      >
-                        <Check className="mr-1 h-4 w-4" /> Approve
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8"
-                        onClick={() => handleReject(req.id, req.students?.auth_user_id, req.start_time)}
-                      >
-                        <X className="mr-1 h-4 w-4" /> Reject
-                      </Button>
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold h-8" onClick={() => handleApprove(req.id, req.students?.name, req.students?.auth_user_id)}><Check className="mr-1 h-4 w-4" /> Approve</Button>
+                      <Button size="sm" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-8" onClick={() => handleReject(req.id, req.students?.auth_user_id, req.start_time)}><X className="mr-1 h-4 w-4" /> Reject</Button>
                     </div>
                   </div>
                 ))}
@@ -429,7 +412,6 @@ const Dashboard: React.FC = () => {
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="text-3xl sm:text-4xl font-black">{studentsCount ?? 0}</div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Active learners</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-orange-500 shadow-sm">
@@ -439,10 +421,8 @@ const Dashboard: React.FC = () => {
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="text-3xl sm:text-4xl font-black">{(bookingsData || []).filter(b => b.lesson_type === "Driving Test").length}</div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Test bookings</p>
               </CardContent>
             </Card>
-
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">
@@ -450,17 +430,12 @@ const Dashboard: React.FC = () => {
                   <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
                 </div>
                 <Select onValueChange={setSelectedWeekStartISO} defaultValue={selectedWeekStartISO}>
-                  <SelectTrigger className="w-full h-8 sm:h-10 text-xs sm:text-sm px-2">
-                    <SelectValue placeholder="Select Week" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-xs sm:text-sm">{o.label}</SelectItem>)}
-                  </SelectContent>
+                  <SelectTrigger className="w-full h-8 sm:h-10 text-xs sm:text-sm px-2"><SelectValue placeholder="Select Week" /></SelectTrigger>
+                  <SelectContent>{generateWeekOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-xs sm:text-sm">{o.label}</SelectItem>)}</SelectContent>
                 </Select>
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="text-3xl sm:text-4xl font-black">{(bookedHours ?? 0).toFixed(1)} <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">hrs</span></div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">Scheduled sessions</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
@@ -470,9 +445,7 @@ const Dashboard: React.FC = () => {
                   <PoundSterling className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                 </div>
                 <Select onValueChange={(value: RevenueTimeframe) => setRevenueTimeframe(value)} defaultValue={revenueTimeframe}>
-                  <SelectTrigger className="w-full h-8 text-xs sm:text-sm px-2">
-                    <SelectValue placeholder="Timeframe" />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-full h-8 text-xs sm:text-sm px-2"><SelectValue placeholder="Timeframe" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily" className="text-xs sm:text-sm">Today</SelectItem>
                     <SelectItem value="weekly" className="text-xs sm:text-sm">This Week</SelectItem>
@@ -482,10 +455,7 @@ const Dashboard: React.FC = () => {
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 {profile?.hourly_rate ? (
-                  <>
-                    <div className="text-3xl sm:text-4xl font-black">£{(revenue ?? 0).toFixed(2)}</div>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 font-medium">From Completed Lessons</p>
-                  </>
+                  <div className="text-3xl sm:text-4xl font-black">£{(revenue ?? 0).toFixed(2)}</div>
                 ) : (
                   <div className="text-[10px] sm:text-sm text-muted-foreground">Set <Link to="/settings" className="text-blue-500 hover:underline">rate</Link></div>
                 )}
@@ -503,19 +473,12 @@ const Dashboard: React.FC = () => {
             <CardHeader className="bg-primary text-primary-foreground p-4">
               <div className="flex flex-col gap-3">
                 <CardTitle className="text-xl font-bold">Upcoming Lessons</CardTitle>
-                <Button asChild variant="secondary" size="sm" className="w-full h-9">
-                  <Link to="/schedule" className="flex items-center justify-center">
-                    Full Schedule <Calendar className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
+                <Button asChild variant="secondary" size="sm" className="w-full h-9"><Link to="/schedule" className="flex items-center justify-center">Full Schedule <Calendar className="ml-2 h-4 w-4" /></Link></Button>
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 bg-card">
               {upcoming.length === 0 ? (
-                <div className="p-12 text-center">
-                  <Calendar className="h-16 w-16 text-muted-foreground/20 mx-auto mb-4" />
-                  <p className="text-muted-foreground font-medium">No upcoming lessons scheduled.</p>
-                </div>
+                <div className="p-12 text-center"><Calendar className="h-16 w-16 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground font-medium">No upcoming lessons.</p></div>
               ) : (
                 <ScrollArea className="h-full">
                   <div className="divide-y divide-muted">
@@ -523,10 +486,7 @@ const Dashboard: React.FC = () => {
                       const startTime = new Date(booking.start_time);
                       const isLessonToday = isToday(startTime);
                       return (
-                        <div key={booking.id} className={cn(
-                          "p-5 transition-all hover:bg-muted/30 flex items-start gap-5",
-                          isLessonToday && "bg-primary/5 border-l-4 border-l-primary"
-                        )}>
+                        <div key={booking.id} className={cn("p-5 transition-all hover:bg-muted/30 flex items-start gap-5", isLessonToday && "bg-primary/5 border-l-4 border-l-primary")}>
                           <div className="flex flex-col items-center justify-center min-w-[64px] py-2 rounded-xl bg-muted border shadow-sm">
                             <span className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">{format(startTime, "MMM")}</span>
                             <span className="text-2xl font-black leading-none">{format(startTime, "dd")}</span>
@@ -536,27 +496,17 @@ const Dashboard: React.FC = () => {
                               <h4 className="font-bold text-lg truncate text-foreground">{booking.students?.name || "Unknown Student"}</h4>
                               {isLessonToday && <Badge variant="default" className="bg-blue-600 text-[10px] font-bold h-5 px-2 shrink-0">TODAY</Badge>}
                             </div>
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              <Clock className="mr-2 h-4 w-4 text-primary/60 shrink-0" />
-                              <span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span>
-                            </div>
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              <BookOpen className="mr-2 h-4 w-4 text-primary/60 shrink-0" />
-                              <span className="capitalize font-medium">{booking.lesson_type}</span>
-                            </div>
+                            <div className="flex items-center text-sm text-muted-foreground"><Clock className="mr-2 h-4 w-4 text-primary/60 shrink-0" /><span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span></div>
+                            <div className="flex items-center text-sm text-muted-foreground"><BookOpen className="mr-2 h-4 w-4 text-primary/60 shrink-0" /><span className="capitalize font-medium">{booking.lesson_type}</span></div>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors shrink-0" asChild>
-                            <Link to="/schedule"><ArrowRight className="h-5 w-5" /></Link>
-                          </Button>
+                          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors shrink-0" asChild><Link to="/schedule"><ArrowRight className="h-5 w-5" /></Link></Button>
                         </div>
                       );
                     })}
                   </div>
                   {upcoming.length > 3 && (
                     <div className="p-4 text-center border-t bg-muted/5">
-                      <Button variant="ghost" size="sm" onClick={() => setShowAllLessons(!showAllLessons)} className="text-primary font-bold w-full py-6">
-                        {showAllLessons ? <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></> : <>View More ({upcoming.length - 3} more) <ChevronDown className="ml-2 h-4 w-4" /></>}
-                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setShowAllLessons(!showAllLessons)} className="text-primary font-bold w-full py-6">{showAllLessons ? <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></> : <>View More ({upcoming.length - 3} more) <ChevronDown className="ml-2 h-4 w-4" /></>}</Button>
                     </div>
                   )}
                 </ScrollArea>
@@ -569,28 +519,15 @@ const Dashboard: React.FC = () => {
         return (
           <Card key={id} className="p-6 shadow-sm h-full">
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <CardTitle className="text-lg font-bold">Test Performance</CardTitle>
-                <CardDescription className="text-sm">Last 12 months</CardDescription>
-              </div>
-              <Button asChild variant="ghost" size="sm" className="text-primary font-semibold">
-                <Link to="/test-statistics">Full Stats <ArrowRight className="ml-2 h-4 w-4" /></Link>
-              </Button>
+              <div><CardTitle className="text-lg font-bold">Test Performance</CardTitle><CardDescription className="text-sm">Last 12 months</CardDescription></div>
+              <Button asChild variant="ghost" size="sm" className="text-primary font-semibold"><Link to="/test-statistics">Full Stats <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
             </div>
             {testStats ? (
               <div className="grid gap-3 grid-cols-2">
-                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.passRate <= 55 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
-                  <TrendingUp className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Pass Rate</p><p className="text-2xl font-black">{testStats.passRate.toFixed(1)}%</p>
-                </div>
-                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.avgDrivingFaults >= 6 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
-                  <Car className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg D.F.</p><p className="text-2xl font-black">{testStats.avgDrivingFaults.toFixed(1)}</p>
-                </div>
-                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
-                  <ShieldAlert className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg S.F.</p><p className="text-2xl font-black">{testStats.avgSeriousFaults.toFixed(1)}</p>
-                </div>
-                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.examinerActionPercentage >= 10 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}>
-                  <Hand className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Ex. Act.</p><p className="text-2xl font-black">{testStats.examinerActionPercentage.toFixed(1)}%</p>
-                </div>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.passRate <= 55 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}><TrendingUp className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Pass Rate</p><p className="text-2xl font-black">{testStats.passRate.toFixed(1)}%</p></div>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.avgDrivingFaults >= 6 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}><Car className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg D.F.</p><p className="text-2xl font-black">{testStats.avgDrivingFaults.toFixed(1)}</p></div>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.avgSeriousFaults >= 0.55 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}><ShieldAlert className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Avg S.F.</p><p className="text-2xl font-black">{testStats.avgSeriousFaults.toFixed(1)}</p></div>
+                <div className={cn("p-4 rounded-xl border flex flex-col items-center justify-center space-y-1", testStats.examinerActionPercentage >= 10 ? "bg-orange-50 text-orange-900" : "bg-green-50 text-green-900")}><Hand className="h-5 w-5 opacity-60" /><p className="text-xs font-bold uppercase tracking-wider opacity-70">Ex. Act.</p><p className="text-2xl font-black">{testStats.examinerActionPercentage.toFixed(1)}%</p></div>
               </div>
             ) : <p className="text-sm text-muted-foreground text-center py-4">No test data available.</p>}
           </Card>
@@ -601,17 +538,14 @@ const Dashboard: React.FC = () => {
           <Card key={id} className="p-6 shadow-sm h-full">
             <CardTitle className="text-lg font-bold mb-4 flex items-center"><GraduationCap className="mr-2 h-5 w-5 text-primary" />Next Driving Tests</CardTitle>
             {nextTests.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No upcoming tests scheduled.</p>
+              <p className="text-sm text-muted-foreground italic">No upcoming tests.</p>
             ) : (
               <div className="space-y-3">
                 {nextTests.map((booking) => (
                   <div key={booking.id} className="p-3 rounded-lg bg-muted/40 border border-muted flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="font-bold text-sm truncate">{booking.students?.name || "Unknown Student"}</p>
-                      <div className="flex items-center text-[10px] text-muted-foreground mt-1">
-                        <CalendarDays className="mr-1 h-3 w-3" />
-                        <span>{format(new Date(booking.start_time), "MMM dd")} at {format(new Date(booking.start_time), "p")}</span>
-                      </div>
+                      <div className="flex items-center text-[10px] text-muted-foreground mt-1"><CalendarDays className="mr-1 h-3 w-3" /><span>{format(new Date(booking.start_time), "MMM dd")} at {format(new Date(booking.start_time), "p")}</span></div>
                     </div>
                     <Button variant="ghost" size="icon" className="h-8 w-8" asChild><Link to="/driving-test-bookings"><ArrowRight className="h-4 w-4" /></Link></Button>
                   </div>
@@ -636,7 +570,7 @@ const Dashboard: React.FC = () => {
                   {serviceInfo.carName && <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tight">{serviceInfo.carName}</p>}
                   {serviceInfo.predictedWeeks !== null && <p className="text-xs font-bold text-primary mt-2">Due in approx. <span className="text-lg">{Math.ceil(serviceInfo.predictedWeeks)}</span> weeks</p>}
                 </>
-              ) : <p className="text-xs text-muted-foreground">No car data available.</p>}
+              ) : <p className="text-xs text-muted-foreground">No car data.</p>}
             </CardContent>
           </Card>
         );
@@ -684,7 +618,6 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <AlertCircle className="h-12 w-12 text-destructive" />
         <h2 className="text-xl font-bold">Failed to load profile</h2>
-        <p className="text-muted-foreground">There was an error retrieving your account details.</p>
         <Button onClick={() => window.location.reload()}>Retry</Button>
       </div>
     );
@@ -703,32 +636,17 @@ const Dashboard: React.FC = () => {
               {profile?.instructor_pin && (
                 <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-3 py-1 rounded-full w-fit border border-primary/10">
                   <Shield className="h-3.5 w-3.5" />
-                  <span>Your Student PIN: <span className="font-mono tracking-widest">{profile.instructor_pin}</span></span>
+                  <span>Student PIN: <span className="font-mono tracking-widest">{profile.instructor_pin}</span></span>
                 </div>
               )}
-              
-              {/* Subscription Status Badge */}
               {subscriptionStatus === 'lifetime' ? (
-                <Badge className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-full">
-                  <Infinity className="h-3.5 w-3.5 mr-1.5" /> Lifetime Access
-                </Badge>
+                <Badge className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-full"><Infinity className="h-3.5 w-3.5 mr-1.5" /> Lifetime</Badge>
               ) : subscriptionStatus === 'trialing' ? (
-                <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full">
-                  <Clock className="h-3.5 w-3.5 mr-1.5" /> Trial Mode
-                </Badge>
+                <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full"><Clock className="h-3.5 w-3.5 mr-1.5" /> Trial</Badge>
               ) : subscriptionStatus === 'active' ? (
-                <Badge className="bg-green-600 hover:bg-green-700 font-bold px-3 py-1 rounded-full">
-                  <Zap className="h-3.5 w-3.5 mr-1.5" /> Pro Account
-                </Badge>
+                <Badge className="bg-green-600 hover:bg-green-700 font-bold px-3 py-1 rounded-full"><Zap className="h-3.5 w-3.5 mr-1.5" /> Pro</Badge>
               ) : null}
-
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleRefresh} 
-                className="h-8 w-8 rounded-full hover:bg-primary/10"
-                title="Refresh Data"
-              >
+              <Button variant="ghost" size="icon" onClick={handleRefresh} className="h-8 w-8 rounded-full hover:bg-primary/10" title="Refresh Data">
                 <RefreshCw className={cn("h-4 w-4", isFetching > 0 && "animate-spin")} />
               </Button>
             </div>
@@ -737,21 +655,14 @@ const Dashboard: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {widgets.filter(w => w.visible).map((widget) => {
-            // Dynamic check: Only show pending_requests if there are actual requests
-            if (widget.id === "pending_requests" && (!pendingRequests || pendingRequests.length === 0)) {
-              return null;
-            }
-
+            if (widget.id === "pending_requests" && (!pendingRequests || pendingRequests.length === 0)) return null;
             return (
-              <div 
-                key={widget.id} 
-                className={cn(
-                  widget.id === "quick_stats" && "lg:col-span-3",
-                  widget.id === "pending_requests" && "lg:col-span-3",
-                  widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
-                  (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "pending_requests") && "lg:col-span-1"
-                )}
-              >
+              <div key={widget.id} className={cn(
+                widget.id === "quick_stats" && "lg:col-span-3",
+                widget.id === "pending_requests" && "lg:col-span-3",
+                widget.id === "upcoming_lessons" && "lg:col-span-1 lg:row-span-2",
+                (widget.id !== "quick_stats" && widget.id !== "upcoming_lessons" && widget.id !== "pending_requests") && "lg:col-span-1"
+              )}>
                 {renderWidget(widget.id)}
               </div>
             );
@@ -759,9 +670,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="flex justify-center pt-8 border-t">
-          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)} className="shadow-sm font-bold">
-            <Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => setIsCustomizerOpen(true)} className="shadow-sm font-bold"><Settings2 className="mr-2 h-4 w-4" /> Customise Dashboard</Button>
         </div>
       </div>
 
@@ -769,14 +678,8 @@ const Dashboard: React.FC = () => {
         isOpen={isCustomizerOpen}
         onClose={() => setIsCustomizerOpen(false)}
         widgets={widgets}
-        onUpdateWidgets={(newWidgets) => {
-          setWidgets(newWidgets);
-          localStorage.setItem("dashboard_widgets", JSON.stringify(newWidgets));
-        }}
-        onReset={() => {
-          setWidgets(DEFAULT_WIDGETS);
-          localStorage.removeItem("dashboard_widgets");
-        }}
+        onUpdateWidgets={(newWidgets) => { setWidgets(newWidgets); localStorage.setItem("dashboard_widgets", JSON.stringify(newWidgets)); }}
+        onReset={() => { setWidgets(DEFAULT_WIDGETS); localStorage.removeItem("dashboard_widgets"); }}
       />
     </React.Fragment>
   );
