@@ -65,7 +65,6 @@ const OwnerDashboard: React.FC = () => {
       });
 
       // 2. Fetch Claims
-      // We use a simpler query first to see if we get anything at all
       const { data: claimsData, error: claimsError } = await supabase
         .from("subscription_claims")
         .select(`
@@ -83,7 +82,6 @@ const OwnerDashboard: React.FC = () => {
         console.error("Detailed Claims Error:", claimsError);
         showError("Database error: " + claimsError.message);
       } else {
-        console.log("Fetched Claims:", claimsData);
         setPendingClaims((claimsData as any[]) || []);
       }
 
@@ -248,8 +246,8 @@ const OwnerDashboard: React.FC = () => {
             <CardContent>
               <div className="text-4xl font-black">{stats?.openSupportRequests}</div>
             </CardContent>
-          </Link>
-        </div>
+          </Card>
+        </Link>
       </div>
     </div>
   );
