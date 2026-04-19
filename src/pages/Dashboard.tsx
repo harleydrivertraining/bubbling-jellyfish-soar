@@ -27,11 +27,11 @@ import {
   ClipboardCheck, 
   Check, 
   X, 
-  Inbox, 
   RefreshCw,
   Hand,
   Zap,
-  Infinity
+  Infinity,
+  ListTodo
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
