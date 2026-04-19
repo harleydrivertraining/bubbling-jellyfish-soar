@@ -22,22 +22,7 @@ const PLANS = [
       "Student App Access",
       "AI Assistant Included"
     ],
-    highlight: false
-  },
-  {
-    id: "yearly",
-    name: "Annual Saver",
-    price: "149.99",
-    interval: "year",
-    description: "Best value for long-term growth.",
-    features: [
-      "Everything in Monthly",
-      "2 Months Free",
-      "Priority Support",
-      "Early Access to Features"
-    ],
-    highlight: true,
-    badge: "Best Value"
+    highlight: true
   }
 ];
 
@@ -73,18 +58,12 @@ const Subscription: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-2 w-full max-w-4xl">
+      <div className="flex justify-center w-full max-w-md">
         {PLANS.map((plan) => (
           <Card key={plan.id} className={cn(
-            "relative flex flex-col transition-all duration-300 hover:shadow-xl border-2",
-            plan.highlight ? "border-primary shadow-md scale-105" : "border-muted"
+            "relative flex flex-col transition-all duration-300 hover:shadow-xl border-2 w-full",
+            plan.highlight ? "border-primary shadow-md" : "border-muted"
           )}>
-            {plan.badge && (
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-sm">
-                {plan.badge}
-              </div>
-            )}
-            
             <CardHeader>
               <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
               <CardDescription>{plan.description}</CardDescription>
