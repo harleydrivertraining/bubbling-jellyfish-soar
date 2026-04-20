@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Users, 
@@ -23,7 +23,9 @@ import {
   Infinity,
   Zap,
   Ban,
-  Clock
+  Clock,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { startOfWeek } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import EditInstructorSubscription from "@/components/EditInstructorSubscription";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +64,7 @@ const AdminInstructors: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
   const [isSubDialogOpen, setIsSubDialogOpen] = useState(false);
@@ -138,6 +142,25 @@ const AdminInstructors: React.FC = () => {
   useEffect(() => {
     if (!isSessionLoading) fetchInstructors();
   }, [isSessionLoading, fetchInstructors]);
+
+  const handleDeleteAccount = async (instructorId: string) => {
+    setIsDeleting(instructorId);
+    try {
+      const { error } = await supabase.rpc('delete_user_account', { 
+        target_user_id: instructorId 
+      });
+
+      if (error) throw error;
+
+      showSuccess("Account permanently deleted.");
+      fetchInstructors();
+    } catch (error: any) {
+      console.error("Deletion error:", error);
+      showError("Failed to delete account: " + error.message);
+    } finally {
+      setIsDeleting(null);
+    }
+  };
 
   const filteredInstructors = instructors.filter(i => 
     `${i.first_name} ${i.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -306,11 +329,41 @@ const AdminInstructors: React.FC = () => {
                             <CreditCard className="mr-1.5 h-3.5 w-3.5" />
                             Manage Sub
                           </Button>
-                          <Button variant="ghost" size="sm" className="font-bold text-muted-foreground" asChild>
-                            <Link to={`/admin/support`}>
-                              Support <ExternalLink className="ml-1.5 h-3 w-3" />
-                            </Link>
-                          </Button>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="font-bold text-destructive hover:text-destructive hover:bg-destructive/5"
+                                disabled={isDeleting === instructor.id}
+                              >
+                                {isDeleting === instructor.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Permanently Delete Account?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will completely remove <strong>{instructor.first_name} {instructor.last_name}</strong> from the platform. 
+                                  All their students, bookings, and data will be lost forever. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleDeleteAccount(instructor.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete Permanently
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
