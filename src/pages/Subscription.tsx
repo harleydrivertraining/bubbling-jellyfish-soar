@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 
 const PLANS = [
   {
@@ -96,8 +96,8 @@ const Subscription: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4">
-      <div className="text-center max-w-2xl mb-12 space-y-4">
+    <div className="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4 space-y-12">
+      <div className="text-center max-w-2xl space-y-4">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold uppercase tracking-wider border border-blue-100">
           <ShieldCheck className="h-3 w-3" />
           Secure Monthly Subscription via PayPal
@@ -195,6 +195,57 @@ const Subscription: React.FC = () => {
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* Cancellation and Management Info */}
+      <div className="max-w-4xl w-full space-y-6">
+        <div className="flex items-center gap-2 px-1">
+          <Info className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-bold">Managing Your Subscription</h2>
+        </div>
+        
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="bg-muted/30 border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-blue-600" />
+                PayPal Account Holders
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground space-y-3">
+              <p>If you have a PayPal account, you can manage or cancel your subscription at any time through your PayPal dashboard:</p>
+              <ol className="list-decimal ml-4 space-y-1">
+                <li>Log in to PayPal.</li>
+                <li>Go to <strong>Settings</strong> > <strong>Payments</strong> > <strong>Manage Automatic Payments</strong>.</li>
+                <li>Select <strong>"Driving Instructor App"</strong> and click <strong>Cancel</strong>.</li>
+              </ol>
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-blue-600 font-bold text-xs"
+                onClick={() => window.open("https://www.paypal.com/myaccount/autopay/", "_blank")}
+              >
+                Go to PayPal Autopay <ExternalLink className="ml-1 h-3 w-3" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-blue-50/50 border-blue-100 shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-blue-900">
+                <Mail className="h-4 w-4 text-blue-600" />
+                Guest Checkout (No Account)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-blue-800/80 space-y-3">
+              <p>If you paid with a card without signing in to PayPal:</p>
+              <ul className="list-disc ml-4 space-y-1">
+                <li>Check your email for the <strong>PayPal Receipt</strong>. It contains a unique link to manage or cancel your guest subscription.</li>
+                <li>If you cannot find the email, please contact us via the <Link to="/support" className="text-blue-700 font-bold underline">Support Page</Link> and we can cancel it for you manually.</li>
+              </ul>
+              <p className="text-[10px] italic pt-1">Note: Pro features remain active until the end of your current paid month.</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
