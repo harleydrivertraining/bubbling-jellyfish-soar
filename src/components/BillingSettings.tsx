@@ -3,15 +3,16 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ExternalLink, Zap, Infinity, Clock, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
+import { CreditCard, ExternalLink, Zap, Infinity, Clock, ShieldCheck, Loader2, AlertCircle, MessageSquare } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
+import { useNavigate } from "react-router-dom";
 
 const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +40,10 @@ const BillingSettings: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleManualRequest = () => {
+    navigate("/support");
   };
 
   const getStatusInfo = () => {
@@ -99,7 +104,7 @@ const BillingSettings: React.FC = () => {
           </div>
 
           {error && (
-            <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-3 animate-in fade-in slide-in-from-top-2">
+            <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-4 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-start gap-3 text-destructive">
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                 <div className="space-y-1">
@@ -109,15 +114,27 @@ const BillingSettings: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="pl-8 space-y-2">
+              
+              <div className="pl-8 space-y-3">
                 <p className="text-[11px] font-medium text-muted-foreground">
                   To cancel or update your plan manually:
                 </p>
                 <ul className="text-[11px] list-disc list-inside text-muted-foreground space-y-1">
                   <li>Check your email for your original <strong>Stripe Receipt</strong>.</li>
                   <li>Click the <strong>"Manage Subscription"</strong> link inside that email.</li>
-                  <li>Or, contact support via the app's Support page.</li>
                 </ul>
+                
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full font-bold text-xs h-9"
+                    onClick={handleManualRequest}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 mr-2" />
+                    Contact Support to Cancel
+                  </Button>
+                </div>
               </div>
             </div>
           )}
