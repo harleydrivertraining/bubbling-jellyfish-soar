@@ -170,7 +170,7 @@ const Subscription: React.FC = () => {
                 Already Subscribed?
               </CardTitle>
               <CardDescription>
-                Enter your **PayPal Subscription ID** (starts with I-...) to activate your account manually.
+                Enter your PayPal Subscription ID (starts with I-...) to activate your account manually.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 space-y-4">
