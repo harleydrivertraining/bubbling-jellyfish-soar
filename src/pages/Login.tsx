@@ -13,6 +13,7 @@ import { Phone, Lock, Shield, GraduationCap, UserCog } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -64,12 +65,11 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleSignupClick = (e: React.MouseEvent) => {
+  const handleSignupClick = async (e: React.MouseEvent) => {
     if (Capacitor.isNativePlatform()) {
       e.preventDefault();
-      // Open the signup page in the system browser
-      // We use the current origin which will be the hosted URL on web
-      window.open(window.location.origin + "/74985", "_blank");
+      // Use the Browser plugin to force opening in the system browser
+      await Browser.open({ url: window.location.origin + "/74985" });
     }
   };
 
