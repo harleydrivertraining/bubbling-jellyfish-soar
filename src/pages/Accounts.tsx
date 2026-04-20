@@ -108,7 +108,7 @@ type TimeframeType = 'tax-year' | 'calendar-year' | 'month' | 'week';
 const Accounts: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [isLoading, setIsLoading] = useState(true);
-  const [hourlyRate, setHourlyRate] = useState<number>(0);
+  const [profile, setProfile] = useState<any>(null);
   const [incomeTransactions, setIncomeTransactions] = useState<IncomeTransaction[]>([]);
   const [expenditureTransactions, setExpenditureTransactions] = useState<ExpenditureTransaction[]>([]);
   const [unpaidLessons, setUnpaidLessons] = useState<any[]>([]);
@@ -123,6 +123,16 @@ const Accounts: React.FC = () => {
   const [timeframe, setTimeframe] = useState<TimeframeType>('tax-year');
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
   const [baseDate, setBaseDate] = useState<Date>(new Date());
+
+  const calculateLessonValue = useCallback((durationHours: number, profileData: any) => {
+    if (!profileData) return 0;
+    
+    if (durationHours === 1 && profileData.rate_1h) return profileData.rate_1h;
+    if (durationHours === 1.5 && profileData.rate_1_5h) return profileData.rate_1_5h;
+    if (durationHours === 2 && profileData.rate_2h) return profileData.rate_2h;
+    
+    return durationHours * (profileData.hourly_rate || 0);
+  }, []);
 
   const processRecurringExpenditures = useCallback(async () => {
     if (!user) return;
@@ -216,14 +226,13 @@ const Accounts: React.FC = () => {
     await processRecurringExpenditures();
 
     try {
-      const { data: profile } = await supabase
+      const { data: profileData } = await supabase
         .from("profiles")
-        .select("hourly_rate")
+        .select("*")
         .eq("id", user.id)
         .single();
       
-      const rate = profile?.hourly_rate || 0;
-      setHourlyRate(rate);
+      setProfile(profileData);
 
       const [creditTxRes, lessonsRes, additionalRes, expensesRes] = await Promise.all([
         supabase.from("pre_paid_hours_transactions")
@@ -257,7 +266,7 @@ const Accounts: React.FC = () => {
         if (booking?.status === 'completed') {
           const effectiveRate = (pkg?.amount_paid && pkg?.package_hours) 
             ? (pkg.amount_paid / pkg.package_hours) 
-            : rate;
+            : (profileData?.hourly_rate || 0);
             
           const earnedAmount = tx.hours_deducted * effectiveRate;
           
@@ -279,7 +288,7 @@ const Accounts: React.FC = () => {
       lessonsRes.data?.forEach(lesson => {
         const isCredit = creditPaidBookingIds.has(lesson.id);
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
-        const value = duration * rate;
+        const value = calculateLessonValue(duration, profileData);
 
         if (isCredit) return;
 
@@ -321,7 +330,7 @@ const Accounts: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user, processRecurringExpenditures, hourlyRate]);
+  }, [user, processRecurringExpenditures, calculateLessonValue]);
 
   useEffect(() => {
     if (!isSessionLoading) fetchData();

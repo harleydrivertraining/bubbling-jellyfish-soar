@@ -136,6 +136,17 @@ const StudentCalendar: React.FC = () => {
     if (!isSessionLoading) fetchData();
   }, [isSessionLoading, fetchData]);
 
+  const calculatePrice = useCallback((durationMins: number) => {
+    if (!instructor) return 0;
+    const hours = durationMins / 60;
+    
+    if (hours === 1 && instructor.rate_1h) return instructor.rate_1h;
+    if (hours === 1.5 && instructor.rate_1_5h) return instructor.rate_1_5h;
+    if (hours === 2 && instructor.rate_2h) return instructor.rate_2h;
+    
+    return hours * (instructor.hourly_rate || 0);
+  }, [instructor]);
+
   const generatedSlots = useMemo(() => {
     if (!instructor || !studentData) return [];
     
@@ -329,7 +340,7 @@ const StudentCalendar: React.FC = () => {
               </span>
               {showPrices && (
                 <span className="text-xl font-black text-primary">
-                  £{((mins / 60) * (instructor?.hourly_rate || 0)).toFixed(2)}
+                  £{calculatePrice(mins).toFixed(2)}
                 </span>
               )}
             </button>

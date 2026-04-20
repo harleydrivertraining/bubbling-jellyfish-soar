@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Clock, Shield, CalendarRange, Timer, CheckCircle2 } from "lucide-react";
+import { User, Clock, Shield, CalendarRange, Timer, PoundSterling } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -63,6 +63,9 @@ const formSchema = z.object({
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0).nullable().optional()
   ),
+  rate_1h: z.preprocess((val) => (val === "" ? null : Number(val)), z.number().min(0).nullable().optional()),
+  rate_1_5h: z.preprocess((val) => (val === "" ? null : Number(val)), z.number().min(0).nullable().optional()),
+  rate_2h: z.preprocess((val) => (val === "" ? null : Number(val)), z.number().min(0).nullable().optional()),
   logo_url: z.string().url().optional().nullable().or(z.literal("")),
   default_lesson_duration: z.enum(["60", "90", "120"]).optional().nullable(),
   instructor_pin: z.string().optional().nullable(),
@@ -98,6 +101,9 @@ const ProfileSettingsForm: React.FC = () => {
       first_name: "",
       last_name: "",
       hourly_rate: null,
+      rate_1h: null,
+      rate_1_5h: null,
+      rate_2h: null,
       logo_url: "",
       default_lesson_duration: "60",
       instructor_pin: "",
@@ -149,6 +155,9 @@ const ProfileSettingsForm: React.FC = () => {
           first_name: data.first_name || "",
           last_name: data.last_name || "",
           hourly_rate: data.hourly_rate,
+          rate_1h: data.rate_1h,
+          rate_1_5h: data.rate_1_5h,
+          rate_2h: data.rate_2h,
           logo_url: data.logo_url || "",
           default_lesson_duration: (data.default_lesson_duration as "60" | "90" | "120") || "60",
           instructor_pin: data.instructor_pin || "",
@@ -180,6 +189,9 @@ const ProfileSettingsForm: React.FC = () => {
         first_name: values.first_name,
         last_name: values.last_name,
         hourly_rate: values.hourly_rate,
+        rate_1h: values.rate_1h,
+        rate_1_5h: values.rate_1_5h,
+        rate_2h: values.rate_2h,
         logo_url: values.logo_url === "" ? null : values.logo_url,
         default_lesson_duration: values.default_lesson_duration,
         min_booking_notice_hours: values.min_booking_notice_hours,
@@ -275,37 +287,83 @@ const ProfileSettingsForm: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="hourly_rate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Hourly Rate (£)</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.01" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="default_lesson_duration"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Default Duration</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
-                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    <SelectItem value="60">1 hour</SelectItem>
-                    <SelectItem value="90">1.5 hours</SelectItem>
-                    <SelectItem value="120">2 hours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
+        <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
+          <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
+            <PoundSterling className="h-4 w-4" /> Lesson Rates
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="hourly_rate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Base Hourly Rate (£)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
+                  </FormControl>
+                  <FormDescription className="text-[10px]">Used as fallback for other durations.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="default_lesson_duration"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Duration</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="60">1 hour</SelectItem>
+                      <SelectItem value="90">1.5 hours</SelectItem>
+                      <SelectItem value="120">2 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 pt-2">
+            <FormField
+              control={form.control}
+              name="rate_1h"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-bold uppercase">1 Hour (£)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="rate_1_5h"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-bold uppercase">1.5 Hour (£)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="rate_2h"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-bold uppercase">2 Hour (£)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground italic">Leave custom rates blank to use the base hourly rate calculation.</p>
         </div>
 
         <div className="p-4 border rounded-xl bg-muted/30 space-y-6">
