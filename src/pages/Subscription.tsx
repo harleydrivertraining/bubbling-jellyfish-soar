@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, RefreshCw } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +18,7 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    // REPLACE the URL below with your PayPal Subscription "Shareable Link"
-    subscriptionUrl: "https://www.paypal.com/subscription/your_actual_plan_link_here", 
+    subscriptionUrl: "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-35161195GX886664PNHTGQPY", 
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -41,10 +40,6 @@ const Subscription: React.FC = () => {
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
   const handleSubscribe = (url: string) => {
-    if (url.includes("your_actual_plan_link_here")) {
-      showError("The owner has not set up the payment link yet.");
-      return;
-    }
     window.open(url, "_blank");
   };
 
@@ -66,7 +61,7 @@ const Subscription: React.FC = () => {
         .from("subscription_claims")
         .insert({
           user_id: user.id,
-          stripe_session_id: orderId.trim(), // Using this field for the PayPal Profile ID / Transaction ID
+          stripe_session_id: orderId.trim(), // Reusing field for PayPal Subscription ID
           status: 'auto_approved'
         });
 
