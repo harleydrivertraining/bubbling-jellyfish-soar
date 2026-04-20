@@ -96,9 +96,12 @@ const Login: React.FC = () => {
                 showLinks={false}
                 redirectTo={window.location.origin}
               />
-              <div className="text-center pt-2">
+              <div className="text-center pt-2 flex flex-col gap-2">
                 <Link to="/forgot-password" style={{ color: 'hsl(var(--primary))' }} className="text-sm font-bold hover:underline">
                   Forgot your password?
+                </Link>
+                <Link to="/74985" style={{ color: 'hsl(var(--primary))' }} className="text-sm font-bold hover:underline">
+                  Don't have an account? Sign up
                 </Link>
               </div>
             </div>
