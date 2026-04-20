@@ -164,16 +164,17 @@ const StudentProfile: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes, topicsRes, hiddenRes, testsRes, messagesRes] = await Promise.all([
+      const [studentRes, hoursRes, bookingsRes, progressRes, transactionsRes, topicsRes, hiddenRes, testsRes, messagesRes, orderRes] = await Promise.all([
         supabase.from("students").select("*").eq("id", studentId).single(),
         supabase.from("pre_paid_hours").select("remaining_hours").eq("student_id", studentId),
         supabase.from("bookings").select("*").eq("student_id", studentId).order("start_time", { ascending: false }),
         supabase.from("student_progress_entries").select("*, progress_topics(name)").eq("student_id", studentId).order("entry_date", { ascending: false }),
         supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user.id),
-        supabase.from("progress_topics").select("id, name, is_default").or(`user_id.eq.${user.id},is_default.eq.true`).order("is_default", { ascending: false }).order("name", { ascending: true }),
+        supabase.from("progress_topics").select("id, name, is_default").or(`user_id.eq.${user.id},is_default.eq.true`),
         supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", user.id),
         supabase.from("driving_tests").select("*").eq("student_id", studentId).order("test_date", { ascending: false }),
-        supabase.from("instructor_messages").select("*").eq("student_id", studentId).eq("instructor_id", user.id).order("created_at", { ascending: false })
+        supabase.from("instructor_messages").select("*").eq("student_id", studentId).eq("instructor_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("user_topic_orders").select("topic_id, sort_order").eq("user_id", user.id).order("sort_order", { ascending: true })
       ]);
 
       if (studentRes.error) throw studentRes.error;
@@ -220,7 +221,22 @@ const StudentProfile: React.FC = () => {
       setBookings(formattedBookings);
 
       const hiddenIds = new Set((hiddenRes.data || []).map(h => h.topic_id));
-      const visibleTopics = (topicsRes.data || []).filter(t => !hiddenIds.has(t.id));
+      const orderMap = new Map((orderRes.data || []).map(o => [o.topic_id, o.sort_order]));
+
+      const visibleTopics = (topicsRes.data || [])
+        .filter(t => !hiddenIds.has(t.id))
+        .sort((a, b) => {
+          const orderA = orderMap.get(a.id);
+          const orderB = orderMap.get(b.id);
+
+          if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
+          if (orderA !== undefined) return -1;
+          if (orderB !== undefined) return 1;
+
+          if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+      
       setTopics(visibleTopics);
 
       const latestInstructorProgress: Record<string, ProgressEntry> = {};
