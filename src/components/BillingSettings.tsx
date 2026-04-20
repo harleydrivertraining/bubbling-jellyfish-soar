@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ExternalLink, Zap, Infinity, Clock, ShieldCheck, Loader2 } from "lucide-react";
+import { CreditCard, ExternalLink, Zap, Infinity, Clock, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -13,26 +13,29 @@ import { showError } from "@/utils/toast";
 const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleManageBilling = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      const { data, error } = await supabase.functions.invoke('stripe-management', {
+      const { data, error: invokeError } = await supabase.functions.invoke('stripe-management', {
         body: { 
           action: 'portal',
           returnUrl: window.location.href 
         },
       });
 
-      if (error) throw error;
+      if (invokeError) throw invokeError;
+      
       if (data?.url) {
         window.location.href = data.url;
       } else {
-        throw new Error("Could not generate billing portal link.");
+        throw new Error("The billing service returned an empty link.");
       }
     } catch (err: any) {
       console.error("Portal error:", err);
-      showError("Failed to open billing portal. Please contact support.");
+      setError("We couldn't open the billing portal automatically. This usually means the backend service is still being configured.");
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +85,7 @@ const BillingSettings: React.FC = () => {
           <CardDescription>{status.description}</CardDescription>
         </CardHeader>
         
-        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
           <div className="p-4 rounded-xl bg-muted/30 border border-muted space-y-4">
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
@@ -94,6 +97,30 @@ const BillingSettings: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {error && (
+            <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-start gap-3 text-destructive">
+                <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold">Manual Management Required</p>
+                  <p className="text-xs leading-relaxed">
+                    {error}
+                  </p>
+                </div>
+              </div>
+              <div className="pl-8 space-y-2">
+                <p className="text-[11px] font-medium text-muted-foreground">
+                  To cancel or update your plan manually:
+                </p>
+                <ul className="text-[11px] list-disc list-inside text-muted-foreground space-y-1">
+                  <li>Check your email for your original <strong>Stripe Receipt</strong>.</li>
+                  <li>Click the <strong>"Manage Subscription"</strong> link inside that email.</li>
+                  <li>Or, contact support via the app's Support page.</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </CardContent>
 
         <CardFooter className="p-4 sm:p-6 bg-muted/10 border-t">
