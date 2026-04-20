@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, ArrowRight, Loader2, ClipboardCheck } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,8 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    checkoutUrl: "https://yourstore.lemonsqueezy.com/checkout/buy/your_variant_id?embed=1", 
-    paypalUrl: "https://paypal.me/youraccount/3.99", // REPLACE with your PayPal.me link
-    description: "Full access for individual instructors.",
+    paypalUrl: "https://paypal.me/youraccount/3.99", // REPLACE with your actual PayPal.me link
+    description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
       "Full Schedule Management",
@@ -35,15 +34,13 @@ const PLANS = [
 
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus } = useSession();
-  const [isLoading, setIsLoading] = useState<string | null>(null);
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  const handleSubscribe = (url: string, id: string) => {
-    setIsLoading(id);
-    window.location.href = url;
+  const handlePaypalRedirect = (url: string) => {
+    window.open(url, "_blank");
   };
 
   const handleInstantActivate = async () => {
@@ -51,6 +48,7 @@ const Subscription: React.FC = () => {
     setIsActivating(true);
     
     try {
+      // 1. Update the user's profile to 'active' immediately
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ subscription_status: 'active' })
@@ -58,11 +56,12 @@ const Subscription: React.FC = () => {
 
       if (profileError) throw profileError;
 
+      // 2. Record the activation for the owner to verify
       const { error: claimError } = await supabase
         .from("subscription_claims")
         .insert({
           user_id: user.id,
-          stripe_session_id: orderId.trim(),
+          stripe_session_id: orderId.trim(), // Reusing field for PayPal ID
           status: 'auto_approved'
         });
 
@@ -70,6 +69,8 @@ const Subscription: React.FC = () => {
 
       showSuccess("Account activated! Welcome to the Pro plan.");
       setOrderId("");
+      
+      // Force a page reload to update the UI/Sidebar
       window.location.reload();
     } catch (error: any) {
       console.error("Activation error:", error);
@@ -82,13 +83,16 @@ const Subscription: React.FC = () => {
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4">
       <div className="text-center max-w-2xl mb-12 space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold uppercase tracking-wider border border-blue-100">
           <ShieldCheck className="h-3 w-3" />
-          Secure Payments via Card or PayPal
+          Secure Payments via PayPal
         </div>
         <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-          {isSubscribed ? "Your Subscription" : "Choose Your Plan"}
+          {isSubscribed ? "Your Subscription" : "Upgrade to Pro"}
         </h1>
+        <p className="text-muted-foreground font-medium">
+          Unlock the full power of the Driving Instructor App.
+        </p>
       </div>
 
       <div className="grid gap-8 md:grid-cols-2 max-w-4xl w-full">
@@ -127,28 +131,17 @@ const Subscription: React.FC = () => {
               </ul>
             </CardContent>
 
-            <CardFooter className="flex flex-col gap-3">
+            <CardFooter>
               <Button 
                 className={cn(
                   "w-full font-bold h-12 text-lg",
-                  isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"
+                  isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
-                onClick={() => handleSubscribe(plan.checkoutUrl, plan.id)}
-                disabled={!!isLoading || isSubscribed}
+                onClick={() => handlePaypalRedirect(plan.paypalUrl)}
+                disabled={isSubscribed}
               >
-                {isLoading === plan.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isSubscribed ? "Current Plan" : "Pay via Card"}
+                {isSubscribed ? "Current Plan" : "Pay with PayPal"}
               </Button>
-              
-              {!isSubscribed && (
-                <Button 
-                  variant="outline"
-                  className="w-full font-bold h-12 border-blue-200 text-blue-700 hover:bg-blue-50"
-                  onClick={() => handleSubscribe(plan.paypalUrl, plan.id + '_paypal')}
-                  disabled={!!isLoading}
-                >
-                  {isLoading === plan.id + '_paypal' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Pay via PayPal"}
-                </Button>
-              )}
             </CardFooter>
           </Card>
         ))}
@@ -162,15 +155,15 @@ const Subscription: React.FC = () => {
                 Already Paid?
               </CardTitle>
               <CardDescription>
-                Enter your **Order ID** or **PayPal Transaction ID** to activate your Pro features instantly.
+                Enter your **PayPal Transaction ID** to activate your Pro features instantly.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="orderId" className="text-xs font-bold uppercase">Transaction Reference</Label>
+                <Label htmlFor="orderId" className="text-xs font-bold uppercase">Transaction ID</Label>
                 <Input 
                   id="orderId"
-                  placeholder="e.g. 123456 or PAY-ABC123"
+                  placeholder="e.g. 8RT1234567890"
                   value={orderId}
                   onChange={(e) => setOrderId(e.target.value)}
                 />
@@ -182,7 +175,7 @@ const Subscription: React.FC = () => {
                 disabled={isActivating || !orderId.trim()}
               >
                 {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Activate My Account Now
+                Activate My Account
               </Button>
               <p className="text-[10px] text-muted-foreground text-center italic">
                 Note: Your payment will be verified by the owner.

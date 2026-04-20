@@ -12,8 +12,7 @@ const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
 
   const handleManageBilling = () => {
-    // REPLACE THIS with your actual Lemon Squeezy My Orders / Portal URL
-    window.location.href = "https://app.lemonsqueezy.com/my-orders";
+    window.open("https://www.paypal.com/myaccount/autopay/", "_blank");
   };
 
   return (
@@ -37,9 +36,9 @@ const BillingSettings: React.FC = () => {
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-sm font-bold">Managed by Lemon Squeezy</p>
+                <p className="text-sm font-bold">Managed via PayPal</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your payments and subscriptions are handled securely. You can download invoices or update your payment method at any time.
+                  Your subscription is handled securely through PayPal. You can manage your recurring payments or update your payment method directly in your PayPal account.
                 </p>
               </div>
             </div>
@@ -53,7 +52,7 @@ const BillingSettings: React.FC = () => {
             variant="outline"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
-            Manage Subscription & Invoices
+            Manage PayPal Subscriptions
           </Button>
         </CardFooter>
       </Card>
