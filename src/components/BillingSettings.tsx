@@ -1,43 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ExternalLink, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
+import { CreditCard, ExternalLink, ShieldCheck } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 
 const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleManageBilling = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const { data, error: invokeError } = await supabase.functions.invoke('autumn-management', {
-        body: { 
-          action: 'portal',
-          returnUrl: window.location.href 
-        },
-      });
-
-      if (invokeError) throw invokeError;
-      
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("Could not generate portal link.");
-      }
-    } catch (err: any) {
-      console.error("Autumn portal error:", err);
-      setError("We couldn't open the Autumn billing portal. Please ensure your account is fully set up.");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleManageBilling = () => {
+    // REPLACE THIS with your actual Autumn Customer Portal URL
+    // Most providers allow a generic portal link where users enter their email to log in
+    window.location.href = "https://portal.useautumn.com/your_subdomain";
   };
 
   return (
@@ -68,13 +45,6 @@ const BillingSettings: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {error && (
-            <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 flex items-start gap-3 text-destructive animate-in fade-in">
-              <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-              <p className="text-xs font-medium">{error}</p>
-            </div>
-          )}
         </CardContent>
 
         <CardFooter className="p-4 sm:p-6 bg-muted/10 border-t">
@@ -82,16 +52,9 @@ const BillingSettings: React.FC = () => {
             onClick={handleManageBilling} 
             className="w-full font-bold h-12" 
             variant="outline"
-            disabled={isLoading}
           >
-            {isLoading ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Opening Portal...</>
-            ) : (
-              <>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Manage Subscription & Invoices
-              </>
-            )}
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Manage Subscription & Invoices
           </Button>
         </CardFooter>
       </Card>
