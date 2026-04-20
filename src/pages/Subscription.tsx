@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Sparkles, ShieldCheck, Zap, ArrowRight, Loader2 } from "lucide-react";
@@ -14,8 +14,8 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    // REPLACE THIS with your actual Autumn Public Checkout URL
-    checkoutUrl: "https://checkout.useautumn.com/p/your_plan_id", 
+    // REPLACE THIS with your actual Lemon Squeezy Checkout URL
+    checkoutUrl: "https://yourstore.lemonsqueezy.com/checkout/buy/your_variant_id?embed=1", 
     description: "Full access for individual instructors.",
     features: [
       "Unlimited Students",
@@ -30,15 +30,23 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { subscriptionStatus } = useSession();
+  const { user, subscriptionStatus } = useSession();
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
   const handleSubscribe = (plan: typeof PLANS[0]) => {
     setIsLoading(plan.id);
-    // Redirect directly to the Autumn hosted checkout page
-    window.location.href = plan.checkoutUrl;
+    
+    // If using Lemon Squeezy, you can append the user's email to pre-fill the checkout
+    const checkoutUrl = new URL(plan.checkoutUrl);
+    if (user?.email) {
+      checkoutUrl.searchParams.set('checkout[email]', user.email);
+    }
+    // You can also pass the user ID as a custom parameter to track it in webhooks
+    checkoutUrl.searchParams.set('checkout[custom][user_id]', user?.id || '');
+
+    window.location.href = checkoutUrl.toString();
   };
 
   return (
@@ -46,11 +54,14 @@ const Subscription: React.FC = () => {
       <div className="text-center max-w-2xl mb-12 space-y-4">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">
           <ShieldCheck className="h-3 w-3" />
-          Secure Checkout via Autumn
+          Secure Checkout via Lemon Squeezy
         </div>
         <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
           {isSubscribed ? "Your Subscription" : "Choose Your Plan"}
         </h1>
+        <p className="text-muted-foreground">
+          Upgrade to unlock professional tools for your driving school.
+        </p>
       </div>
 
       <div className="flex justify-center w-full max-w-md">

@@ -12,9 +12,8 @@ const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
 
   const handleManageBilling = () => {
-    // REPLACE THIS with your actual Autumn Customer Portal URL
-    // Most providers allow a generic portal link where users enter their email to log in
-    window.location.href = "https://portal.useautumn.com/your_subdomain";
+    // REPLACE THIS with your actual Lemon Squeezy My Orders / Portal URL
+    window.location.href = "https://app.lemonsqueezy.com/my-orders";
   };
 
   return (
@@ -38,9 +37,9 @@ const BillingSettings: React.FC = () => {
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-sm font-bold">Managed by Autumn</p>
+                <p className="text-sm font-bold">Managed by Lemon Squeezy</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your subscription is securely managed. You can update your plan or cancel at any time through the portal.
+                  Your payments and subscriptions are handled securely. You can download invoices or update your payment method at any time.
                 </p>
               </div>
             </div>
