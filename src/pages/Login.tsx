@@ -68,8 +68,9 @@ const Login: React.FC = () => {
   const handleSignupClick = async (e: React.MouseEvent) => {
     if (Capacitor.isNativePlatform()) {
       e.preventDefault();
-      // Use the Browser plugin to force opening in the system browser
-      await Browser.open({ url: window.location.origin + "/74985" });
+      // Use the production web URL instead of localhost origin
+      const productionUrl = "https://www.drivinginstructorapp.co.uk/74985";
+      await Browser.open({ url: productionUrl });
     }
   };
 
