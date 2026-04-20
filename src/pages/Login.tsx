@@ -68,8 +68,8 @@ const Login: React.FC = () => {
   const handleSignupClick = async (e: React.MouseEvent) => {
     if (Capacitor.isNativePlatform()) {
       e.preventDefault();
-      // Use the production web URL instead of localhost origin
-      const productionUrl = "https://www.drivinginstructorapp.co.uk/74985";
+      // Use the correct production web URL
+      const productionUrl = "https://app.drivinginstructorapp.uk/74985";
       await Browser.open({ url: productionUrl });
     }
   };
