@@ -1,20 +1,41 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ExternalLink, Zap, Infinity, Clock, ShieldCheck } from "lucide-react";
+import { CreditCard, ExternalLink, Zap, Infinity, Clock, ShieldCheck, Loader2 } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { showError } from "@/utils/toast";
 
 const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleManageBilling = () => {
-    // REPLACE THIS with your actual Stripe Customer Portal link
-    // You can find this in Stripe Dashboard > Settings > Customer Portal
-    window.open("https://billing.stripe.com/p/login/your_actual_portal_link", "_blank");
+  const handleManageBilling = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-management', {
+        body: { 
+          action: 'portal',
+          returnUrl: window.location.href 
+        },
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("Could not generate billing portal link.");
+      }
+    } catch (err: any) {
+      console.error("Portal error:", err);
+      showError("Failed to open billing portal. Please contact support.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getStatusInfo = () => {
@@ -68,7 +89,7 @@ const BillingSettings: React.FC = () => {
               <div className="space-y-1">
                 <p className="text-sm font-bold">Secure Billing via Stripe</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Manage your payment methods, view invoices, and update your plan securely via Stripe.
+                  Manage your payment methods, view invoices, and update or cancel your plan securely via Stripe.
                 </p>
               </div>
             </div>
@@ -80,9 +101,16 @@ const BillingSettings: React.FC = () => {
             onClick={handleManageBilling} 
             className="w-full font-bold h-12" 
             variant="outline"
+            disabled={isLoading}
           >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Manage Payment Methods & Invoices
+            {isLoading ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Opening Portal...</>
+            ) : (
+              <>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Manage Subscription & Invoices
+              </>
+            )}
           </Button>
         </CardFooter>
       </Card>
