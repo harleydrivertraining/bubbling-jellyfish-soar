@@ -13,6 +13,7 @@ import { format, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import GlobalBroadcastForm from "@/components/GlobalBroadcastForm";
+import { Badge } from "@/components/ui/badge";
 
 interface PlatformStats {
   totalInstructors: number;
@@ -63,7 +64,6 @@ const OwnerDashboard: React.FC = () => {
         activeInstructorsThisWeek: activeRes.count ?? 0
       });
 
-      // Fetch both pending and auto-approved claims for verification
       const { data: claimsData, error: claimsError } = await supabase
         .from("subscription_claims")
         .select("*")
@@ -105,7 +105,6 @@ const OwnerDashboard: React.FC = () => {
   const handleVerifyClaim = async (claim: PaymentClaim) => {
     setProcessingId(claim.id);
     try {
-      // If it was already auto-approved, we just mark the claim as 'approved' (verified)
       await supabase
         .from("subscription_claims")
         .update({ status: 'approved' })
@@ -123,7 +122,6 @@ const OwnerDashboard: React.FC = () => {
   const handleRevokeAccess = async (claim: PaymentClaim) => {
     setProcessingId(claim.id);
     try {
-      // 1. Set profile back to inactive
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ subscription_status: 'inactive' })
@@ -131,13 +129,11 @@ const OwnerDashboard: React.FC = () => {
 
       if (profileError) throw profileError;
 
-      // 2. Mark claim as rejected
       await supabase
         .from("subscription_claims")
         .update({ status: 'rejected' })
         .eq("id", claim.id);
 
-      // 3. Notify the user
       await supabase.from("notifications").insert({
         user_id: claim.user_id,
         title: "Subscription Revoked",
@@ -155,7 +151,16 @@ const OwnerDashboard: React.FC = () => {
   };
 
   if (isSessionLoading || isLoading) {
-    return <div className="space-y-8 p-6"><Skeleton className="h-10 w-64" /><div className="grid gap-6 md:grid-cols-3"><Skeleton className="h-32 w-full" /></div></div>;
+    return (
+      <div className="space-y-8 p-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid gap-6 md:grid-cols-3">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -268,8 +273,8 @@ const OwnerDashboard: React.FC = () => {
             <CardContent>
               <div className="text-4xl font-black">{stats?.openSupportRequests}</div>
             </CardContent>
-          </Link>
-        </Card>
+          </Card>
+        </Link>
       </div>
     </div>
   );
