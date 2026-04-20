@@ -9,11 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Phone, Lock, Shield, GraduationCap, UserCog } from "lucide-react";
+import { Phone, Lock, Shield, GraduationCap, UserCog, Info } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Capacitor } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -65,16 +64,9 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleSignupClick = async (e: React.MouseEvent) => {
-    if (Capacitor.isNativePlatform()) {
-      e.preventDefault();
-      // Use the correct production web URL
-      const productionUrl = "https://app.drivinginstructorapp.uk/74985";
-      await Browser.open({ url: productionUrl });
-    }
-  };
-
   if (isLoading) return null;
+
+  const isNative = Capacitor.isNativePlatform();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -107,18 +99,28 @@ const Login: React.FC = () => {
                 showLinks={false}
                 redirectTo={window.location.origin}
               />
-              <div className="text-center pt-2 flex flex-col gap-2">
+              
+              <div className="text-center pt-4 flex flex-col gap-4 border-t">
                 <Link to="/forgot-password" style={{ color: 'hsl(var(--primary))' }} className="text-sm font-bold hover:underline">
                   Forgot your password?
                 </Link>
-                <Link 
-                  to="/74985" 
-                  onClick={handleSignupClick}
-                  style={{ color: 'hsl(var(--primary))' }} 
-                  className="text-sm font-bold hover:underline"
-                >
-                  Don't have an account? Sign up
-                </Link>
+
+                {isNative ? (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start gap-3 text-left">
+                    <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-800 leading-relaxed">
+                      New instructors: Please visit <span className="font-bold">drivinginstructorapp.uk</span> on your web browser to set up your account.
+                    </p>
+                  </div>
+                ) : (
+                  <Link 
+                    to="/74985" 
+                    style={{ color: 'hsl(var(--primary))' }} 
+                    className="text-sm font-bold hover:underline"
+                  >
+                    Don't have an account? Sign up
+                  </Link>
+                )}
               </div>
             </div>
           </TabsContent>
