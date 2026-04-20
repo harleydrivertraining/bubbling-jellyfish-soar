@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2, Inbox } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2, Inbox, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format, startOfWeek } from "date-fns";
@@ -63,11 +63,12 @@ const OwnerDashboard: React.FC = () => {
         activeInstructorsThisWeek: activeRes.count ?? 0
       });
 
+      // Fetch both pending and auto-approved claims for verification
       const { data: claimsData, error: claimsError } = await supabase
         .from("subscription_claims")
         .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: true });
+        .in("status", ["pending", "auto_approved"])
+        .order("created_at", { ascending: false });
 
       if (claimsError) throw claimsError;
 
@@ -101,41 +102,56 @@ const OwnerDashboard: React.FC = () => {
     if (!isSessionLoading) fetchOwnerData();
   }, [isSessionLoading, fetchOwnerData]);
 
-  const handleApproveClaim = async (claim: PaymentClaim) => {
+  const handleVerifyClaim = async (claim: PaymentClaim) => {
     setProcessingId(claim.id);
     try {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ subscription_status: 'active' })
-        .eq("id", claim.user_id);
-
-      if (profileError) throw profileError;
-
+      // If it was already auto-approved, we just mark the claim as 'approved' (verified)
       await supabase
         .from("subscription_claims")
         .update({ status: 'approved' })
         .eq("id", claim.id);
 
-      await supabase.from("notifications").insert({
-        user_id: claim.user_id,
-        title: "Account Activated!",
-        message: "Your professional subscription has been verified. Welcome to the Pro plan!",
-        type: "subscription_activated"
-      });
-
-      showSuccess(`Activated account for ${claim.profiles?.first_name || 'Instructor'}.`);
+      showSuccess(`Verified activation for ${claim.profiles?.first_name || 'Instructor'}.`);
       fetchOwnerData();
     } catch (err: any) {
-      showError("Failed to approve: " + err.message);
+      showError("Failed to verify: " + err.message);
     } finally {
       setProcessingId(null);
     }
   };
 
-  const handleRejectClaim = async (id: string) => {
-    await supabase.from("subscription_claims").update({ status: 'rejected' }).eq("id", id);
-    showSuccess("Claim rejected.");
-    fetchOwnerData();
+  const handleRevokeAccess = async (claim: PaymentClaim) => {
+    setProcessingId(claim.id);
+    try {
+      // 1. Set profile back to inactive
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ subscription_status: 'inactive' })
+        .eq("id", claim.user_id);
+
+      if (profileError) throw profileError;
+
+      // 2. Mark claim as rejected
+      await supabase
+        .from("subscription_claims")
+        .update({ status: 'rejected' })
+        .eq("id", claim.id);
+
+      // 3. Notify the user
+      await supabase.from("notifications").insert({
+        user_id: claim.user_id,
+        title: "Subscription Revoked",
+        message: "Your Pro access has been revoked as we could not verify your payment. Please contact support.",
+        type: "subscription_revoked"
+      });
+
+      showSuccess(`Revoked access for ${claim.profiles?.first_name || 'Instructor'}.`);
+      fetchOwnerData();
+    } catch (err: any) {
+      showError("Failed to revoke: " + err.message);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   if (isSessionLoading || isLoading) {
@@ -169,42 +185,48 @@ const OwnerDashboard: React.FC = () => {
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <CreditCard className={cn("h-5 w-5", pendingClaims.length > 0 ? "text-orange-600" : "text-muted-foreground")} />
-            Pending Activations ({pendingClaims.length})
+            Recent Activations ({pendingClaims.length})
           </CardTitle>
-          <CardDescription>Instructors waiting for their subscription to be verified.</CardDescription>
+          <CardDescription>Verify Order IDs for instructors who activated their own accounts.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {pendingClaims.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground italic text-sm flex items-center justify-center gap-2">
-              <Inbox className="h-4 w-4" /> No pending activations.
+              <Inbox className="h-4 w-4" /> No recent activations to verify.
             </div>
           ) : (
             <div className="divide-y divide-orange-100">
               {pendingClaims.map((claim) => (
                 <div key={claim.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-orange-100/50 transition-colors">
                   <div className="min-w-0">
-                    <p className="font-bold text-orange-900">
-                      {claim.profiles?.first_name} {claim.profiles?.last_name || 'Unknown Instructor'}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-orange-900">
+                        {claim.profiles?.first_name} {claim.profiles?.last_name || 'Unknown Instructor'}
+                      </p>
+                      {claim.status === 'auto_approved' && (
+                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 text-[9px] font-black uppercase">Auto-Active</Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-orange-800/70 truncate">{claim.profiles?.email}</p>
-                    <p className="text-[10px] font-mono text-orange-600 mt-1">Ref: {claim.stripe_session_id}</p>
+                    <p className="text-[10px] font-mono text-orange-600 mt-1">Order ID: {claim.stripe_session_id}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Button 
                       size="sm" 
                       className="bg-green-600 hover:bg-green-700 font-bold h-9 px-4"
-                      onClick={() => handleApproveClaim(claim)}
+                      onClick={() => handleVerifyClaim(claim)}
                       disabled={processingId === claim.id}
                     >
-                      {processingId === claim.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-1.5 h-4 w-4" /> Activate</>}
+                      {processingId === claim.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="mr-1.5 h-4 w-4" /> Verify</>}
                     </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
                       className="border-red-200 text-red-700 hover:bg-red-50 font-bold h-9"
-                      onClick={() => handleRejectClaim(claim.id)}
+                      onClick={() => handleRevokeAccess(claim)}
+                      disabled={processingId === claim.id}
                     >
-                      <X className="h-4 w-4" />
+                      {processingId === claim.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Ban className="mr-1.5 h-4 w-4" /> Revoke</>}
                     </Button>
                   </div>
                 </div>

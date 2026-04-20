@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Sparkles, ShieldCheck, Zap, ArrowRight, Loader2, ClipboardCheck } from "lucide-react";
@@ -35,7 +35,7 @@ const PLANS = [
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus } = useSession();
   const [isLoading, setIsLoading] = useState<string | null>(null);
-  const [isClaiming, setIsClaiming] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
@@ -48,25 +48,44 @@ const Subscription: React.FC = () => {
     window.location.href = checkoutUrl.toString();
   };
 
-  const handleClaim = async () => {
+  const handleInstantActivate = async () => {
     if (!user || !orderId.trim()) return;
-    setIsClaiming(true);
+    setIsActivating(true);
     
-    const { error } = await supabase
-      .from("subscription_claims")
-      .insert({
-        user_id: user.id,
-        stripe_session_id: orderId.trim(), // We reuse this field for the Lemon Squeezy Order ID
-        status: 'pending'
-      });
+    try {
+      // 1. Update the user's profile to 'active' immediately
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ subscription_status: 'active' })
+        .eq("id", user.id);
 
-    if (error) {
-      showError("Failed to submit claim: " + error.message);
-    } else {
-      showSuccess("Payment notification sent to the app owner! They will activate your account shortly.");
+      if (profileError) throw profileError;
+
+      // 2. Record the activation for the owner to verify
+      const { error: claimError } = await supabase
+        .from("subscription_claims")
+        .insert({
+          user_id: user.id,
+          stripe_session_id: orderId.trim(),
+          status: 'auto_approved' // Mark as auto-approved for the owner
+        });
+
+      if (claimError) throw claimError;
+
+      // 3. Notify the owner (assuming owner ID is known or handled by a trigger)
+      // For now, we just rely on the owner seeing the 'auto_approved' claims in their dashboard.
+
+      showSuccess("Account activated! Welcome to the Pro plan.");
       setOrderId("");
+      
+      // Force a page reload to update the UI/Sidebar
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Activation error:", error);
+      showError("Failed to activate: " + error.message);
+    } finally {
+      setIsActivating(false);
     }
-    setIsClaiming(false);
   };
 
   return (
@@ -90,31 +109,6 @@ const Subscription: React.FC = () => {
           )}>
             <CardHeader>
               <div className="flex flex-col items-start">
-                {isSubscribed && (
-                  <Badge className="bg-green-600 font-bold px-3 py-1 rounded-full mb-4">
-                    <Zap className="h-3.5 w-3.5 mr-1.5" />think
-The user wants me to continue the previous response exactly where it left off.
-The previous response was a `<dyad-write>` block for `src/pages/Subscription.tsx`.
-It cut off at:
-```tsx
-                {isSubscribed && (
-                  <Badge className="bg-green-600 font-bold px-3 py-1 rounded-full mb-4">
-                    <Zap className="h-3.5 w-3.5 mr-1.5" />
-```
-
-I need to complete the `Subscription.tsx` file and then provide the rest of the response (OwnerDashboard update and summary).
-
-Plan:
-1. Complete `src/pages/Subscription.tsx`.
-2. Update `src/pages/OwnerDashboard.tsx` to handle the claims.
-3. Provide the summary.
-
-Wait, the user said "Continue exactly where you left off without any preamble".
-This usually means I should just output the rest of the code block or the rest of the message.
-
-Let's look at the `Subscription.tsx` content I was writing.
-
-```tsx
                 {isSubscribed && (
                   <Badge className="bg-green-600 font-bold px-3 py-1 rounded-full mb-4">
                     <Zap className="h-3.5 w-3.5 mr-1.5" /> Active Plan
@@ -163,7 +157,7 @@ Let's look at the `Subscription.tsx` content I was writing.
           </Card>
         ))}
 
-        {/* Claim Section */}
+        {/* Instant Activation Section */}
         {!isSubscribed && (
           <Card className="border-dashed border-2 flex flex-col justify-center p-6 bg-muted/10">
             <CardHeader className="p-0 mb-4">
@@ -172,7 +166,7 @@ Let's look at the `Subscription.tsx` content I was writing.
                 Already Paid?
               </CardTitle>
               <CardDescription>
-                If you've completed your payment on Lemon Squeezy, enter your Order ID below to notify the owner.
+                Enter your Order ID to activate your Pro features instantly.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 space-y-4">
@@ -187,112 +181,16 @@ Let's look at the `Subscription.tsx` content I was writing.
               </div>
               <Button 
                 variant="outline" 
-                className="w-full font-bold"
-                onClick={handleClaim}
-                disabled={isClaiming || !orderId.trim()}
+                className="w-full font-bold h-12"
+                onClick={handleInstantActivate}
+                disabled={isActivating || !orderId.trim()}
               >
-                {isClaiming ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Notify Owner to Activate
+                {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                Activate My Account Now
               </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default Subscription;
-```
-
-Wait, I should probably rewrite the whole file to be safe, but the user said "Continue exactly where you left off".
-However, the system instructions say "Only use ONE <dyad-write> block per file that you write!" and "ALWAYS write the entire file".
-
-So I will rewrite the entire `Subscription.tsx` file and then the `OwnerDashboard.tsx` file.
-
-Wait, if I just output the rest of the text, it won't be valid XML. I must use the tags.
-
-I'll start with the full `Subscription.tsx` file.
-
-Wait, the user said "without any preamble".
-
-Let's do it.Active Plan
-                  </Badge>
-                )}
-                <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-                <CardDescription>{plan.description}</CardDescription>
-              </div>
-              <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-black">£{plan.price}</span>
-                <span className="text-muted-foreground font-medium">/{plan.interval}</span>
-              </div>
-            </CardHeader>
-
-            <CardContent className="flex-1">
-              <ul className="space-y-3">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm font-medium">
-                    <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="h-3 w-3 text-green-600" />
-                    </div>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-
-            <CardFooter>
-              <Button 
-                className={cn(
-                  "w-full font-bold h-12 text-lg",
-                  isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"
-                )}
-                onClick={() => handleSubscribe(plan)}
-                disabled={!!isLoading || isSubscribed}
-              >
-                {isLoading === plan.id ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Redirecting...</>
-                ) : isSubscribed ? (
-                  "Current Plan"
-                ) : (
-                  <>Get Started <ArrowRight className="ml-2 h-5 w-5" /></>
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-
-        {/* Claim Section */}
-        {!isSubscribed && (
-          <Card className="border-dashed border-2 flex flex-col justify-center p-6 bg-muted/10">
-            <CardHeader className="p-0 mb-4">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <ClipboardCheck className="h-5 w-5 text-primary" />
-                Already Paid?
-              </CardTitle>
-              <CardDescription>
-                If you've completed your payment on Lemon Squeezy, enter your Order ID below to notify the owner.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="orderId" className="text-xs font-bold uppercase">Order ID / Reference</Label>
-                <Input 
-                  id="orderId"
-                  placeholder="e.g. 123456"
-                  value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                className="w-full font-bold"
-                onClick={handleClaim}
-                disabled={isClaiming || !orderId.trim()}
-              >
-                {isClaiming ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Notify Owner to Activate
-              </Button>
+              <p className="text-[10px] text-muted-foreground text-center italic">
+                Note: Your Order ID will be verified by the owner.
+              </p>
             </CardContent>
           </Card>
         )}
