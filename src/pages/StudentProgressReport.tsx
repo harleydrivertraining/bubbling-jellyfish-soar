@@ -67,13 +67,28 @@ const StudentProgressReport: React.FC = () => {
       if (studentError) throw studentError;
       setStudent(studentData);
 
-      const [topicsRes, hiddenRes] = await Promise.all([
+      // 1. Fetch topics and hidden topics
+      const [topicsRes, hiddenRes, orderRes] = await Promise.all([
         supabase.from("progress_topics").select("id, name, is_default").or(`user_id.eq.${studentData.user_id},is_default.eq.true`),
-        supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", studentData.user_id)
+        supabase.from("hidden_progress_topics").select("topic_id").eq("user_id", studentData.user_id),
+        supabase.from("user_topic_orders").select("topic_id, sort_order").eq("user_id", studentData.user_id).order("sort_order", { ascending: true })
       ]);
 
       const hiddenIds = new Set((hiddenRes.data || []).map(h => h.topic_id));
-      const visibleTopics = (topicsRes.data || []).filter(t => !hiddenIds.has(t.id));
+      const orderMap = new Map((orderRes.data || []).map(o => [o.topic_id, o.sort_order]));
+
+      const visibleTopics = (topicsRes.data || [])
+        .filter(t => !hiddenIds.has(t.id))
+        .sort((a, b) => {
+          const orderA = orderMap.get(a.id);
+          const orderB = orderMap.get(b.id);
+          if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
+          if (orderA !== undefined) return -1;
+          if (orderB !== undefined) return 1;
+          if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+
       setTopics(visibleTopics);
 
       const { data: entriesData } = await supabase

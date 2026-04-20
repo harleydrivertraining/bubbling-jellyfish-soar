@@ -59,22 +59,43 @@ const StudentProgressDetail: React.FC = () => {
       if (studentError) throw studentError;
       setStudent(studentData);
 
+      // 1. Fetch topics
       const { data: topicsData, error: topicsError } = await supabase
         .from("progress_topics")
         .select("id, name, is_default")
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
-        .order("is_default", { ascending: false })
-        .order("name", { ascending: true });
+        .or(`user_id.eq.${user.id},is_default.eq.true`);
 
       if (topicsError) throw topicsError;
 
+      // 2. Fetch hidden topics
       const { data: hiddenData } = await supabase
         .from("hidden_progress_topics")
         .select("topic_id")
         .eq("user_id", user.id);
       
       const hiddenIds = new Set((hiddenData || []).map(h => h.topic_id));
-      const visibleTopics = (topicsData || []).filter(t => !hiddenIds.has(t.id));
+      
+      // 3. Fetch custom order
+      const { data: orderData } = await supabase
+        .from("user_topic_orders")
+        .select("topic_id, sort_order")
+        .eq("user_id", user.id)
+        .order("sort_order", { ascending: true });
+
+      const orderMap = new Map((orderData || []).map(o => [o.topic_id, o.sort_order]));
+
+      const visibleTopics = (topicsData || [])
+        .filter(t => !hiddenIds.has(t.id))
+        .sort((a, b) => {
+          const orderA = orderMap.get(a.id);
+          const orderB = orderMap.get(b.id);
+          if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
+          if (orderA !== undefined) return -1;
+          if (orderB !== undefined) return 1;
+          if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+
       setTopics(visibleTopics);
 
       const { data: entriesData, error: entriesError } = await supabase
