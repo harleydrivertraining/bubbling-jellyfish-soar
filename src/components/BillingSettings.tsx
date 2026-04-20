@@ -3,10 +3,11 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ExternalLink, ShieldCheck, AlertCircle, XCircle } from "lucide-react";
+import { CreditCard, ExternalLink, ShieldCheck, AlertCircle, XCircle, Mail } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 const BillingSettings: React.FC = () => {
   const { subscriptionStatus } = useSession();
@@ -44,21 +45,37 @@ const BillingSettings: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <h3 className="text-sm font-bold flex items-center gap-2 text-destructive">
               <XCircle className="h-4 w-4" />
               How to Cancel
             </h3>
-            <div className="text-xs text-muted-foreground space-y-2 bg-destructive/5 p-4 rounded-lg border border-destructive/10">
-              <p>To stop your recurring monthly payment:</p>
-              <ol className="list-decimal ml-4 space-y-1">
-                <li>Click the <strong>Manage PayPal Subscriptions</strong> button below.</li>
-                <li>Log in to your PayPal account if prompted.</li>
-                <li>Find <strong>"Driving Instructor App"</strong> in your active list.</li>
-                <li>Select <strong>Cancel</strong> to stop future payments.</li>
-              </ol>
-              <p className="pt-1 font-medium">Your Pro features will remain active until the end of your current billing cycle.</p>
+            
+            <div className="space-y-4">
+              <div className="text-xs text-muted-foreground space-y-2 bg-muted/20 p-4 rounded-lg border">
+                <p className="font-bold text-foreground">If you have a PayPal Account:</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Click the <strong>Manage PayPal Subscriptions</strong> button below.</li>
+                  <li>Find <strong>"Driving Instructor App"</strong> and select <strong>Cancel</strong>.</li>
+                </ol>
+              </div>
+
+              <div className="text-xs text-muted-foreground space-y-2 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                <p className="font-bold text-blue-900 flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" />
+                  No PayPal Account? (Guest Checkout)
+                </p>
+                <p>If you paid with a card without signing in:</p>
+                <ul className="list-disc ml-4 space-y-1">
+                  <li>Check your email for the <strong>PayPal Receipt</strong>. It contains a link to manage your guest subscription.</li>
+                  <li>Alternatively, go to the <Link to="/support" className="text-blue-600 font-bold hover:underline">Support Page</Link> and send us a message. We can cancel it for you manually.</li>
+                </ul>
+              </div>
             </div>
+            
+            <p className="text-[10px] text-muted-foreground italic px-1">
+              Note: Your Pro features will remain active until the end of your current billing cycle.
+            </p>
           </div>
         </CardContent>
 
