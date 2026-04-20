@@ -487,6 +487,7 @@ const Dashboard: React.FC = () => {
               <CardContent className="p-3 pt-0">
                 <div className="text-3xl sm:text-4xl font-black">{(bookedHours ?? 0).toFixed(1)} <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">hrs</span></div>
               </CardContent>
+            </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">
