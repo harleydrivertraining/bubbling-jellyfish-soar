@@ -1,3 +1,4 @@
+' characters in the text.">
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -216,7 +217,7 @@ const Subscription: React.FC = () => {
               <p>If you have a PayPal account, you can manage or cancel your subscription at any time through your PayPal dashboard:</p>
               <ol className="list-decimal ml-4 space-y-1">
                 <li>Log in to PayPal.</li>
-                <li>Go to <strong>Settings</strong> > <strong>Payments</strong> > <strong>Manage Automatic Payments</strong>.</li>
+                <li>Go to <strong>Settings</strong>{" > "}<strong>Payments</strong>{" > "}<strong>Manage Automatic Payments</strong>.</li>
                 <li>Select <strong>"Driving Instructor App"</strong> and click <strong>Cancel</strong>.</li>
               </ol>
               <Button 
