@@ -96,47 +96,47 @@ const Subscription: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4 space-y-12">
-      <div className="text-center max-w-2xl space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold uppercase tracking-wider border border-blue-100">
+    <div className="min-h-screen flex flex-col items-center py-6 sm:py-12 px-4 space-y-8 sm:space-y-12 pb-32">
+      <div className="text-center max-w-2xl space-y-3 sm:space-y-4">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] sm:text-xs font-bold uppercase tracking-wider border border-blue-100">
           <ShieldCheck className="h-3 w-3" />
           Secure Monthly Subscription via PayPal
         </div>
-        <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="text-3xl sm:text-5xl font-black tracking-tight">
           {isSubscribed ? "Your Subscription" : "Upgrade to Pro"}
         </h1>
-        <p className="text-muted-foreground font-medium">
+        <p className="text-sm sm:text-base text-muted-foreground font-medium px-2">
           Unlock the full power of the Driving Instructor App with a recurring monthly plan.
         </p>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-2 max-w-4xl w-full">
+      <div className="grid gap-6 sm:gap-8 md:grid-cols-2 max-w-4xl w-full">
         {PLANS.map((plan) => (
           <Card key={plan.id} className={cn(
             "relative flex flex-col transition-all duration-300 hover:shadow-xl border-2",
             plan.highlight ? "border-primary shadow-md" : "border-muted",
             isSubscribed && "border-green-500/50 bg-green-50/5"
           )}>
-            <CardHeader>
+            <CardHeader className="p-5 sm:p-6">
               <div className="flex flex-col items-start">
                 {isSubscribed && (
                   <Badge className="bg-green-600 font-bold px-3 py-1 rounded-full mb-4">
                     <Zap className="h-3.5 w-3.5 mr-1.5" /> Active Plan
                   </Badge>
                 )}
-                <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-                <CardDescription>{plan.description}</CardDescription>
+                <CardTitle className="text-xl sm:text-2xl font-bold">{plan.name}</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">{plan.description}</CardDescription>
               </div>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-black">£{plan.price}</span>
-                <span className="text-muted-foreground font-medium">/{plan.interval}</span>
+                <span className="text-3xl sm:text-4xl font-black">£{plan.price}</span>
+                <span className="text-muted-foreground font-medium text-sm">/{plan.interval}</span>
               </div>
             </CardHeader>
 
-            <CardContent className="flex-1">
+            <CardContent className="flex-1 p-5 sm:p-6 pt-0 sm:pt-0">
               <ul className="space-y-3">
                 {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm font-medium">
+                  <li key={i} className="flex items-start gap-3 text-xs sm:text-sm font-medium">
                     <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
                       <Check className="h-3 w-3 text-green-600" />
                     </div>
@@ -146,10 +146,10 @@ const Subscription: React.FC = () => {
               </ul>
             </CardContent>
 
-            <CardFooter>
+            <CardFooter className="p-5 sm:p-6">
               <Button 
                 className={cn(
-                  "w-full font-bold h-12 text-lg",
+                  "w-full font-bold h-11 sm:h-12 text-base sm:text-lg",
                   isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
                 onClick={() => handleSubscribe(plan.subscriptionUrl)}
@@ -163,29 +163,30 @@ const Subscription: React.FC = () => {
 
         {/* Manual Activation Section */}
         {!isSubscribed && (
-          <Card className="border-dashed border-2 flex flex-col justify-center p-6 bg-muted/10">
+          <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
             <CardHeader className="p-0 mb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <ClipboardCheck className="h-5 w-5 text-primary" />
                 Already Subscribed?
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Enter your PayPal Subscription ID (starts with I-...) to activate your account manually.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="orderId" className="text-xs font-bold uppercase">Subscription ID</Label>
+                <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
                 <Input 
                   id="orderId"
                   placeholder="e.g. I-12345ABCDE"
                   value={orderId}
                   onChange={(e) => setOrderId(e.target.value)}
+                  className="h-10"
                 />
               </div>
               <Button 
                 variant="outline" 
-                className="w-full font-bold h-12"
+                className="w-full font-bold h-11"
                 onClick={() => handleInstantActivate()}
                 disabled={isActivating || !orderId.trim()}
               >
@@ -201,18 +202,18 @@ const Subscription: React.FC = () => {
       <div className="max-w-4xl w-full space-y-6">
         <div className="flex items-center gap-2 px-1">
           <Info className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-bold">Managing Your Subscription</h2>
+          <h2 className="text-lg sm:text-xl font-bold">Managing Your Subscription</h2>
         </div>
         
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
           <Card className="bg-muted/30 border-none shadow-none">
-            <CardHeader className="pb-2">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-blue-600" />
                 PayPal Account Holders
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-xs text-muted-foreground space-y-3">
+            <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 text-[11px] sm:text-xs text-muted-foreground space-y-3">
               <p>If you have a PayPal account, you can manage or cancel your subscription at any time through your PayPal dashboard:</p>
               <ol className="list-decimal ml-4 space-y-1">
                 <li>Log in to PayPal.</li>
@@ -221,7 +222,7 @@ const Subscription: React.FC = () => {
               </ol>
               <Button 
                 variant="link" 
-                className="p-0 h-auto text-blue-600 font-bold text-xs"
+                className="p-0 h-auto text-blue-600 font-bold text-[11px] sm:text-xs"
                 onClick={() => window.open("https://www.paypal.com/myaccount/autopay/", "_blank")}
               >
                 Go to PayPal Autopay <ExternalLink className="ml-1 h-3 w-3" />
@@ -230,13 +231,13 @@ const Subscription: React.FC = () => {
           </Card>
 
           <Card className="bg-blue-50/50 border-blue-100 shadow-none">
-            <CardHeader className="pb-2">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-blue-900">
                 <Mail className="h-4 w-4 text-blue-600" />
                 Guest Checkout (No Account)
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-xs text-blue-800/80 space-y-3">
+            <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 text-[11px] sm:text-xs text-blue-800/80 space-y-3">
               <p>If you paid with a card without signing in to PayPal:</p>
               <ul className="list-disc ml-4 space-y-1">
                 <li>Check your email for the <strong>PayPal Receipt</strong>. It contains a unique link to manage or cancel your guest subscription.</li>
