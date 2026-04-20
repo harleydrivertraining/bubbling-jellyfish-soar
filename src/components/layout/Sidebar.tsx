@@ -118,7 +118,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
   };
 
   const loadConfig = useCallback(() => {
-    const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime' || subscriptionStatus === 'trialing';
+    const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
     const isInstructor = userRole === 'instructor';
 
     if (isInstructor && !isSubscribed) {

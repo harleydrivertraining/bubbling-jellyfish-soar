@@ -27,7 +27,7 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
   currentStatus,
   onSuccess,
 }) => {
-  const [status, setStatus] = useState<string>(currentStatus || "inactive");
+  const [status, setStatus] = useState<string>(currentStatus || "unsubscribed");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleUpdate = async () => {
@@ -80,10 +80,10 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
                 <span className="font-bold">Lifetime Access</span>
               </div>
             </SelectItem>
-            <SelectItem value="trialing" className="py-3">
+            <SelectItem value="unsubscribed" className="py-3">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-orange-600" />
-                <span className="font-bold">Trialing</span>
+                <span className="font-bold">Unsubscribed</span>
               </div>
             </SelectItem>
             <SelectItem value="inactive" className="py-3">
@@ -99,7 +99,7 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
       <div className="bg-muted/50 p-4 rounded-xl text-[11px] text-muted-foreground space-y-2 border">
         <p><strong>Active:</strong> Full access to all professional features.</p>
         <p><strong>Lifetime:</strong> Permanent professional access that never expires.</p>
-        <p><strong>Inactive:</strong> Restricts the instructor to the subscription page only.</p>
+        <p><strong>Unsubscribed:</strong> Restricts the instructor to the subscription page only.</p>
       </div>
 
       <Button 

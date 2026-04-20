@@ -35,7 +35,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       
       if (!error && data) {
         setUserRole(data.role?.toLowerCase() || 'instructor');
-        setSubscriptionStatus(data.subscription_status || 'trialing');
+        // Default to unsubscribed if no status is set
+        setSubscriptionStatus(data.subscription_status || 'unsubscribed');
       }
     } catch (e) {
       console.warn("Background profile fetch failed:", e);

@@ -29,7 +29,7 @@ const Layout = () => {
     }
   }, [session, isLoading, navigate]);
 
-  // Subscription Guard: Strictly enforce Pro/Lifetime/Trial for instructors
+  // Subscription Guard: Strictly enforce Pro/Lifetime for instructors
   useEffect(() => {
     if (isLoading || isProfileLoading || !session || !userRole) return;
 
@@ -40,8 +40,7 @@ const Layout = () => {
     if (isInstructor && !isSubscriptionPage && !isSettingsPage) {
       const hasAccess = 
         subscriptionStatus === 'active' || 
-        subscriptionStatus === 'lifetime' ||
-        subscriptionStatus === 'trialing';
+        subscriptionStatus === 'lifetime';
 
       if (!hasAccess) {
         navigate("/subscription", { replace: true });
@@ -102,8 +101,7 @@ const Layout = () => {
   // Check if instructor is restricted
   const isRestrictedInstructor = userRole === 'instructor' && 
     subscriptionStatus !== 'active' && 
-    subscriptionStatus !== 'lifetime' &&
-    subscriptionStatus !== 'trialing';
+    subscriptionStatus !== 'lifetime';
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">

@@ -702,8 +702,8 @@ const Dashboard: React.FC = () => {
             )}
             {subscriptionStatus === 'lifetime' ? (
               <Badge className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-full"><Infinity className="h-3.5 w-3.5 mr-1.5" /> Lifetime</Badge>
-            ) : subscriptionStatus === 'trialing' ? (
-              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full"><Clock className="h-3.5 w-3.5 mr-1.5" /> Trial</Badge>
+            ) : subscriptionStatus === 'unsubscribed' ? (
+              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 font-bold px-3 py-1 rounded-full"><Clock className="h-3.5 w-3.5 mr-1.5" /> Unsubscribed</Badge>
             ) : subscriptionStatus === 'active' ? (
               <Badge className="bg-green-600 hover:bg-green-700 font-bold px-3 py-1 rounded-full"><Zap className="h-3.5 w-3.5 mr-1.5" /> Pro</Badge>
             ) : null}
