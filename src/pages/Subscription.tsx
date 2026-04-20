@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck } from "lucide-react";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useSearchParams } from "react-router-dom";
 
 const PLANS = [
   {
@@ -34,19 +35,31 @@ const PLANS = [
 
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus } = useSession();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
+  // Auto-activate if returning from PayPal with a subscription ID
+  useEffect(() => {
+    const subId = searchParams.get("subscription_id");
+    if (subId && user && !isSubscribed && !isActivating) {
+      handleInstantActivate(subId);
+      // Clear the params so it doesn't trigger again on refresh
+      setSearchParams({});
+    }
+  }, [searchParams, user, isSubscribed]);
+
   const handleSubscribe = (url: string) => {
     window.open(url, "_blank");
   };
 
-  const handleInstantActivate = async () => {
-    if (!user || !orderId.trim()) return;
-    setIsActivating(true);
+  const handleInstantActivate = async (idToUse?: string) => {
+    const finalId = idToUse || orderId;
+    if (!user || !finalId.trim()) return;
     
+    setIsActivating(true);
     try {
       // 1. Update the user's profile to 'active' immediately
       const { error: profileError } = await supabase
@@ -61,7 +74,7 @@ const Subscription: React.FC = () => {
         .from("subscription_claims")
         .insert({
           user_id: user.id,
-          stripe_session_id: orderId.trim(), // Reusing field for PayPal Subscription ID
+          stripe_session_id: finalId.trim(),
           status: 'auto_approved'
         });
 
@@ -148,7 +161,7 @@ const Subscription: React.FC = () => {
           </Card>
         ))}
 
-        {/* Instant Activation Section */}
+        {/* Manual Activation Section */}
         {!isSubscribed && (
           <Card className="border-dashed border-2 flex flex-col justify-center p-6 bg-muted/10">
             <CardHeader className="p-0 mb-4">
@@ -157,7 +170,7 @@ const Subscription: React.FC = () => {
                 Already Subscribed?
               </CardTitle>
               <CardDescription>
-                Enter your **PayPal Subscription ID** (starts with I-...) to activate your account instantly.
+                Enter your **PayPal Subscription ID** (starts with I-...) to activate your account manually.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 space-y-4">
@@ -173,15 +186,12 @@ const Subscription: React.FC = () => {
               <Button 
                 variant="outline" 
                 className="w-full font-bold h-12"
-                onClick={handleInstantActivate}
+                onClick={() => handleInstantActivate()}
                 disabled={isActivating || !orderId.trim()}
               >
                 {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
                 Activate My Account
               </Button>
-              <p className="text-[10px] text-muted-foreground text-center italic">
-                Note: Your subscription will be verified by the owner.
-              </p>
             </CardContent>
           </Card>
         )}
