@@ -49,7 +49,6 @@ const OwnerDashboard: React.FC = () => {
     try {
       const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
 
-      // 1. Fetch Stats
       const [instRes, activeRes, studRes, suppRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "instructor"),
         supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "instructor").gte("updated_at", weekStart.toISOString()),
@@ -64,7 +63,6 @@ const OwnerDashboard: React.FC = () => {
         activeInstructorsThisWeek: activeRes.count ?? 0
       });
 
-      // 2. Fetch Claims and Profiles separately to avoid join errors
       const { data: claimsData, error: claimsError } = await supabase
         .from("subscription_claims")
         .select("*")
@@ -75,16 +73,12 @@ const OwnerDashboard: React.FC = () => {
 
       if (claimsData && claimsData.length > 0) {
         const userIds = Array.from(new Set(claimsData.map(c => c.user_id)));
-        
-        const { data: profilesData, error: profilesError } = await supabase
+        const { data: profilesData } = await supabase
           .from("profiles")
           .select("id, first_name, last_name, email")
           .in("id", userIds);
 
-        if (profilesError) throw profilesError;
-
         const profileMap = new Map(profilesData?.map(p => [p.id, p]));
-        
         const mergedClaims = claimsData.map(claim => ({
           ...claim,
           profiles: profileMap.get(claim.user_id)
@@ -97,7 +91,7 @@ const OwnerDashboard: React.FC = () => {
 
     } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
-      showError("Failed to load platform statistics: " + error.message);
+      showError("Failed to load platform statistics.");
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +104,6 @@ const OwnerDashboard: React.FC = () => {
   const handleApproveClaim = async (claim: PaymentClaim) => {
     setProcessingId(claim.id);
     try {
-      // 1. Update Profile to Active
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ subscription_status: 'active' })
@@ -118,13 +111,11 @@ const OwnerDashboard: React.FC = () => {
 
       if (profileError) throw profileError;
 
-      // 2. Update Claim to Approved
       await supabase
         .from("subscription_claims")
         .update({ status: 'approved' })
         .eq("id", claim.id);
 
-      // 3. Notify User
       await supabase.from("notifications").insert({
         user_id: claim.user_id,
         title: "Account Activated!",
@@ -171,7 +162,6 @@ const OwnerDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Pending Activations Widget */}
       <Card className={cn(
         "border-l-4 shadow-md overflow-hidden transition-all",
         pendingClaims.length > 0 ? "border-l-orange-500 bg-orange-50/30" : "border-l-muted bg-muted/5"
@@ -197,7 +187,7 @@ const OwnerDashboard: React.FC = () => {
                       {claim.profiles?.first_name} {claim.profiles?.last_name || 'Unknown Instructor'}
                     </p>
                     <p className="text-xs text-orange-800/70 truncate">{claim.profiles?.email}</p>
-                    <p className="text-[10px] font-mono text-orange-600 mt-1">Session: {claim.stripe_session_id.substring(0, 20)}...</p>
+                    <p className="text-[10px] font-mono text-orange-600 mt-1">Ref: {claim.stripe_session_id}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Button 
@@ -256,8 +246,8 @@ const OwnerDashboard: React.FC = () => {
             <CardContent>
               <div className="text-4xl font-black">{stats?.openSupportRequests}</div>
             </CardContent>
-          </Card>
-        </Link>
+          </Link>
+        </Card>
       </div>
     </div>
   );
