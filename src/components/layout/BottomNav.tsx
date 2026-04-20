@@ -39,7 +39,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
 
   const labelClasses = "text-[10px] font-bold mt-1 uppercase tracking-tight";
 
-  const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
+  const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime' || subscriptionStatus === 'trialing';
   const isInstructor = userRole === 'instructor';
   const isRestricted = isInstructor && !isSubscribed;
 
