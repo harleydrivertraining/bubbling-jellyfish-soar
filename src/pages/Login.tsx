@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Phone, Lock, Shield, GraduationCap, UserCog } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import { useSession } from "@/components/auth/SessionContextProvider";
+import { Capacitor } from "@capacitor/core";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -63,6 +64,15 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleSignupClick = (e: React.MouseEvent) => {
+    if (Capacitor.isNativePlatform()) {
+      e.preventDefault();
+      // Open the signup page in the system browser
+      // We use the current origin which will be the hosted URL on web
+      window.open(window.location.origin + "/74985", "_blank");
+    }
+  };
+
   if (isLoading) return null;
 
   return (
@@ -100,7 +110,12 @@ const Login: React.FC = () => {
                 <Link to="/forgot-password" style={{ color: 'hsl(var(--primary))' }} className="text-sm font-bold hover:underline">
                   Forgot your password?
                 </Link>
-                <Link to="/74985" style={{ color: 'hsl(var(--primary))' }} className="text-sm font-bold hover:underline">
+                <Link 
+                  to="/74985" 
+                  onClick={handleSignupClick}
+                  style={{ color: 'hsl(var(--primary))' }} 
+                  className="text-sm font-bold hover:underline"
+                >
                   Don't have an account? Sign up
                 </Link>
               </div>
