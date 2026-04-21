@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCcw } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -13,18 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSearchParams, Link } from "react-router-dom";
 
-// --- CONFIGURATION ---
-const PAYPAL_PLAN_ID = "P-8BE947115X9658739NHTMIOI"; 
-const PLAN_PRICE = "3.99";
-// ---------------------
-
 const PLANS = [
   {
     id: "pro_monthly",
     name: "Monthly Pro",
-    price: PLAN_PRICE,
+    price: "3.99",
     interval: "month",
-    subscriptionUrl: `https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=${PAYPAL_PLAN_ID}&return=${encodeURIComponent(window.location.origin + '/subscription')}`, 
+    subscriptionUrl: "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-35161195GX886664PNHTGQPY", 
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -42,28 +37,22 @@ const Subscription: React.FC = () => {
   const { user, subscriptionStatus } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isActivating, setIsActivating] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [orderId, setOrderId] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  // Auto-activate if returning from PayPal with a subscription ID in the URL
+  // Auto-activate if returning from PayPal with a subscription ID
   useEffect(() => {
-    const subId = searchParams.get("subscription_id") || searchParams.get("ba_token");
+    const subId = searchParams.get("subscription_id");
     if (subId && user && !isSubscribed && !isActivating) {
       handleInstantActivate(subId);
+      // Clear the params so it doesn't trigger again on refresh
       setSearchParams({});
     }
   }, [searchParams, user, isSubscribed]);
 
   const handleSubscribe = (url: string) => {
-    window.open(url, "_self");
-  };
-
-  const handleRefreshStatus = async () => {
-    setIsRefreshing(true);
-    // Force a reload of the page to trigger the SessionContextProvider to re-fetch the profile
-    window.location.reload();
+    window.open(url, "_blank");
   };
 
   const handleInstantActivate = async (idToUse?: string) => {
@@ -72,39 +61,35 @@ const Subscription: React.FC = () => {
     
     setIsActivating(true);
     try {
-      // 1. Create the claim record (this allows the owner to verify if auto-update fails)
-      const { error: claimError } = await supabase
-        .from("subscription_claims")
-        .upsert({
-          user_id: user.id,
-          stripe_session_id: finalId.trim(),
-          status: 'auto_approved'
-        }, { onConflict: 'stripe_session_id' });
-
-      if (claimError) throw claimError;
-
-      // 2. Attempt to update the profile status directly
+      // 1. Update the user's profile to 'active' immediately
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ subscription_status: 'active' })
         .eq("id", user.id);
 
-      if (profileError) {
-        console.warn("Direct profile update failed (likely RLS), but claim was saved:", profileError);
-        showSuccess("Payment ID received! We are verifying your account now.");
-      } else {
-        showSuccess("Account activated! Welcome to the Pro plan.");
-      }
-      
-      // Refresh the app state
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 2000);
-      
+      if (profileError) throw profileError;
+
+      // 2. Record the activation for the owner to verify
+      const { error: claimError } = await supabase
+        .from("subscription_claims")
+        .insert({
+          user_id: user.id,
+          stripe_session_id: finalId.trim(),
+          status: 'auto_approved'
+        });
+
+      if (claimError) throw claimError;
+
+      showSuccess("Account activated! Welcome to the Pro plan.");
       setOrderId("");
+      
+      // Force a page reload to update the UI/Sidebar
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Failed to process activation: " + error.message);
+      showError("Failed to activate: " + error.message);
     } finally {
       setIsActivating(false);
     }
@@ -168,76 +153,52 @@ const Subscription: React.FC = () => {
                   isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
                 onClick={() => handleSubscribe(plan.subscriptionUrl)}
-                disabled={isSubscribed || isActivating}
+                disabled={isSubscribed}
               >
-                {isSubscribed ? "Current Plan" : isActivating ? "Activating..." : "Subscribe with PayPal"}
+                {isSubscribed ? "Current Plan" : "Subscribe with PayPal"}
               </Button>
             </CardFooter>
           </Card>
         ))}
 
-        <div className="space-y-4">
-          {!isSubscribed && (
-            <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
-              <CardHeader className="p-0 mb-4">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <ClipboardCheck className="h-5 w-5 text-primary" />
-                  Already Subscribed?
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Enter your PayPal Subscription ID (starts with I-...) from your confirmation email.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
-                  <Input 
-                    id="orderId"
-                    placeholder="e.g. I-12345ABCDE"
-                    value={orderId}
-                    onChange={(e) => setOrderId(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
-                <Button 
-                  variant="outline" 
-                  className="w-full font-bold h-11"
-                  onClick={() => handleInstantActivate()}
-                  disabled={isActivating || !orderId.trim()}
-                >
-                  {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                  Activate My Account
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card className="border-none shadow-sm bg-blue-50/30">
-            <CardHeader className="p-5">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <RefreshCcw className="h-4 w-4 text-blue-600" />
-                Check Status
+        {/* Manual Activation Section */}
+        {!isSubscribed && (
+          <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
+            <CardHeader className="p-0 mb-4">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <ClipboardCheck className="h-5 w-5 text-primary" />
+                Already Subscribed?
               </CardTitle>
-              <CardDescription className="text-[10px]">
-                If you've already paid but the app is still locked, click below to refresh your account status.
+              <CardDescription className="text-xs">
+                Enter your PayPal Subscription ID (starts with I-...) to activate your account manually.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-5 pt-0">
+            <CardContent className="p-0 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
+                <Input 
+                  id="orderId"
+                  placeholder="e.g. I-12345ABCDE"
+                  value={orderId}
+                  onChange={(e) => setOrderId(e.target.value)}
+                  className="h-10"
+                />
+              </div>
               <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full font-bold text-blue-700 hover:bg-blue-100"
-                onClick={handleRefreshStatus}
-                disabled={isRefreshing}
+                variant="outline" 
+                className="w-full font-bold h-11"
+                onClick={() => handleInstantActivate()}
+                disabled={isActivating || !orderId.trim()}
               >
-                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCcw className="h-4 w-4 mr-2" />}
-                Refresh My Account Status
+                {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                Activate My Account
               </Button>
             </CardContent>
           </Card>
-        </div>
+        )}
       </div>
 
+      {/* Cancellation and Management Info */}
       <div className="max-w-4xl w-full space-y-6">
         <div className="flex items-center gap-2 px-1">
           <Info className="h-5 w-5 text-primary" />
