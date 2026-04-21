@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, CreditCard, ExternalLink } from "lucide-react";
@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const PLANS = [
   {
@@ -36,17 +36,27 @@ const PLANS = [
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus, refreshProfile } = useSession();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const [isActivating, setIsActivating] = useState(false);
   const [activationCode, setActivationCode] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
+  // Automatically handle return from PayPal
+  useEffect(() => {
+    const subId = searchParams.get("subscription_id") || searchParams.get("ba_token");
+    if (subId && !isSubscribed && user && !isActivating) {
+      handleManualActivate(subId);
+    }
+  }, [searchParams, user, isSubscribed]);
+
   const handleManualActivate = async (code: string) => {
     if (!user?.id || !code.trim()) return;
     
     setIsActivating(true);
     try {
+      // 1. Record the claim for owner verification
       await supabase
         .from("subscription_claims")
         .upsert({
@@ -55,7 +65,7 @@ const Subscription: React.FC = () => {
           status: 'pending'
         }, { onConflict: 'stripe_session_id' });
 
-      // We update the profile to active immediately to give them access while the owner verifies
+      // 2. Update the profile to active immediately to give them access
       await supabase
         .from("profiles")
         .update({ 
@@ -64,11 +74,17 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      showSuccess("Pro features activated! Our team will verify your reference shortly.");
+      showSuccess("Pro features activated! Welcome back.");
       await refreshProfile();
-      navigate("/", { replace: true });
+      
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 2000);
+      
     } catch (error: any) {
-      showError("Activation failed. Please check your code.");
+      console.error("Activation error:", error);
+      showError("Activation failed. Please try refreshing or contact support.");
       setIsActivating(false);
     }
   };
@@ -92,7 +108,8 @@ const Subscription: React.FC = () => {
         <Card className="w-full max-w-md border-primary bg-primary/5 animate-pulse">
           <CardContent className="p-6 flex flex-col items-center text-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="font-bold">Updating your account status...</p>
+            <p className="font-bold">Activating your Pro account...</p>
+            <p className="text-xs text-muted-foreground">Please don't close this page.</p>
           </CardContent>
         </Card>
       )}
