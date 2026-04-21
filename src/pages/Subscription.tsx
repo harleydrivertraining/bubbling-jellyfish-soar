@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, Search, CreditCard } from "lucide-react";
+import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, CreditCard, ExternalLink } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,6 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
-import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
 
 const PLANS = [
   {
@@ -20,7 +19,7 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    paypalPlanId: "P-8W475365B2106821DNHT2ZYA",
+    subscriptionUrl: "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-8W475365B2106821DNHT2ZYA",
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -43,43 +42,6 @@ const Subscription: React.FC = () => {
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  const handleSubscriptionSuccess = async (subscriptionId: string) => {
-    if (!user?.id) return;
-    
-    setIsActivating(true);
-    try {
-      // 1. Record the activation claim for owner verification
-      await supabase
-        .from("subscription_claims")
-        .upsert({
-          user_id: user.id,
-          stripe_session_id: subscriptionId, // We store the PayPal ID here
-          status: 'auto_approved' // Mark as auto-approved for PayPal
-        }, { onConflict: 'stripe_session_id' });
-
-      // 2. Update Profile to active immediately
-      await supabase
-        .from("profiles")
-        .update({ 
-          subscription_status: 'active',
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", user.id);
-
-      showSuccess("Subscription activated! Welcome to Pro.");
-      await refreshProfile();
-      
-      setTimeout(() => {
-        navigate("/", { replace: true });
-      }, 1500);
-
-    } catch (error: any) {
-      console.error("Activation error:", error);
-      showError("There was an issue linking your subscription. Please contact support with your ID: " + subscriptionId);
-      setIsActivating(false);
-    }
-  };
-
   const handleManualActivate = async (code: string) => {
     if (!user?.id || !code.trim()) return;
     
@@ -93,6 +55,7 @@ const Subscription: React.FC = () => {
           status: 'pending'
         }, { onConflict: 'stripe_session_id' });
 
+      // We update the profile to active immediately to give them access while the owner verifies
       await supabase
         .from("profiles")
         .update({ 
@@ -101,7 +64,7 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      showSuccess("Pro features activated!");
+      showSuccess("Pro features activated! Our team will verify your reference shortly.");
       await refreshProfile();
       navigate("/", { replace: true });
     } catch (error: any) {
@@ -129,8 +92,7 @@ const Subscription: React.FC = () => {
         <Card className="w-full max-w-md border-primary bg-primary/5 animate-pulse">
           <CardContent className="p-6 flex flex-col items-center text-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="font-bold">Activating your Pro account...</p>
-            <p className="text-xs text-muted-foreground">Please don't close this page.</p>
+            <p className="font-bold">Updating your account status...</p>
           </CardContent>
         </Card>
       )}
@@ -172,15 +134,15 @@ const Subscription: React.FC = () => {
 
               {!isSubscribed && (
                 <div className="space-y-4">
-                  <div className="relative py-2">
-                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground font-bold">Subscribe with PayPal</span></div>
-                  </div>
-                  <PayPalSubscriptionButton 
-                    planId={plan.paypalPlanId} 
-                    onApprove={handleSubscriptionSuccess}
-                    onError={() => showError("PayPal checkout failed. Please try again.")}
-                  />
+                  <Button asChild className="w-full font-black h-14 text-lg shadow-lg hover:scale-[1.02] transition-transform bg-[#0070ba] hover:bg-[#005ea6]">
+                    <a href={plan.subscriptionUrl} target="_self">
+                      <CreditCard className="mr-2 h-5 w-5" />
+                      Subscribe with PayPal
+                    </a>
+                  </Button>
+                  <p className="text-[10px] text-center text-muted-foreground italic">
+                    You will be redirected to PayPal to complete your secure checkout.
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -207,7 +169,7 @@ const Subscription: React.FC = () => {
                   Manual Activation
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  If you have an activation code or reference, enter it below to unlock your account.
+                  If you have an activation code or PayPal reference, enter it below to unlock your account.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0 space-y-4">
@@ -240,7 +202,7 @@ const Subscription: React.FC = () => {
                   Refresh Status
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Already upgraded? Click below to sync your account status.
+                  Already subscribed? Click below to sync your account status.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
@@ -251,6 +213,7 @@ const Subscription: React.FC = () => {
                     setIsActivating(true);
                     await refreshProfile();
                     setIsActivating(false);
+                    showSuccess("Account status refreshed.");
                   }}
                   disabled={isActivating}
                 >
