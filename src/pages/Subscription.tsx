@@ -21,7 +21,7 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    subscriptionUrl: "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-35161195GX886664PNHTGQPY", 
+    subscriptionUrl: "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-8BE947115X9658739NHTMIOI", 
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
