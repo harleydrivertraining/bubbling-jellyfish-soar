@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, Lock, Mail, CreditCard } from "lucide-react";
@@ -19,36 +19,46 @@ import { useNavigate } from "react-router-dom";
 type SettingsTab = "profile" | "notifications" | "menu" | "billing" | "account";
 
 const Settings: React.FC = () => {
-  const { user } = useSession();
+  const { user, subscriptionStatus, userRole, isLoading: isSessionLoading } = useSession();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const isStudent = userRole === 'student';
+  const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
+  const isRestricted = userRole === 'instructor' && !isSubscribed;
+
+  const navItems = useMemo(() => {
+    const items = [];
+    
+    if (!isRestricted && !isStudent) {
+      items.push({ id: "profile", label: "Profile", icon: UserCog });
+      items.push({ id: "notifications", label: "Alerts", icon: Bell });
+      items.push({ id: "menu", label: "Menu", icon: LayoutList });
+    }
+    
+    if (!isStudent) {
+      items.push({ id: "billing", label: "Billing", icon: CreditCard });
+    }
+    
+    items.push({ id: "account", label: "Security", icon: ShieldCheck });
+    
+    return items;
+  }, [isRestricted, isStudent]);
+
   useEffect(() => {
-    const fetchRole = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      
-      const role = data?.role?.toLowerCase() || 'instructor';
-      setUserRole(role);
-      
-      if (role === 'student') {
-        setActiveTab("account");
+    if (!isSessionLoading) {
+      // If current active tab is not in the allowed list, switch to the first available one
+      if (!navItems.find(item => item.id === activeTab)) {
+        setActiveTab(navItems[0]?.id as SettingsTab || "account");
       }
       setIsLoading(false);
-    };
-    fetchRole();
-  }, [user]);
+    }
+  }, [isSessionLoading, navItems, activeTab]);
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      // Force a full page reload to the login page to clear all state
       window.location.href = "/login";
     } catch (error) {
       console.error("Logout error:", error);
@@ -56,7 +66,7 @@ const Settings: React.FC = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isSessionLoading) {
     return (
       <div className="space-y-6 max-w-5xl mx-auto">
         <Skeleton className="h-10 w-48" />
@@ -65,51 +75,42 @@ const Settings: React.FC = () => {
     );
   }
 
-  const isStudent = userRole === 'student';
-
-  const navItems = [
-    { id: "profile", label: "Profile", icon: UserCog },
-    { id: "notifications", label: "Alerts", icon: Bell },
-    { id: "menu", label: "Menu", icon: LayoutList },
-    { id: "billing", label: "Billing", icon: CreditCard },
-    { id: "account", label: "Security", icon: ShieldCheck },
-  ];
-
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-24">
       <div className="flex flex-col gap-1 px-1">
         <h1 className="text-3xl font-black tracking-tight">Settings</h1>
         <p className="text-muted-foreground font-medium text-sm">
-          {isStudent ? "Manage your security and account access." : "Manage your account and app preferences."}
+          {isStudent ? "Manage your security and account access." : isRestricted ? "Manage your subscription and security." : "Manage your account and app preferences."}
         </p>
       </div>
       
       <div className="space-y-6">
-        {!isStudent && (
-          <div className="px-1">
-            <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border w-full overflow-x-auto no-scrollbar scroll-smooth">
-              {navItems.map((item) => (
-                <Button
-                  key={item.id}
-                  variant={activeTab === item.id ? "default" : "ghost"}
-                  className={cn(
-                    "flex-1 min-w-[90px] sm:min-w-[120px] font-bold h-10 rounded-lg transition-all text-xs sm:text-sm px-2 sm:px-4",
-                    activeTab === item.id 
-                      ? "bg-background text-primary shadow-sm hover:bg-background" 
-                      : "text-muted-foreground hover:bg-transparent hover:text-primary"
-                  )}
-                  onClick={() => setActiveTab(item.id as SettingsTab)}
-                >
-                  <item.icon className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" />
-                  {item.label}
-                </Button>
-              ))}
-            </div>
+        <div className="px-1">
+          <div className={cn(
+            "flex items-center gap-1 p-1 bg-muted/50 rounded-xl border w-full overflow-x-auto no-scrollbar scroll-smooth",
+            navItems.length <= 3 && "justify-center sm:justify-start"
+          )}>
+            {navItems.map((item) => (
+              <Button
+                key={item.id}
+                variant={activeTab === item.id ? "default" : "ghost"}
+                className={cn(
+                  "flex-1 min-w-[90px] sm:min-w-[120px] font-bold h-10 rounded-lg transition-all text-xs sm:text-sm px-2 sm:px-4",
+                  activeTab === item.id 
+                    ? "bg-background text-primary shadow-sm hover:bg-background" 
+                    : "text-muted-foreground hover:bg-transparent hover:text-primary"
+                )}
+                onClick={() => setActiveTab(item.id as SettingsTab)}
+              >
+                <item.icon className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" />
+                {item.label}
+              </Button>
+            ))}
           </div>
-        )}
+        </div>
 
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 px-1">
-          {activeTab === "profile" && !isStudent && (
+          {activeTab === "profile" && !isRestricted && !isStudent && (
             <Card className="border-none shadow-sm bg-card overflow-hidden">
               <CardHeader className="p-4 sm:p-6">
                 <CardTitle>Profile Settings</CardTitle>
@@ -121,13 +122,13 @@ const Settings: React.FC = () => {
             </Card>
           )}
 
-          {activeTab === "notifications" && !isStudent && (
+          {activeTab === "notifications" && !isRestricted && !isStudent && (
             <div className="space-y-6">
               <NotificationSettingsForm />
             </div>
           )}
 
-          {activeTab === "menu" && !isStudent && (
+          {activeTab === "menu" && !isRestricted && !isStudent && (
             <Card className="border-none shadow-sm bg-card overflow-hidden">
               <CardHeader className="p-4 sm:p-6">
                 <CardTitle>Customise Menu</CardTitle>
