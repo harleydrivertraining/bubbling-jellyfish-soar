@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, Search } from "lucide-react";
+import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, Search, CreditCard } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
+import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
 
 const PLANS = [
   {
@@ -19,6 +20,8 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
+    // Replace this with your actual PayPal Plan ID created in your PayPal Dashboard
+    paypalPlanId: "P-placeholder_plan_id_replace_me",
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -41,12 +44,48 @@ const Subscription: React.FC = () => {
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  const handleActivate = async (code: string) => {
+  const handleSubscriptionSuccess = async (subscriptionId: string) => {
+    if (!user?.id) return;
+    
+    setIsActivating(true);
+    try {
+      // 1. Record the activation claim for owner verification
+      await supabase
+        .from("subscription_claims")
+        .upsert({
+          user_id: user.id,
+          stripe_session_id: subscriptionId, // We store the PayPal ID here
+          status: 'auto_approved' // Mark as auto-approved for PayPal
+        }, { onConflict: 'stripe_session_id' });
+
+      // 2. Update Profile to active immediately
+      await supabase
+        .from("profiles")
+        .update({ 
+          subscription_status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
+
+      showSuccess("Subscription activated! Welcome to Pro.");
+      await refreshProfile();
+      
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 1500);
+
+    } catch (error: any) {
+      console.error("Activation error:", error);
+      showError("There was an issue linking your subscription. Please contact support with your ID: " + subscriptionId);
+      setIsActivating(false);
+    }
+  };
+
+  const handleManualActivate = async (code: string) => {
     if (!user?.id || !code.trim()) return;
     
     setIsActivating(true);
     try {
-      // Record the activation claim
       await supabase
         .from("subscription_claims")
         .upsert({
@@ -55,7 +94,6 @@ const Subscription: React.FC = () => {
           status: 'pending'
         }, { onConflict: 'stripe_session_id' });
 
-      // Update Profile to active
       await supabase
         .from("profiles")
         .update({ 
@@ -66,30 +104,11 @@ const Subscription: React.FC = () => {
 
       showSuccess("Pro features activated!");
       await refreshProfile();
-      
-      setTimeout(() => {
-        navigate("/", { replace: true });
-      }, 1000);
-
+      navigate("/", { replace: true });
     } catch (error: any) {
-      console.error("Activation error:", error);
       showError("Activation failed. Please check your code.");
       setIsActivating(false);
     }
-  };
-
-  const handleCheckStatus = async () => {
-    setIsActivating(true);
-    await refreshProfile();
-    setTimeout(() => {
-      setIsActivating(false);
-      if (subscriptionStatus === 'active' || subscriptionStatus === 'lifetime') {
-        showSuccess("Subscription active!");
-        navigate("/");
-      } else {
-        showError("No active subscription found.");
-      }
-    }, 1000);
   };
 
   return (
@@ -106,6 +125,16 @@ const Subscription: React.FC = () => {
           Unlock the full power of the Driving Instructor App and manage your business like a pro.
         </p>
       </div>
+
+      {isActivating && (
+        <Card className="w-full max-w-md border-primary bg-primary/5 animate-pulse">
+          <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="font-bold">Activating your Pro account...</p>
+            <p className="text-xs text-muted-foreground">Please don't close this page.</p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 sm:gap-8 md:grid-cols-2 max-w-4xl w-full">
         {PLANS.map((plan) => (
@@ -141,17 +170,32 @@ const Subscription: React.FC = () => {
                   </li>
                 ))}
               </ul>
+
+              {!isSubscribed && (
+                <div className="space-y-4">
+                  <div className="relative py-2">
+                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground font-bold">Subscribe with PayPal</span></div>
+                  </div>
+                  <PayPalSubscriptionButton 
+                    planId={plan.paypalPlanId} 
+                    onApprove={handleSubscriptionSuccess}
+                    onError={() => showError("PayPal checkout failed. Please try again.")}
+                  />
+                </div>
+              )}
             </CardContent>
 
-            <CardFooter className="p-5 sm:p-6">
-              <Button 
-                className="w-full font-bold h-12 text-lg"
-                disabled={isSubscribed || isActivating}
-                variant={isSubscribed ? "outline" : "default"}
-              >
-                {isSubscribed ? "Current Plan" : "Subscribe Now"}
-              </Button>
-            </CardFooter>
+            {isSubscribed && (
+              <CardFooter className="p-5 sm:p-6">
+                <Button 
+                  className="w-full font-bold h-12 text-lg bg-green-600 hover:bg-green-700"
+                  disabled
+                >
+                  Current Plan
+                </Button>
+              </CardFooter>
+            )}
           </Card>
         ))}
 
@@ -181,7 +225,7 @@ const Subscription: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="w-full font-bold h-11"
-                  onClick={() => handleActivate(activationCode)}
+                  onClick={() => handleManualActivate(activationCode)}
                   disabled={isActivating || !activationCode.trim()}
                 >
                   {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
@@ -204,7 +248,11 @@ const Subscription: React.FC = () => {
                 <Button 
                   variant="ghost" 
                   className="w-full font-bold h-11 border"
-                  onClick={handleCheckStatus}
+                  onClick={async () => {
+                    setIsActivating(true);
+                    await refreshProfile();
+                    setIsActivating(false);
+                  }}
                   disabled={isActivating}
                 >
                   Check Status
@@ -218,9 +266,9 @@ const Subscription: React.FC = () => {
       <div className="max-w-4xl w-full p-6 bg-blue-50/50 border border-blue-100 rounded-2xl flex items-start gap-4">
         <Info className="h-6 w-6 text-blue-600 shrink-0 mt-1" />
         <div className="space-y-1">
-          <h3 className="font-bold text-blue-900">Need help with your subscription?</h3>
+          <h3 className="font-bold text-blue-900">Automatic Monthly Billing</h3>
           <p className="text-sm text-blue-800/80 leading-relaxed">
-            If you're having trouble upgrading or need to manage an existing plan, please contact our support team directly through the app's support page.
+            Subscriptions are handled securely via PayPal. You can cancel at any time through your PayPal account settings. Pro features will remain active until the end of your current billing period.
           </p>
         </div>
       </div>
