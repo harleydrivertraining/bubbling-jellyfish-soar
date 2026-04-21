@@ -50,9 +50,8 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         status = 'active';
         
         // 4. Background Sync: If local is Pro but DB is not, try to fix the DB
-        // IMPORTANT: We do NOT 'await' this on mobile to prevent hanging
         if (profile.subscription_status !== 'active' && profile.subscription_status !== 'lifetime') {
-          console.log("Syncing local Pro status to database in background...");
+          console.log("Syncing local Pro status to database...");
           supabase
             .from("profiles")
             .update({ subscription_status: 'active' })

@@ -63,36 +63,37 @@ const Subscription: React.FC = () => {
     
     setIsActivating(true);
 
-    // SAFETY TIMEOUT: Ensure we don't get stuck on the loading screen
-    const timeout = setTimeout(() => {
-      setIsActivating(false);
-    }, 5000);
-
     try {
-      // 1. Handle Master Key Logic (INSTANT BYPASS)
+      // 1. Handle Master Key Logic (INSTANT BYPASS + DB SYNC)
       const isMasterKey = finalId === "$ID";
       
       if (isMasterKey) {
+        // Set local override immediately
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-        // Trigger refresh and navigate IMMEDIATELY
-        refreshProfile();
-        showSuccess("Master Key Accepted!");
-        clearTimeout(timeout);
-        navigate("/", { replace: true });
         
-        // Perform DB sync in background (don't await)
+        // FORCE DATABASE SYNC (Wait for this to ensure DB is updated)
         const claimId = `MASTER-KEY-${user.id.substring(0, 8)}`;
-        supabase.from("subscription_claims").upsert({
+        
+        // Update Claim
+        await supabase.from("subscription_claims").upsert({
           user_id: user.id,
           stripe_session_id: claimId,
           status: 'approved'
         }, { onConflict: 'stripe_session_id' });
-        
+
+        // Update Profile
+        await supabase.from("profiles").update({ 
+          subscription_status: 'active',
+          updated_at: new Date().toISOString()
+        }).eq("id", user.id);
+
+        await refreshProfile();
+        showSuccess("Master Key Accepted! Database synced.");
+        navigate("/", { replace: true });
         return;
       }
 
       // 2. Standard Activation (Non-Master Key)
-      // Record the claim
       await supabase
         .from("subscription_claims")
         .upsert({
@@ -101,7 +102,6 @@ const Subscription: React.FC = () => {
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      // Update Profile
       await supabase
         .from("profiles")
         .update({ 
@@ -110,14 +110,10 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      // Refresh Global State
       await refreshProfile();
-
       showSuccess("Pro status activated!");
       
-      // Clear URL and navigate
       setSearchParams({});
-      clearTimeout(timeout);
       setTimeout(() => {
         navigate("/", { replace: true });
       }, 500);
@@ -126,16 +122,14 @@ const Subscription: React.FC = () => {
       console.error("Activation error:", error);
       
       // Fallback: If DB fails but we have a valid-looking ID, allow local override
-      if (finalId.startsWith('I-') || finalId.length > 10) {
+      if (finalId.startsWith('I-') || finalId.length > 10 || finalId === "$ID") {
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
         refreshProfile();
         showSuccess("Local activation successful.");
-        clearTimeout(timeout);
         navigate("/", { replace: true });
       } else {
         showError("Activation failed. Please check your ID.");
         setIsActivating(false);
-        clearTimeout(timeout);
       }
     }
   }, [user, orderId, paypalIdFromUrl, refreshProfile, navigate, setSearchParams]);
