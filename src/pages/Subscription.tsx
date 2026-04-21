@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw, AlertCircle, Search } from "lucide-react";
+import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, Search } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
+import { useNavigate } from "react-router-dom";
 
 const PLANS = [
   {
@@ -20,7 +19,6 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    planId: "P-8W475365B2106821DNHT2ZYA", 
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -36,33 +34,28 @@ const PLANS = [
 
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus, refreshProfile } = useSession();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
   const [isActivating, setIsActivating] = useState(false);
-  const [orderId, setOrderId] = useState("");
+  const [activationCode, setActivationCode] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  // Get the ID from the URL if it exists
-  const paypalIdFromUrl = searchParams.get("subscription_id") || searchParams.get("ba_token") || searchParams.get("token");
-
-  // Core activation logic - Memoized to prevent PayPal button re-renders
-  const performActivation = useCallback(async (finalId: string) => {
-    if (!user?.id || !finalId) return;
+  const handleActivate = async (code: string) => {
+    if (!user?.id || !code.trim()) return;
     
     setIsActivating(true);
     try {
-      // 1. Record the claim
+      // Record the activation claim
       await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
-          stripe_session_id: finalId,
-          status: 'auto_approved'
+          stripe_session_id: code.trim(),
+          status: 'pending'
         }, { onConflict: 'stripe_session_id' });
 
-      // 2. Update Profile
+      // Update Profile to active
       await supabase
         .from("profiles")
         .update({ 
@@ -71,104 +64,48 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      // 3. Local override for speed
-      localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-      
       showSuccess("Pro features activated!");
       await refreshProfile();
       
       setTimeout(() => {
         navigate("/", { replace: true });
-        window.location.reload();
       }, 1000);
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Activation failed. Please check your ID.");
+      showError("Activation failed. Please check your code.");
       setIsActivating(false);
     }
-  }, [user?.id, navigate, refreshProfile]);
-
-  // AUTO-ACTIVATION: Only runs when the URL params change or on mount
-  useEffect(() => {
-    if (paypalIdFromUrl && user && subscriptionStatus === 'unsubscribed' && !isActivating) {
-      performActivation(paypalIdFromUrl);
-    }
-  }, [paypalIdFromUrl, user, subscriptionStatus, isActivating, performActivation]);
-
-  const handleManualActivate = () => {
-    if (!orderId.trim()) {
-      showError("Please enter a Subscription ID.");
-      return;
-    }
-    performActivation(orderId.trim());
   };
 
-  const handleManualRefresh = async () => {
+  const handleCheckStatus = async () => {
     setIsActivating(true);
-    try {
-      await refreshProfile();
-      setTimeout(() => {
-        setIsActivating(false);
-        if (subscriptionStatus === 'active' || subscriptionStatus === 'lifetime') {
-          showSuccess("Subscription confirmed!");
-          navigate("/", { replace: true });
-        } else {
-          showError("No active subscription found yet.");
-        }
-      }, 1500);
-    } catch (e) {
+    await refreshProfile();
+    setTimeout(() => {
       setIsActivating(false);
-    }
+      if (subscriptionStatus === 'active' || subscriptionStatus === 'lifetime') {
+        showSuccess("Subscription active!");
+        navigate("/");
+      } else {
+        showError("No active subscription found.");
+      }
+    }, 1000);
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center py-6 sm:py-12 px-4 space-y-8 sm:space-y-12 pb-32">
       <div className="text-center max-w-2xl space-y-3 sm:space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] sm:text-xs font-bold uppercase tracking-wider border border-blue-100">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/5 text-primary text-[10px] sm:text-xs font-bold uppercase tracking-wider border border-primary/10">
           <ShieldCheck className="h-3 w-3" />
-          Secure Monthly Subscription via PayPal
+          Professional Instructor Platform
         </div>
         <h1 className="text-3xl sm:text-5xl font-black tracking-tight">
           {isSubscribed ? "You are a Pro Member" : "Upgrade to Pro"}
         </h1>
         <p className="text-sm sm:text-base text-muted-foreground font-medium px-2">
-          Unlock the full power of the Driving Instructor App with a recurring monthly plan.
+          Unlock the full power of the Driving Instructor App and manage your business like a pro.
         </p>
       </div>
-
-      {/* ACTIVATION STATUS */}
-      {isActivating ? (
-        <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
-          <CardContent className="p-8 flex flex-col items-center text-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-xl">Checking Status...</p>
-            <p className="text-xs text-blue-600">Verifying your payment with PayPal.</p>
-          </CardContent>
-        </Card>
-      ) : paypalIdFromUrl && !isSubscribed ? (
-        <Card className="w-full max-w-md border-green-200 bg-green-50 shadow-md animate-bounce">
-          <CardContent className="p-5 flex flex-col gap-4">
-            <div className="flex items-start gap-3">
-              <div className="bg-green-100 p-2 rounded-full">
-                <Check className="h-5 w-5 text-green-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="font-bold text-green-900">Payment Successful!</p>
-                <p className="text-xs text-green-800/80">
-                  We've detected your payment. Click below to unlock your Pro features.
-                </p>
-              </div>
-            </div>
-            <Button 
-              onClick={() => performActivation(paypalIdFromUrl)} 
-              className="w-full bg-green-600 hover:bg-green-700 font-black h-12 text-lg shadow-lg"
-            >
-              Unlock Pro Now
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <div className="grid gap-6 sm:gap-8 md:grid-cols-2 max-w-4xl w-full">
         {PLANS.map((plan) => (
@@ -204,27 +141,17 @@ const Subscription: React.FC = () => {
                   </li>
                 ))}
               </ul>
-
-              {!isSubscribed && (
-                <div className="pt-4 border-t">
-                  <PayPalSubscriptionButton 
-                    planId={plan.planId} 
-                    onApprove={performActivation} 
-                  />
-                </div>
-              )}
             </CardContent>
 
-            {isSubscribed && (
-              <CardFooter className="p-5 sm:p-6">
-                <Button 
-                  className="w-full font-bold h-11 sm:h-12 text-base sm:text-lg bg-green-600 hover:bg-green-700"
-                  disabled
-                >
-                  Current Plan
-                </Button>
-              </CardFooter>
-            )}
+            <CardFooter className="p-5 sm:p-6">
+              <Button 
+                className="w-full font-bold h-12 text-lg"
+                disabled={isSubscribed || isActivating}
+                variant={isSubscribed ? "outline" : "default"}
+              >
+                {isSubscribed ? "Current Plan" : "Subscribe Now"}
+              </Button>
+            </CardFooter>
           </Card>
         ))}
 
@@ -233,22 +160,32 @@ const Subscription: React.FC = () => {
             <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
               <CardHeader className="p-0 mb-4">
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Search className="h-5 w-5 text-primary" />
-                  Already Paid?
+                  <ClipboardCheck className="h-5 w-5 text-primary" />
+                  Manual Activation
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  If you've just completed payment but the app hasn't updated, click below to check for your new subscription.
+                  If you have an activation code or reference, enter it below to unlock your account.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="code" className="text-[10px] font-bold uppercase">Reference / Code</Label>
+                  <Input 
+                    id="code"
+                    placeholder="Enter code..."
+                    value={activationCode}
+                    onChange={(e) => setActivationCode(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
                 <Button 
-                  variant="default" 
-                  className="w-full font-bold h-12 text-base bg-blue-600 hover:bg-blue-700"
-                  onClick={handleManualRefresh}
-                  disabled={isActivating}
+                  variant="outline" 
+                  className="w-full font-bold h-11"
+                  onClick={() => handleActivate(activationCode)}
+                  disabled={isActivating || !activationCode.trim()}
                 >
-                  {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Check for Payment
+                  {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Activate Pro
                 </Button>
               </CardContent>
             </Card>
@@ -256,32 +193,21 @@ const Subscription: React.FC = () => {
             <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
               <CardHeader className="p-0 mb-4">
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <ClipboardCheck className="h-5 w-5 text-primary" />
-                  Manual ID Entry
+                  <RefreshCw className="h-5 w-5 text-primary" />
+                  Refresh Status
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Enter your PayPal Subscription ID (starts with I-...) from your receipt to activate manually.
+                  Already upgraded? Click below to sync your account status.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
-                  <Input 
-                    id="orderId"
-                    placeholder="e.g. I-12345ABCDE"
-                    value={orderId}
-                    onChange={(e) => setOrderId(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
+              <CardContent className="p-0">
                 <Button 
-                  variant="outline" 
-                  className="w-full font-bold h-11"
-                  onClick={handleManualActivate}
-                  disabled={isActivating || !orderId.trim()}
+                  variant="ghost" 
+                  className="w-full font-bold h-11 border"
+                  onClick={handleCheckStatus}
+                  disabled={isActivating}
                 >
-                  {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                  Activate with ID
+                  Check Status
                 </Button>
               </CardContent>
             </Card>
@@ -289,53 +215,13 @@ const Subscription: React.FC = () => {
         )}
       </div>
 
-      <div className="max-w-4xl w-full space-y-6">
-        <div className="flex items-center gap-2 px-1">
-          <Info className="h-5 w-5 text-primary" />
-          <h2 className="text-lg sm:text-xl font-bold">Managing Your Subscription</h2>
-        </div>
-        
-        <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-          <Card className="bg-muted/30 border-none shadow-none">
-            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-blue-600" />
-                PayPal Account Holders
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 text-[11px] sm:text-xs text-muted-foreground space-y-3">
-              <p>If you have a PayPal account, you can manage or cancel your subscription at any time through your PayPal dashboard:</p>
-              <ol className="list-decimal ml-4 space-y-1">
-                <li>Log in to PayPal.</li>
-                <li>Go to <strong>Settings</strong>{" > "}<strong>Payments</strong>{" > "}<strong>Manage Automatic Payments</strong>.</li>
-                <li>Select <strong>"Driving Instructor App"</strong> and click <strong>Cancel</strong>.</li>
-              </ol>
-              <Button 
-                variant="link" 
-                className="p-0 h-auto text-blue-600 font-bold text-[11px] sm:text-xs"
-                onClick={() => window.open("https://www.paypal.com/myaccount/autopay/", "_blank")}
-              >
-                Go to PayPal Autopay <ExternalLink className="ml-1 h-3 w-3" />
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-blue-50/50 border-blue-100 shadow-none">
-            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-blue-900">
-                <Mail className="h-4 w-4 text-blue-600" />
-                Guest Checkout (No Account)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 text-[11px] sm:text-xs text-blue-800/80 space-y-3">
-              <p>If you paid with a card without signing in to PayPal:</p>
-              <ul className="list-disc ml-4 space-y-1">
-                <li>Check your email for the <strong>PayPal Receipt</strong>. It contains a unique link to manage or cancel your guest subscription.</li>
-                <li>If you cannot find the email, please contact us via the <Link to="/support" className="text-blue-700 font-bold underline">Support Page</Link> and we can cancel it for you manually.</li>
-              </ul>
-              <p className="text-[10px] italic pt-1">Note: Pro features remain active until the end of your current paid month.</p>
-            </CardContent>
-          </Card>
+      <div className="max-w-4xl w-full p-6 bg-blue-50/50 border border-blue-100 rounded-2xl flex items-start gap-4">
+        <Info className="h-6 w-6 text-blue-600 shrink-0 mt-1" />
+        <div className="space-y-1">
+          <h3 className="font-bold text-blue-900">Need help with your subscription?</h3>
+          <p className="text-sm text-blue-800/80 leading-relaxed">
+            If you're having trouble upgrading or need to manage an existing plan, please contact our support team directly through the app's support page.
+          </p>
         </div>
       </div>
     </div>
