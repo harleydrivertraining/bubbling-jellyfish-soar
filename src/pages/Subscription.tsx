@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, CreditCard, ExternalLink } from "lucide-react";
+import { Check, ShieldCheck, Zap, Loader2, ClipboardCheck, Info, RefreshCw, Sparkles, CreditCard, ExternalLink, Globe } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +99,14 @@ const Subscription: React.FC = () => {
         <h1 className="text-3xl sm:text-5xl font-black tracking-tight">
           {isSubscribed ? "You are a Pro Member" : "Upgrade to Pro"}
         </h1>
+        
+        {!isSubscribed && (
+          <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl flex items-center justify-center gap-2 text-blue-800 text-xs sm:text-sm font-bold animate-in fade-in slide-in-from-top-2 duration-500">
+            <Globe className="h-4 w-4 shrink-0" />
+            <p>Please complete your upgrade through a web browser at <span className="underline">app.drivinginstructorapp.uk</span></p>
+          </div>
+        )}
+
         <p className="text-sm sm:text-base text-muted-foreground font-medium px-2">
           Unlock the full power of the Driving Instructor App and manage your business like a pro.
         </p>
