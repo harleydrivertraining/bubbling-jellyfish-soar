@@ -12,8 +12,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { Browser } from '@capacitor/browser';
-import { Capacitor } from '@capacitor/core';
+import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
 
 const PLANS = [
   {
@@ -21,7 +20,7 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    subscriptionUrl: "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-8BE947115X9658739NHTMIOI", 
+    planId: "P-8W475365B2106821DNHT2ZYA", 
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -44,7 +43,7 @@ const Subscription: React.FC = () => {
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  // Get the ID from the URL if it exists
+  // Get the ID from the URL if it exists (for manual returns)
   const paypalIdFromUrl = searchParams.get("subscription_id") || searchParams.get("ba_token") || searchParams.get("token");
 
   const handleActivate = useCallback(async (idToUse?: string) => {
@@ -63,32 +62,16 @@ const Subscription: React.FC = () => {
     setIsActivating(true);
 
     try {
-      const isMasterKey = finalId === "$ID";
-      
-      // 1. MASTER KEY: INSTANT LOCAL BYPASS
-      if (isMasterKey) {
-        // Save to local storage immediately
-        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-        
-        // FORCE FULL PAGE REFRESH
-        // This is the only 100% reliable way to ensure the app reloads with the new flag
-        window.location.href = "/";
-        return;
-      }
-
-      // 2. STANDARD ACTIVATION (PayPal ID)
-      const claimId = finalId;
-
-      // Update Subscription Claims Table
+      // 1. Update Subscription Claims Table
       await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
-          stripe_session_id: claimId,
+          stripe_session_id: finalId,
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      // Update Profile Status
+      // 2. Update Profile Status
       await supabase
         .from("profiles")
         .update({ 
@@ -97,39 +80,27 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      // Set local flag as a backup for standard activation too
+      // 3. Set local flag as a backup for instant UI update
       localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
       
+      showSuccess("Pro features activated! Welcome aboard.");
+      
+      // Force full refresh to clear all restricted states
       window.location.href = "/";
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      
-      // Fallback: If it looks like a valid ID, set local flag anyway and refresh
-      if (finalId.length > 8) {
-        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-        window.location.href = "/";
-      } else {
-        showError("Activation failed. Please check your ID.");
-        setIsActivating(false);
-      }
+      showError("Activation failed. Please check your ID or contact support.");
+      setIsActivating(false);
     }
   }, [user, orderId, paypalIdFromUrl]);
 
-  // Auto-activate if we just returned from PayPal
+  // Auto-activate if we just returned from PayPal with an ID in the URL
   useEffect(() => {
     if (paypalIdFromUrl && user && subscriptionStatus === 'unsubscribed' && !isActivating) {
       handleActivate(paypalIdFromUrl);
     }
   }, [paypalIdFromUrl, user, subscriptionStatus, isActivating, handleActivate]);
-
-  const handleSubscribe = async (url: string) => {
-    if (Capacitor.isNativePlatform()) {
-      await Browser.open({ url });
-    } else {
-      window.open(url, "_blank");
-    }
-  };
 
   return (
     <div className="min-h-screen flex flex-col items-center py-6 sm:py-12 px-4 space-y-8 sm:space-y-12 pb-32">
@@ -203,7 +174,7 @@ const Subscription: React.FC = () => {
             </CardHeader>
 
             <CardContent className="flex-1 p-5 sm:p-6 pt-0 sm:pt-0">
-              <ul className="space-y-3">
+              <ul className="space-y-3 mb-8">
                 {plan.features.map((feature, i) => (
                   <li key={i} className="flex items-start gap-3 text-xs sm:text-sm font-medium">
                     <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -213,20 +184,27 @@ const Subscription: React.FC = () => {
                   </li>
                 ))}
               </ul>
+
+              {!isSubscribed && (
+                <div className="pt-4 border-t">
+                  <PayPalSubscriptionButton 
+                    planId={plan.planId} 
+                    onApprove={(id) => handleActivate(id)} 
+                  />
+                </div>
+              )}
             </CardContent>
 
-            <CardFooter className="p-5 sm:p-6">
-              <Button 
-                className={cn(
-                  "w-full font-bold h-11 sm:h-12 text-base sm:text-lg",
-                  isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
-                )}
-                onClick={() => handleSubscribe(plan.subscriptionUrl)}
-                disabled={isSubscribed || isActivating}
-              >
-                {isSubscribed ? "Current Plan" : "Subscribe with PayPal"}
-              </Button>
-            </CardFooter>
+            {isSubscribed && (
+              <CardFooter className="p-5 sm:p-6">
+                <Button 
+                  className="w-full font-bold h-11 sm:h-12 text-base sm:text-lg bg-green-600 hover:bg-green-700"
+                  disabled
+                >
+                  Current Plan
+                </Button>
+              </CardFooter>
+            )}
           </Card>
         ))}
 
@@ -238,7 +216,7 @@ const Subscription: React.FC = () => {
                 Manual Activation
               </CardTitle>
               <CardDescription className="text-xs">
-                If you've just paid, enter your PayPal Subscription ID (starts with I-...) to activate.
+                If you've just paid but weren't redirected, enter your PayPal Subscription ID (starts with I-...) to activate.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 space-y-4">
