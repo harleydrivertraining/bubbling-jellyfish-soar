@@ -15,7 +15,7 @@ import { useSearchParams, Link } from "react-router-dom";
 
 // --- CONFIGURATION ---
 // Change this ID to switch your PayPal plan
-const PAYPAL_PLAN_ID = "P-35161195GX886664PNHTGQPY"; 
+const PAYPAL_PLAN_ID = "P-8BE947115X9658739NHTMIOI"; 
 const PLAN_PRICE = "3.99";
 // ---------------------
 
