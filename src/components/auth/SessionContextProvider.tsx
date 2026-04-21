@@ -28,31 +28,39 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const fetchProfileData = useCallback(async (userId: string) => {
     setIsProfileLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Fetch basic profile info
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role, subscription_status")
         .eq("id", userId)
         .single();
       
-      if (!error && data) {
-        setUserRole(data.role?.toLowerCase() || 'instructor');
+      if (profileError) throw profileError;
+
+      const role = profile.role?.toLowerCase() || 'instructor';
+      setUserRole(role);
+
+      let status = profile.subscription_status || 'unsubscribed';
+
+      // 2. If instructor is 'unsubscribed', check for any 'approved' or 'auto_approved' claims
+      // This acts as a backup if the profile update was delayed
+      if (role === 'instructor' && status === 'unsubscribed') {
+        const { data: claims } = await supabase
+          .from("subscription_claims")
+          .select("status")
+          .eq("user_id", userId)
+          .in("status", ["approved", "auto_approved"])
+          .limit(1);
         
-        // OPTIMISTIC CHECK: If we are returning from PayPal, force 'active' status
-        const urlParams = new URLSearchParams(window.location.search);
-        const hasPaypalReturn = urlParams.get("subscription_id") || urlParams.get("token") || urlParams.get("PayerID");
-        
-        if (hasPaypalReturn && data.role?.toLowerCase() === 'instructor') {
-          setSubscriptionStatus('active');
-        } else {
-          setSubscriptionStatus(data.subscription_status || 'unsubscribed');
+        if (claims && claims.length > 0) {
+          status = 'active';
         }
-      } else {
-        // Fallback for new users or fetch errors
-        setUserRole('instructor');
-        setSubscriptionStatus('unsubscribed');
       }
+
+      setSubscriptionStatus(status);
     } catch (e) {
-      console.error("Critical profile fetch error:", e);
+      console.error("Profile fetch error:", e);
+      // Fallback defaults
       setUserRole('instructor');
       setSubscriptionStatus('unsubscribed');
     } finally {
@@ -75,8 +83,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          // We trigger the profile fetch but don't 'await' it here.
-          // This allows setIsLoading(false) to run immediately so the Layout can render.
           fetchProfileData(initialSession.user.id);
         }
       } catch (error) {

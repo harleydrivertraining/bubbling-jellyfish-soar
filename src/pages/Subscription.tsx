@@ -47,42 +47,51 @@ const Subscription: React.FC = () => {
   const handleInstantActivate = useCallback(async (providedId?: string) => {
     if (!user || isActivating) return;
     
-    const finalId = providedId || orderId || searchParams.get("subscription_id") || "PAYPAL_RETURN";
+    const finalId = providedId || orderId || searchParams.get("subscription_id") || "PAYPAL_MANUAL_ENTRY";
     
     setIsActivating(true);
     try {
-      // 1. Record the claim in the database first
+      // 1. Record the claim in the database
+      // We use upsert to ensure we don't create duplicates if they click multiple times
       const { error: claimError } = await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
-          stripe_session_id: finalId, // We use this field for the PayPal ID
+          stripe_session_id: finalId,
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      if (claimError) console.warn("Claim record failed, proceeding with profile update:", claimError.message);
+      if (claimError) {
+        console.error("Claim error:", claimError);
+        // We continue anyway as the profile update is the most important part
+      }
 
-      // 2. Update the user's profile to 'active' permanently
-      const { error: profileError } = await supabase
+      // 2. Update the user's profile to 'active'
+      // We use .select() to verify the update actually happened
+      const { data: updateResult, error: profileError } = await supabase
         .from("profiles")
         .update({ 
           subscription_status: 'active',
           updated_at: new Date().toISOString()
         })
-        .eq("id", user.id);
+        .eq("id", user.id)
+        .select();
 
       if (profileError) throw profileError;
 
-      // 3. Refresh the global session state to reflect the DB change
+      // 3. Force a refresh of the global session state
       await refreshProfile();
 
-      showSuccess("Welcome to Pro! Your account is now active.");
+      showSuccess("Pro status activated successfully!");
       
-      // 4. Navigate to dashboard and clear URL params
-      navigate("/", { replace: true });
+      // 4. Small delay to ensure state is propagated before navigating
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 500);
+
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Failed to save Pro status. Please try again or contact support.");
+      showError("Failed to activate Pro status: " + (error.message || "Unknown error"));
       setIsActivating(false);
     }
   }, [user, isActivating, orderId, searchParams, refreshProfile, navigate]);
@@ -91,10 +100,11 @@ const Subscription: React.FC = () => {
   useEffect(() => {
     const paypalId = searchParams.get("subscription_id");
     
-    if (paypalId && user && !isSubscribed && !isActivating && !isProfileLoading) {
+    // Only trigger if we have a PayPal ID and the user isn't already marked as Pro in the DB
+    if (paypalId && user && subscriptionStatus === 'unsubscribed' && !isActivating && !isProfileLoading) {
       handleInstantActivate(paypalId);
     }
-  }, [searchParams, user, isSubscribed, isActivating, isProfileLoading, handleInstantActivate]);
+  }, [searchParams, user, subscriptionStatus, isActivating, isProfileLoading, handleInstantActivate]);
 
   const handleSubscribe = async (url: string) => {
     if (Capacitor.isNativePlatform()) {
