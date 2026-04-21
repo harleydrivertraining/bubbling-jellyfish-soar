@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2, Inbox, Ban, UserPlus } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2, Inbox, Ban, UserPlus, Zap, Infinity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format, startOfWeek } from "date-fns";
@@ -35,19 +35,22 @@ interface PaymentClaim {
   };
 }
 
-interface NewSignup {
+interface InstructorSummary {
   id: string;
   first_name: string;
   last_name: string;
   email: string;
   created_at: string;
+  updated_at: string;
+  subscription_status: string;
 }
 
 const OwnerDashboard: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [pendingClaims, setPendingClaims] = useState<PaymentClaim[]>([]);
-  const [newSignups, setNewSignups] = useState<NewSignup[]>([]);
+  const [newSignups, setNewSignups] = useState<InstructorSummary[]>([]);
+  const [recentProMembers, setRecentProMembers] = useState<InstructorSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -99,13 +102,24 @@ const OwnerDashboard: React.FC = () => {
       // Fetch New Unsubscribed Signups
       const { data: signupData } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, created_at")
+        .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
         .ilike("role", "instructor")
         .eq("subscription_status", "unsubscribed")
         .order("created_at", { ascending: false })
         .limit(5);
       
       setNewSignups(signupData || []);
+
+      // Fetch Recently Activated Pro Members
+      const { data: proData } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
+        .ilike("role", "instructor")
+        .in("subscription_status", ["active", "lifetime"])
+        .order("updated_at", { ascending: false })
+        .limit(5);
+      
+      setRecentProMembers(proData || []);
 
     } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
@@ -193,7 +207,7 @@ const OwnerDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Activations Widget */}
         <Card className={cn(
           "border-l-4 shadow-md overflow-hidden transition-all h-full",
@@ -202,7 +216,7 @@ const OwnerDashboard: React.FC = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <CreditCard className={cn("h-5 w-5", pendingClaims.length > 0 ? "text-orange-600" : "text-muted-foreground")} />
-              Recent Activations ({pendingClaims.length})
+              Pending Verification ({pendingClaims.length})
             </CardTitle>
             <CardDescription>Verify Order IDs for instructors who activated their own accounts.</CardDescription>
           </CardHeader>
@@ -253,12 +267,54 @@ const OwnerDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Recently Activated Pro Members */}
+        <Card className="border-l-4 border-l-green-500 shadow-md overflow-hidden h-full">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <Zap className="h-5 w-5 text-green-600" />
+              Recent Pro Members
+            </CardTitle>
+            <CardDescription>Instructors who recently became active Pro members.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {recentProMembers.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground italic text-sm">
+                No recent Pro upgrades.
+              </div>
+            ) : (
+              <div className="divide-y">
+                {recentProMembers.map((pro) => (
+                  <div key={pro.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold">{pro.first_name} {pro.last_name}</p>
+                        {pro.subscription_status === 'lifetime' ? (
+                          <Badge className="bg-blue-600 text-[8px] h-4 px-1"><Infinity className="h-2 w-2 mr-0.5" /> LIFETIME</Badge>
+                        ) : (
+                          <Badge className="bg-green-600 text-[8px] h-4 px-1"><Zap className="h-2 w-2 mr-0.5" /> PRO</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{pro.email}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Activated {format(new Date(pro.updated_at), "MMM d, p")}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="font-bold text-primary" asChild>
+                      <Link to="/admin/instructors">
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* New Signups Widget */}
         <Card className="border-l-4 border-l-blue-500 shadow-md overflow-hidden h-full">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-blue-600" />
-              New Instructor Signups
+              New Signups (Unpaid)
             </CardTitle>
             <CardDescription>Instructors who joined but haven't subscribed yet.</CardDescription>
           </CardHeader>
@@ -276,9 +332,9 @@ const OwnerDashboard: React.FC = () => {
                       <p className="text-xs text-muted-foreground truncate">{signup.email}</p>
                       <p className="text-[10px] text-muted-foreground mt-1">Joined {format(new Date(signup.created_at), "MMM d, yyyy")}</p>
                     </div>
-                    <Button variant="ghost" size="sm" className="font-bold text-primary" asChild>
+                    <Button variant="ghost" size="icon" className="font-bold text-primary" asChild>
                       <Link to="/admin/instructors">
-                        Verify <ArrowRight className="ml-1 h-4 w-4" />
+                        <ArrowRight className="h-4 w-4" />
                       </Link>
                     </Button>
                   </div>
