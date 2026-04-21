@@ -44,29 +44,17 @@ const Subscription: React.FC = () => {
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  // Get the ID from the URL if it exists (for manual returns)
+  // Get the ID from the URL if it exists
   const paypalIdFromUrl = searchParams.get("subscription_id") || searchParams.get("ba_token") || searchParams.get("token");
 
-  const handleActivate = useCallback(async (idToUse?: string) => {
-    // Priority: 1. ID passed directly (from PayPal button), 2. Manual input, 3. URL param
-    const id = idToUse || orderId;
-    const finalId = id?.trim() || paypalIdFromUrl;
-    
-    if (!user?.id) {
-      showError("User session not found. Please sign in again.");
-      return;
-    }
-
-    if (!finalId) {
-      showError("Please enter a valid Subscription ID.");
-      return;
-    }
+  // Core activation logic
+  const performActivation = useCallback(async (finalId: string) => {
+    if (!user?.id) return;
     
     setIsActivating(true);
-
     try {
-      // 1. Record the claim in the database
-      const { error: claimError } = await supabase
+      // 1. Record the claim
+      await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
@@ -74,13 +62,8 @@ const Subscription: React.FC = () => {
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      if (claimError) {
-        console.error("Claim recording error:", claimError);
-        // We continue as the profile update is the critical part
-      }
-
-      // 2. Update the user's profile status
-      const { error: profileError } = await supabase
+      // 2. Update Profile
+      await supabase
         .from("profiles")
         .update({ 
           subscription_status: 'active',
@@ -88,52 +71,52 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      if (profileError) throw profileError;
-
-      // 3. Set a local flag for instant UI feedback (backup)
-      try {
-        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-      } catch (e) {
-        console.warn("Local storage override failed", e);
-      }
+      // 3. Local override for speed
+      localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
       
-      showSuccess("Pro features activated! Welcome aboard.");
-      
-      // 4. Refresh the session and navigate home
+      showSuccess("Pro features activated!");
       await refreshProfile();
       
       setTimeout(() => {
         navigate("/", { replace: true });
-        // Force a reload to ensure all restricted states are cleared
         window.location.reload();
       }, 1000);
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError(error.message || "Activation failed. Please check your ID or contact support.");
+      showError("Activation failed. Please check your ID.");
       setIsActivating(false);
     }
-  }, [user, orderId, paypalIdFromUrl, navigate, refreshProfile]);
+  }, [user, navigate, refreshProfile]);
 
-  // Auto-activate if we just returned from PayPal with an ID in the URL
+  // AUTO-ACTIVATION: Only runs when the URL params change or on mount
   useEffect(() => {
     if (paypalIdFromUrl && user && subscriptionStatus === 'unsubscribed' && !isActivating) {
-      handleActivate(paypalIdFromUrl);
+      performActivation(paypalIdFromUrl);
     }
-  }, [paypalIdFromUrl, user, subscriptionStatus, isActivating, handleActivate]);
+    // We intentionally exclude performActivation from dependencies to prevent loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paypalIdFromUrl, user, subscriptionStatus]);
+
+  const handleManualActivate = () => {
+    if (!orderId.trim()) {
+      showError("Please enter a Subscription ID.");
+      return;
+    }
+    performActivation(orderId.trim());
+  };
 
   const handleManualRefresh = async () => {
     setIsActivating(true);
     try {
       await refreshProfile();
-      // If still unsubscribed after refresh, stop loading
       setTimeout(() => {
         setIsActivating(false);
         if (subscriptionStatus === 'active' || subscriptionStatus === 'lifetime') {
           showSuccess("Subscription confirmed!");
           navigate("/", { replace: true });
         } else {
-          showError("No active subscription found yet. It may take a minute to process.");
+          showError("No active subscription found yet.");
         }
       }, 1500);
     } catch (e) {
@@ -180,7 +163,7 @@ const Subscription: React.FC = () => {
               </div>
             </div>
             <Button 
-              onClick={() => handleActivate(paypalIdFromUrl)} 
+              onClick={() => performActivation(paypalIdFromUrl)} 
               className="w-full bg-green-600 hover:bg-green-700 font-black h-12 text-lg shadow-lg"
             >
               Unlock Pro Now
@@ -228,7 +211,7 @@ const Subscription: React.FC = () => {
                 <div className="pt-4 border-t">
                   <PayPalSubscriptionButton 
                     planId={plan.planId} 
-                    onApprove={(id) => handleActivate(id)} 
+                    onApprove={(id) => performActivation(id)} 
                   />
                 </div>
               )}
@@ -296,7 +279,7 @@ const Subscription: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="w-full font-bold h-11"
-                  onClick={() => handleActivate()}
+                  onClick={handleManualActivate}
                   disabled={isActivating || !orderId.trim()}
                 >
                   {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
