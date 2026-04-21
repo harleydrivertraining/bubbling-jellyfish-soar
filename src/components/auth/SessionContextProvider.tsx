@@ -52,14 +52,13 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         // 4. Background Sync: If local is Pro but DB is not, try to fix the DB
         if (profile.subscription_status !== 'active' && profile.subscription_status !== 'lifetime') {
           console.log("Syncing local Pro status to database...");
-          supabase
+          const { error: syncError } = await supabase
             .from("profiles")
             .update({ subscription_status: 'active' })
-            .eq("id", userId)
-            .then(({ error }) => {
-              if (error) console.error("Background sync failed:", error.message);
-              else console.log("Background sync successful.");
-            });
+            .eq("id", userId);
+          
+          if (syncError) console.error("Background sync failed:", syncError.message);
+          else console.log("Background sync successful.");
         }
       } 
       // 5. Secondary check: Look for any approved claims if profile says unsubscribed
@@ -79,8 +78,15 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       setSubscriptionStatus(status);
     } catch (e) {
       console.error("Profile fetch error:", e);
-      setUserRole('instructor');
-      setSubscriptionStatus('unsubscribed');
+      // Don't overwrite role/status if we have a local override
+      const localOverride = localStorage.getItem(`hdt_pro_override_${userId}`);
+      if (localOverride === 'true') {
+        setSubscriptionStatus('active');
+        setUserRole('instructor');
+      } else {
+        setUserRole('instructor');
+        setSubscriptionStatus('unsubscribed');
+      }
     } finally {
       setIsProfileLoading(false);
     }

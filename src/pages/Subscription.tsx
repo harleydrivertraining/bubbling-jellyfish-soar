@@ -52,57 +52,36 @@ const Subscription: React.FC = () => {
     const finalId = idToUse || orderId || paypalIdFromUrl;
     
     if (!user) {
-      showError("Please wait for your session to load.");
+      showError("Session not found. Please log in again.");
       return;
     }
 
     if (!finalId) {
-      showError("No Subscription ID found.");
+      showError("Please enter a Subscription ID.");
       return;
     }
     
     setIsActivating(true);
 
     try {
-      // 1. Handle Master Key Logic (INSTANT BYPASS + DB SYNC)
       const isMasterKey = finalId === "$ID";
-      
-      if (isMasterKey) {
-        // Set local override immediately
-        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-        
-        // FORCE DATABASE SYNC (Wait for this to ensure DB is updated)
-        const claimId = `MASTER-KEY-${user.id.substring(0, 8)}`;
-        
-        // Update Claim
-        await supabase.from("subscription_claims").upsert({
-          user_id: user.id,
-          stripe_session_id: claimId,
-          status: 'approved'
-        }, { onConflict: 'stripe_session_id' });
+      const claimId = isMasterKey ? `MASTER-KEY-${user.id.substring(0, 8)}` : finalId;
 
-        // Update Profile
-        await supabase.from("profiles").update({ 
-          subscription_status: 'active',
-          updated_at: new Date().toISOString()
-        }).eq("id", user.id);
-
-        await refreshProfile();
-        showSuccess("Master Key Accepted! Database synced.");
-        navigate("/", { replace: true });
-        return;
-      }
-
-      // 2. Standard Activation (Non-Master Key)
-      await supabase
+      // 1. Update Subscription Claims Table
+      const { error: claimError } = await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
-          stripe_session_id: finalId,
-          status: 'auto_approved'
+          stripe_session_id: claimId,
+          status: isMasterKey ? 'approved' : 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      await supabase
+      if (claimError) {
+        throw new Error(`Claim Error: ${claimError.message}`);
+      }
+
+      // 2. Update Profile Status (The most important part)
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({ 
           subscription_status: 'active',
@@ -110,27 +89,30 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
+      if (profileError) {
+        throw new Error(`Profile Update Error: ${profileError.message}`);
+      }
+
+      // 3. Set Local Override (as a backup)
+      if (isMasterKey) {
+        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
+      }
+
+      // 4. Verify the update by refreshing the profile data
       await refreshProfile();
-      showSuccess("Pro status activated!");
+
+      showSuccess(isMasterKey ? "Master Key Accepted! Account is now Pro." : "Pro status activated!");
       
+      // 5. Clear URL and navigate
       setSearchParams({});
       setTimeout(() => {
         navigate("/", { replace: true });
-      }, 500);
+      }, 800);
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      
-      // Fallback: If DB fails but we have a valid-looking ID, allow local override
-      if (finalId.startsWith('I-') || finalId.length > 10 || finalId === "$ID") {
-        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-        refreshProfile();
-        showSuccess("Local activation successful.");
-        navigate("/", { replace: true });
-      } else {
-        showError("Activation failed. Please check your ID.");
-        setIsActivating(false);
-      }
+      showError(error.message || "Database sync failed. Please check your internet connection.");
+      setIsActivating(false);
     }
   }, [user, orderId, paypalIdFromUrl, refreshProfile, navigate, setSearchParams]);
 
@@ -169,7 +151,8 @@ const Subscription: React.FC = () => {
         <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
           <CardContent className="p-8 flex flex-col items-center text-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-xl">Syncing Pro Status...</p>
+            <p className="font-black text-blue-800 text-xl">Saving to Cloud...</p>
+            <p className="text-xs text-blue-600">Please do not close this window.</p>
           </CardContent>
         </Card>
       ) : paypalIdFromUrl && !isSubscribed ? (
