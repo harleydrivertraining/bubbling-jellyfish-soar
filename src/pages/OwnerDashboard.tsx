@@ -41,7 +41,6 @@ interface InstructorSummary {
   first_name: string;
   last_name: string;
   email: string;
-  created_at: string;
   updated_at: string;
   subscription_status: string;
   order_id?: string;
@@ -104,19 +103,18 @@ const OwnerDashboard: React.FC = () => {
       // Fetch Last 10 Unsubscribed Signups
       const { data: signupData } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
+        .select("id, first_name, last_name, email, updated_at, subscription_status")
         .ilike("role", "instructor")
         .eq("subscription_status", "unsubscribed")
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(10);
       
       setNewSignups(signupData || []);
 
       // Fetch Last 10 Pro Members (Active or Lifetime)
-      // We remove the strict role filter here to ensure we catch everyone with a Pro status
       const { data: proData, error: proError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
+        .select("id, first_name, last_name, email, updated_at, subscription_status")
         .in("subscription_status", ["active", "lifetime"])
         .order("updated_at", { ascending: false })
         .limit(10);
@@ -321,7 +319,7 @@ const OwnerDashboard: React.FC = () => {
                         {pro.order_id && (
                           <p className="text-[9px] font-mono text-primary font-bold mt-1">ID: {pro.order_id}</p>
                         )}
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Activated {format(new Date(pro.updated_at || pro.created_at), "MMM d, p")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Updated {format(new Date(pro.updated_at), "MMM d, p")}</p>
                       </div>
                       <Button variant="ghost" size="icon" className="font-bold text-primary shrink-0 ml-2" asChild>
                         <Link to="/admin/instructors">
@@ -358,7 +356,7 @@ const OwnerDashboard: React.FC = () => {
                       <div className="min-w-0">
                         <p className="font-bold">{signup.first_name} {signup.last_name}</p>
                         <p className="text-xs text-muted-foreground truncate">{signup.email}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">Joined {format(new Date(signup.created_at), "MMM d, yyyy")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Last Active {format(new Date(signup.updated_at), "MMM d, yyyy")}</p>
                       </div>
                       <Button variant="ghost" size="icon" className="font-bold text-primary" asChild>
                         <Link to="/admin/instructors">

@@ -100,7 +100,8 @@ const AdminInstructors: React.FC = () => {
         query = query.gte("updated_at", weekStart.toISOString());
       }
 
-      const { data: profiles, error: profilesError } = await query.order("created_at", { ascending: false });
+      // Changed sort from created_at to updated_at
+      const { data: profiles, error: profilesError } = await query.order("updated_at", { ascending: false });
 
       if (profilesError) throw profilesError;
 
