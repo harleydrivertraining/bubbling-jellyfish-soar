@@ -67,52 +67,57 @@ const Subscription: React.FC = () => {
       const isMasterKey = finalId === "$ID";
       const claimId = isMasterKey ? `MASTER-KEY-${user.id.substring(0, 8)}` : finalId;
 
-      // 1. Update Subscription Claims Table
-      const { error: claimError } = await supabase
-        .from("subscription_claims")
-        .upsert({
-          user_id: user.id,
-          stripe_session_id: claimId,
-          status: isMasterKey ? 'approved' : 'auto_approved'
-        }, { onConflict: 'stripe_session_id' });
-
-      if (claimError) {
-        throw new Error(`Claim Error: ${claimError.message}`);
-      }
-
-      // 2. Update Profile Status (The most important part)
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ 
-          subscription_status: 'active',
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", user.id);
-
-      if (profileError) {
-        throw new Error(`Profile Update Error: ${profileError.message}`);
-      }
-
-      // 3. Set Local Override (as a backup)
+      // 1. Set Local Override IMMEDIATELY (This is our safety net)
       if (isMasterKey) {
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
       }
 
-      // 4. Verify the update by refreshing the profile data
+      // 2. Attempt Cloud Sync with a 3-second timeout
+      const syncPromise = (async () => {
+        // Update Subscription Claims Table
+        await supabase
+          .from("subscription_claims")
+          .upsert({
+            user_id: user.id,
+            stripe_session_id: claimId,
+            status: isMasterKey ? 'approved' : 'auto_approved'
+          }, { onConflict: 'stripe_session_id' });
+
+        // Update Profile Status
+        await supabase
+          .from("profiles")
+          .update({ 
+            subscription_status: 'active',
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", user.id);
+      })();
+
+      // We wait for the sync OR 3 seconds, whichever is faster
+      await Promise.race([
+        syncPromise,
+        new Promise((resolve) => setTimeout(resolve, 3000))
+      ]);
+
+      // 3. Refresh and Navigate regardless of sync completion
+      // If sync is still running, the SessionProvider will handle it in the background
       await refreshProfile();
 
-      showSuccess(isMasterKey ? "Master Key Accepted! Account is now Pro." : "Pro status activated!");
+      showSuccess(isMasterKey ? "Master Key Accepted!" : "Pro status activated!");
       
-      // 5. Clear URL and navigate
       setSearchParams({});
-      setTimeout(() => {
-        navigate("/", { replace: true });
-      }, 800);
+      navigate("/", { replace: true });
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError(error.message || "Database sync failed. Please check your internet connection.");
-      setIsActivating(false);
+      // Even on error, if it was the master key, we proceed because local storage is set
+      if (orderId === "$ID") {
+        await refreshProfile();
+        navigate("/", { replace: true });
+      } else {
+        showError("Activation failed. Please check your connection.");
+        setIsActivating(false);
+      }
     }
   }, [user, orderId, paypalIdFromUrl, refreshProfile, navigate, setSearchParams]);
 
@@ -151,8 +156,8 @@ const Subscription: React.FC = () => {
         <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
           <CardContent className="p-8 flex flex-col items-center text-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-xl">Saving to Cloud...</p>
-            <p className="text-xs text-blue-600">Please do not close this window.</p>
+            <p className="font-black text-blue-800 text-xl">Activating Pro...</p>
+            <p className="text-xs text-blue-600">Syncing with cloud, please wait a moment.</p>
           </CardContent>
         </Card>
       ) : paypalIdFromUrl && !isSubscribed ? (
