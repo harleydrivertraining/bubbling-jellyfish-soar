@@ -36,9 +36,8 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { user, subscriptionStatus, refreshProfile } = useSession();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const { user, subscriptionStatus } = useSession();
+  const [searchParams] = useSearchParams();
   
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
@@ -52,7 +51,7 @@ const Subscription: React.FC = () => {
     const finalId = idToUse || orderId || paypalIdFromUrl;
     
     if (!user) {
-      showError("Please wait for your session to load.");
+      showError("Session not found. Please log in again.");
       return;
     }
 
@@ -71,17 +70,13 @@ const Subscription: React.FC = () => {
         // Save to local storage immediately
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
         
-        showSuccess("Master Key Accepted! Refreshing...");
-        
-        // 2. FORCE FULL PAGE REFRESH TO DASHBOARD
-        // This is the most reliable way to ensure the app picks up the new status
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 500);
+        // FORCE FULL PAGE REFRESH
+        // This is the only 100% reliable way to ensure the app reloads with the new flag
+        window.location.href = "/";
         return;
       }
 
-      // 3. STANDARD ACTIVATION (PayPal ID)
+      // 2. STANDARD ACTIVATION (PayPal ID)
       const claimId = finalId;
 
       // Update Subscription Claims Table
@@ -102,18 +97,16 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      showSuccess("Pro status activated! Refreshing...");
+      // Set local flag as a backup for standard activation too
+      localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
       
-      // FORCE FULL PAGE REFRESH TO DASHBOARD
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 500);
+      window.location.href = "/";
 
     } catch (error: any) {
       console.error("Activation error:", error);
       
-      // If it looks like a valid ID, allow local override as a fallback
-      if (finalId.startsWith('I-') || finalId.length > 10) {
+      // Fallback: If it looks like a valid ID, set local flag anyway and refresh
+      if (finalId.length > 8) {
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
         window.location.href = "/";
       } else {
