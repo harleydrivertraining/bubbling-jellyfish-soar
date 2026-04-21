@@ -37,7 +37,7 @@ const PLANS = [
 
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus, isProfileLoading, refreshProfile } = useSession();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
@@ -47,13 +47,12 @@ const Subscription: React.FC = () => {
   const handleInstantActivate = useCallback(async (providedId?: string) => {
     if (!user || isActivating) return;
     
-    const finalId = providedId || orderId || searchParams.get("subscription_id") || "PAYPAL_MANUAL_ENTRY";
+    const finalId = providedId || orderId || searchParams.get("subscription_id") || "PAYPAL_MANUAL";
     
     setIsActivating(true);
     try {
       // 1. Record the claim in the database
-      // We use upsert to ensure we don't create duplicates if they click multiple times
-      const { error: claimError } = await supabase
+      await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
@@ -61,13 +60,7 @@ const Subscription: React.FC = () => {
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      if (claimError) {
-        console.error("Claim error:", claimError);
-        // We continue anyway as the profile update is the most important part
-      }
-
       // 2. Update the user's profile to 'active'
-      // We use .select() to verify the update actually happened
       const { data: updateResult, error: profileError } = await supabase
         .from("profiles")
         .update({ 
@@ -79,28 +72,32 @@ const Subscription: React.FC = () => {
 
       if (profileError) throw profileError;
 
+      if (!updateResult || updateResult.length === 0) {
+        throw new Error("Database update failed to confirm. Please try again.");
+      }
+
       // 3. Force a refresh of the global session state
       await refreshProfile();
 
       showSuccess("Pro status activated successfully!");
       
-      // 4. Small delay to ensure state is propagated before navigating
+      // 4. Clear URL and navigate
+      setSearchParams({});
       setTimeout(() => {
         navigate("/", { replace: true });
-      }, 500);
+      }, 800);
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Failed to activate Pro status: " + (error.message || "Unknown error"));
+      showError("Failed to activate: " + (error.message || "Connection error"));
       setIsActivating(false);
     }
-  }, [user, isActivating, orderId, searchParams, refreshProfile, navigate]);
+  }, [user, isActivating, orderId, searchParams, refreshProfile, navigate, setSearchParams]);
 
   // AUTOMATIC ACTIVATION ON RETURN FROM PAYPAL
   useEffect(() => {
     const paypalId = searchParams.get("subscription_id");
     
-    // Only trigger if we have a PayPal ID and the user isn't already marked as Pro in the DB
     if (paypalId && user && subscriptionStatus === 'unsubscribed' && !isActivating && !isProfileLoading) {
       handleInstantActivate(paypalId);
     }
@@ -133,8 +130,8 @@ const Subscription: React.FC = () => {
         <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
           <CardContent className="p-6 flex flex-col items-center text-center gap-3">
             <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-lg">Activating Pro Status...</p>
-            <p className="text-xs text-blue-600">Saving your subscription to the database.</p>
+            <p className="font-black text-blue-800 text-lg">Verifying with Database...</p>
+            <p className="text-xs text-blue-600">Please wait while we secure your Pro access.</p>
           </CardContent>
         </Card>
       )}

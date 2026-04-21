@@ -28,10 +28,10 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const fetchProfileData = useCallback(async (userId: string) => {
     setIsProfileLoading(true);
     try {
-      // 1. Fetch basic profile info
+      // 1. Fetch basic profile info with a cache-buster for mobile browsers
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role, subscription_status")
+        .select("role, subscription_status, updated_at")
         .eq("id", userId)
         .single();
       
@@ -42,8 +42,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
       let status = profile.subscription_status || 'unsubscribed';
 
-      // 2. If instructor is 'unsubscribed', check for any 'approved' or 'auto_approved' claims
-      // This acts as a backup if the profile update was delayed
+      // 2. Secondary check: Look for any approved claims if profile says unsubscribed
       if (role === 'instructor' && status === 'unsubscribed') {
         const { data: claims } = await supabase
           .from("subscription_claims")
@@ -60,7 +59,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       setSubscriptionStatus(status);
     } catch (e) {
       console.error("Profile fetch error:", e);
-      // Fallback defaults
       setUserRole('instructor');
       setSubscriptionStatus('unsubscribed');
     } finally {
