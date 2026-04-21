@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSearchParams, Link } from "react-router-dom";
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 
 const PLANS = [
   {
@@ -34,37 +36,25 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { user, subscriptionStatus } = useSession();
+  const { user, subscriptionStatus, isProfileLoading } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  // Auto-activate if returning from PayPal with a subscription ID
-  useEffect(() => {
-    const subId = searchParams.get("subscription_id");
-    if (subId && user && !isSubscribed && !isActivating) {
-      handleInstantActivate(subId);
-      // Clear the params so it doesn't trigger again on refresh
-      setSearchParams({});
-    }
-  }, [searchParams, user, isSubscribed]);
-
-  const handleSubscribe = (url: string) => {
-    window.open(url, "_blank");
-  };
-
-  const handleInstantActivate = async (idToUse?: string) => {
-    const finalId = idToUse || orderId;
-    if (!user || !finalId.trim()) return;
+  const handleInstantActivate = useCallback(async (idToUse: string) => {
+    if (!user || !idToUse.trim() || isActivating) return;
     
     setIsActivating(true);
     try {
       // 1. Update the user's profile to 'active' immediately
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({ subscription_status: 'active' })
+        .update({ 
+          subscription_status: 'active',
+          updated_at: new Date().toISOString()
+        })
         .eq("id", user.id);
 
       if (profileError) throw profileError;
@@ -74,7 +64,7 @@ const Subscription: React.FC = () => {
         .from("subscription_claims")
         .insert({
           user_id: user.id,
-          stripe_session_id: finalId.trim(),
+          stripe_session_id: idToUse.trim(),
           status: 'auto_approved'
         });
 
@@ -83,16 +73,40 @@ const Subscription: React.FC = () => {
       showSuccess("Account activated! Welcome to the Pro plan.");
       setOrderId("");
       
-      // Force a page reload to update the UI/Sidebar
+      // Force a page reload to update the UI/Sidebar across the whole app
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = "/";
       }, 1500);
     } catch (error: any) {
       console.error("Activation error:", error);
       showError("Failed to activate: " + error.message);
-    } finally {
       setIsActivating(false);
     }
+  }, [user, isActivating]);
+
+  // Auto-activate if returning from PayPal with a subscription ID
+  useEffect(() => {
+    const subId = searchParams.get("subscription_id") || searchParams.get("token");
+    
+    // If we have an ID but the user session isn't ready yet, we wait.
+    // Once user is ready and we aren't already subscribed, trigger activation.
+    if (subId && user && !isSubscribed && !isActivating && !isProfileLoading) {
+      handleInstantActivate(subId);
+      // Clear the params so it doesn't trigger again on refresh
+      setSearchParams({});
+    }
+  }, [searchParams, user, isSubscribed, isActivating, isProfileLoading, handleInstantActivate, setSearchParams]);
+
+  const handleSubscribe = async (url: string) => {
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url });
+    } else {
+      window.open(url, "_blank");
+    }
+  };
+
+  const handleManualRefresh = () => {
+    window.location.reload();
   };
 
   return (
@@ -109,6 +123,16 @@ const Subscription: React.FC = () => {
           Unlock the full power of the Driving Instructor App with a recurring monthly plan.
         </p>
       </div>
+
+      {isActivating && (
+        <Card className="w-full max-w-md border-blue-200 bg-blue-50 animate-pulse">
+          <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="font-bold text-blue-800">Activating your Pro account...</p>
+            <p className="text-xs text-blue-600">Please don't close this page. We're verifying your subscription with PayPal.</p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 sm:gap-8 md:grid-cols-2 max-w-4xl w-full">
         {PLANS.map((plan) => (
@@ -153,7 +177,7 @@ const Subscription: React.FC = () => {
                   isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
                 onClick={() => handleSubscribe(plan.subscriptionUrl)}
-                disabled={isSubscribed}
+                disabled={isSubscribed || isActivating}
               >
                 {isSubscribed ? "Current Plan" : "Subscribe with PayPal"}
               </Button>
@@ -187,7 +211,7 @@ const Subscription: React.FC = () => {
               <Button 
                 variant="outline" 
                 className="w-full font-bold h-11"
-                onClick={() => handleInstantActivate()}
+                onClick={() => handleInstantActivate(orderId)}
                 disabled={isActivating || !orderId.trim()}
               >
                 {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
@@ -196,6 +220,16 @@ const Subscription: React.FC = () => {
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* Status Refresh for Mobile */}
+      <div className="flex flex-col items-center gap-4 pt-4">
+        <p className="text-xs text-muted-foreground text-center max-w-xs">
+          If you've just subscribed and your status hasn't updated, try refreshing the app.
+        </p>
+        <Button variant="ghost" size="sm" onClick={handleManualRefresh} className="font-bold">
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh App Status
+        </Button>
       </div>
 
       {/* Cancellation and Management Info */}
