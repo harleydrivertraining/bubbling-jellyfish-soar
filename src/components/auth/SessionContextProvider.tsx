@@ -50,12 +50,17 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         status = 'active';
         
         // 4. Background Sync: If local is Pro but DB is not, try to fix the DB
+        // IMPORTANT: We do NOT 'await' this on mobile to prevent hanging
         if (profile.subscription_status !== 'active' && profile.subscription_status !== 'lifetime') {
-          console.log("Syncing local Pro status to database...");
-          await supabase
+          console.log("Syncing local Pro status to database in background...");
+          supabase
             .from("profiles")
             .update({ subscription_status: 'active' })
-            .eq("id", userId);
+            .eq("id", userId)
+            .then(({ error }) => {
+              if (error) console.error("Background sync failed:", error.message);
+              else console.log("Background sync successful.");
+            });
         }
       } 
       // 5. Secondary check: Look for any approved claims if profile says unsubscribed
