@@ -28,7 +28,10 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const fetchProfileData = useCallback(async (userId: string) => {
     setIsProfileLoading(true);
     try {
-      // 1. Fetch basic profile info with a cache-buster for mobile browsers
+      // 1. Check for Emergency Local Override (Master Key)
+      const localOverride = localStorage.getItem(`hdt_pro_override_${userId}`);
+      
+      // 2. Fetch basic profile info
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role, subscription_status, updated_at")
@@ -42,8 +45,12 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
       let status = profile.subscription_status || 'unsubscribed';
 
-      // 2. Secondary check: Look for any approved claims if profile says unsubscribed
-      if (role === 'instructor' && status === 'unsubscribed') {
+      // 3. Apply Override if present
+      if (localOverride === 'true') {
+        status = 'active';
+      } 
+      // 4. Secondary check: Look for any approved claims if profile says unsubscribed
+      else if (role === 'instructor' && status === 'unsubscribed') {
         const { data: claims } = await supabase
           .from("subscription_claims")
           .select("status")
