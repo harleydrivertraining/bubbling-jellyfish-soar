@@ -37,6 +37,7 @@ const PLANS = [
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus, refreshProfile } = useSession();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
@@ -47,23 +48,25 @@ const Subscription: React.FC = () => {
   const paypalIdFromUrl = searchParams.get("subscription_id") || searchParams.get("ba_token") || searchParams.get("token");
 
   const handleActivate = useCallback(async (idToUse?: string) => {
-    const finalId = idToUse || orderId || paypalIdFromUrl;
+    // Priority: 1. ID passed directly (from PayPal button), 2. Manual input, 3. URL param
+    const id = idToUse || orderId;
+    const finalId = id?.trim() || paypalIdFromUrl;
     
-    if (!user) {
-      showError("Session not found. Please log in again.");
+    if (!user?.id) {
+      showError("User session not found. Please sign in again.");
       return;
     }
 
     if (!finalId) {
-      showError("Please enter a Subscription ID.");
+      showError("Please enter a valid Subscription ID.");
       return;
     }
     
     setIsActivating(true);
 
     try {
-      // 1. Update Subscription Claims Table
-      await supabase
+      // 1. Record the claim in the database
+      const { error: claimError } = await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
@@ -71,8 +74,13 @@ const Subscription: React.FC = () => {
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      // 2. Update Profile Status
-      await supabase
+      if (claimError) {
+        console.error("Claim recording error:", claimError);
+        // We continue as the profile update is the critical part
+      }
+
+      // 2. Update the user's profile status
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({ 
           subscription_status: 'active',
@@ -80,22 +88,32 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      // 3. Set local flag as a backup for instant UI update
-      localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
+      if (profileError) throw profileError;
+
+      // 3. Set a local flag for instant UI feedback (backup)
+      try {
+        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
+      } catch (e) {
+        console.warn("Local storage override failed", e);
+      }
       
       showSuccess("Pro features activated! Welcome aboard.");
       
-      // Force full refresh to clear all restricted states
+      // 4. Refresh the session and navigate home
+      await refreshProfile();
+      
       setTimeout(() => {
-        window.location.href = "/";
-      }, 1500);
+        navigate("/", { replace: true });
+        // Force a reload to ensure all restricted states are cleared
+        window.location.reload();
+      }, 1000);
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Activation failed. Please check your ID or contact support.");
+      showError(error.message || "Activation failed. Please check your ID or contact support.");
       setIsActivating(false);
     }
-  }, [user, orderId, paypalIdFromUrl]);
+  }, [user, orderId, paypalIdFromUrl, navigate, refreshProfile]);
 
   // Auto-activate if we just returned from PayPal with an ID in the URL
   useEffect(() => {
@@ -113,7 +131,7 @@ const Subscription: React.FC = () => {
         setIsActivating(false);
         if (subscriptionStatus === 'active' || subscriptionStatus === 'lifetime') {
           showSuccess("Subscription confirmed!");
-          window.location.href = "/";
+          navigate("/", { replace: true });
         } else {
           showError("No active subscription found yet. It may take a minute to process.");
         }
