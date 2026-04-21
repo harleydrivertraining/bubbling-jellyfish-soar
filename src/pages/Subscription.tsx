@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui<dyad-write path="src/pages/Subscription.tsx" description="Updating the subscription page to use the new refresh logic and handle redirects more smoothly.">
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw } from "lucide-react";
@@ -11,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 
@@ -36,8 +40,9 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { user, subscriptionStatus, isProfileLoading } = useSession();
+  const { user, subscriptionStatus, isProfileLoading, refreshProfile } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
 
@@ -48,7 +53,7 @@ const Subscription: React.FC = () => {
     
     setIsActivating(true);
     try {
-      // Force update the user's profile to 'active' immediately
+      // 1. Update the user's profile to 'active' immediately
       const { error } = await supabase
         .from("profiles")
         .update({ 
@@ -59,22 +64,22 @@ const Subscription: React.FC = () => {
 
       if (error) throw error;
 
-      showSuccess("Welcome to Pro! Redirecting...");
+      // 2. Refresh the global session state so the Layout guard passes
+      await refreshProfile();
+
+      showSuccess("Welcome to Pro!");
       
-      // Force a hard reload to the home page to ensure all components pick up the new status
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 500);
+      // 3. Use internal navigation instead of hard reload to avoid mobile browser lag
+      navigate("/", { replace: true });
     } catch (error: any) {
       console.error("Activation error:", error);
       showError("Failed to activate. Please try refreshing.");
       setIsActivating(false);
     }
-  }, [user, isActivating]);
+  }, [user, isActivating, refreshProfile, navigate]);
 
   // AUTOMATIC ACTIVATION ON RETURN
   useEffect(() => {
-    // Check for any common PayPal return parameters
     const hasPaypalParams = 
       searchParams.get("subscription_id") || 
       searchParams.get("token") || 
@@ -169,7 +174,6 @@ const Subscription: React.FC = () => {
           </Card>
         ))}
 
-        {/* Manual Activation Section */}
         {!isSubscribed && (
           <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
             <CardHeader className="p-0 mb-4">
@@ -206,7 +210,6 @@ const Subscription: React.FC = () => {
         )}
       </div>
 
-      {/* Cancellation and Management Info */}
       <div className="max-w-4xl w-full space-y-6">
         <div className="flex items-center gap-2 px-1">
           <Info className="h-5 w-5 text-primary" />

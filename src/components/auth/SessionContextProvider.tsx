@@ -11,6 +11,7 @@ interface SessionContextType {
   isProfileLoading: boolean;
   subscriptionStatus: string | null;
   userRole: string | null;
+  refreshProfile: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -35,8 +36,17 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       
       if (!error && data) {
         setUserRole(data.role?.toLowerCase() || 'instructor');
-        // Default to unsubscribed if no status is set
-        setSubscriptionStatus(data.subscription_status || 'unsubscribed');
+        
+        // OPTIMISTIC CHECK: If we are returning from PayPal, force 'active' status
+        // even if the database hasn't updated yet. This prevents the "stuck" loading screen.
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasPaypalReturn = urlParams.get("subscription_id") || urlParams.get("token") || urlParams.get("PayerID");
+        
+        if (hasPaypalReturn && data.role?.toLowerCase() === 'instructor') {
+          setSubscriptionStatus('active');
+        } else {
+          setSubscriptionStatus(data.subscription_status || 'unsubscribed');
+        }
       }
     } catch (e) {
       console.warn("Background profile fetch failed:", e);
@@ -45,23 +55,24 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (user) await fetchProfileData(user.id);
+  }, [user, fetchProfileData]);
+
   useEffect(() => {
     if (initializationStarted.current) return;
     initializationStarted.current = true;
 
     const initialize = async () => {
       try {
-        // 1. Get session immediately from local storage/cache
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          // Start fetching profile in background, DON'T await it here
-          fetchProfileData(initialSession.user.id);
+          await fetchProfileData(initialSession.user.id);
         }
         
-        // 2. Release the main app loader immediately
         setIsLoading(false);
       } catch (error) {
         console.error("Auth init error:", error);
@@ -90,14 +101,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     };
   }, [fetchProfileData]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-      </div>
-    );
-  }
-
   return (
     <SessionContext.Provider value={{ 
       session, 
@@ -105,12 +108,15 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       isLoading, 
       isProfileLoading,
       subscriptionStatus,
-      userRole
+      userRole,
+      refreshProfile
     }}>
       {children}
     </SessionContext.Provider>
   );
 };
+
+export default SessionContextProvider;
 
 export const useSession = () => {
   const context = useContext(SessionContext);
