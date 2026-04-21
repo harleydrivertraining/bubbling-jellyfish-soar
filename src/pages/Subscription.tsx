@@ -13,13 +13,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSearchParams, Link } from "react-router-dom";
 
+// --- CONFIGURATION ---
+// Change this ID to switch your PayPal plan
+const PAYPAL_PLAN_ID = "P-35161195GX886664PNHTGQPY"; 
+const PLAN_PRICE = "3.99";
+// ---------------------
+
 const PLANS = [
   {
     id: "pro_monthly",
     name: "Monthly Pro",
-    price: "3.99",
+    price: PLAN_PRICE,
     interval: "month",
-    subscriptionUrl: "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-35161195GX886664PNHTGQPY", 
+    subscriptionUrl: `https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=${PAYPAL_PLAN_ID}`, 
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -46,7 +52,6 @@ const Subscription: React.FC = () => {
     const subId = searchParams.get("subscription_id");
     if (subId && user && !isSubscribed && !isActivating) {
       handleInstantActivate(subId);
-      // Clear the params so it doesn't trigger again on refresh
       setSearchParams({});
     }
   }, [searchParams, user, isSubscribed]);
@@ -61,7 +66,6 @@ const Subscription: React.FC = () => {
     
     setIsActivating(true);
     try {
-      // 1. Update the user's profile to 'active' immediately
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ subscription_status: 'active' })
@@ -69,7 +73,6 @@ const Subscription: React.FC = () => {
 
       if (profileError) throw profileError;
 
-      // 2. Record the activation for the owner to verify
       const { error: claimError } = await supabase
         .from("subscription_claims")
         .insert({
@@ -83,7 +86,6 @@ const Subscription: React.FC = () => {
       showSuccess("Account activated! Welcome to the Pro plan.");
       setOrderId("");
       
-      // Force a page reload to update the UI/Sidebar
       setTimeout(() => {
         window.location.reload();
       }, 1500);
@@ -161,7 +163,6 @@ const Subscription: React.FC = () => {
           </Card>
         ))}
 
-        {/* Manual Activation Section */}
         {!isSubscribed && (
           <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
             <CardHeader className="p-0 mb-4">
@@ -198,7 +199,6 @@ const Subscription: React.FC = () => {
         )}
       </div>
 
-      {/* Cancellation and Management Info */}
       <div className="max-w-4xl w-full space-y-6">
         <div className="flex items-center gap-2 px-1">
           <Info className="h-5 w-5 text-primary" />
