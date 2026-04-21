@@ -13,10 +13,8 @@ import {
   ArrowLeft, 
   ShieldCheck, 
   Search,
-  ExternalLink,
   RefreshCw,
   AlertTriangle,
-  User,
   X,
   Activity,
   CreditCard,
@@ -44,13 +42,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import EditInstructorSubscription from "@/components/EditInstructorSubscription";
-import { cn } from "@/lib/utils";
 
 interface InstructorProfile {
   id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
   logo_url: string | null;
   student_count: number;
   updated_at: string;
@@ -88,12 +85,12 @@ const AdminInstructors: React.FC = () => {
       
       if (roleError) throw new Error("Could not verify your user role: " + roleError.message);
       
-      if (myProfile?.role !== 'owner') {
+      if (myProfile?.role?.toLowerCase() !== 'owner') {
         navigate("/");
         return;
       }
 
-      // Broaden the query: Show EVERYONE in the profiles table to ensure no one is hidden
+      // Fetch ALL profiles to ensure no one is hidden
       let query = supabase
         .from("profiles")
         .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status");
@@ -107,6 +104,7 @@ const AdminInstructors: React.FC = () => {
 
       if (profilesError) throw profilesError;
 
+      // Fetch student counts separately to avoid complex joins that might fail due to RLS
       let countMap: Record<string, number> = {};
       try {
         const { data: studentCounts } = await supabase
@@ -114,7 +112,9 @@ const AdminInstructors: React.FC = () => {
           .select("user_id");
         
         studentCounts?.forEach(s => {
-          countMap[s.user_id] = (countMap[s.user_id] || 0) + 1;
+          if (s.user_id) {
+            countMap[s.user_id] = (countMap[s.user_id] || 0) + 1;
+          }
         });
       } catch (e) {
         console.warn("Could not fetch student counts:", e);
@@ -122,9 +122,9 @@ const AdminInstructors: React.FC = () => {
 
       const formatted: InstructorProfile[] = (profiles || []).map(p => ({
         id: p.id,
-        first_name: p.first_name || "",
-        last_name: p.last_name || "",
-        email: p.email || "",
+        first_name: p.first_name,
+        last_name: p.last_name,
+        email: p.email,
         logo_url: p.logo_url,
         student_count: countMap[p.id] || 0,
         updated_at: p.updated_at,
@@ -165,11 +165,14 @@ const AdminInstructors: React.FC = () => {
     }
   };
 
-  const filteredInstructors = instructors.filter(i => 
-    `${i.first_name} ${i.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    i.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    i.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInstructors = instructors.filter(i => {
+    const fullName = `${i.first_name || ''} ${i.last_name || ''}`.toLowerCase();
+    const email = (i.email || '').toLowerCase();
+    const id = i.id.toLowerCase();
+    const search = searchTerm.toLowerCase();
+    
+    return fullName.includes(search) || email.includes(search) || id.includes(search);
+  });
 
   const clearFilter = () => {
     setSearchParams({});
@@ -297,7 +300,7 @@ const AdminInstructors: React.FC = () => {
                 {filteredInstructors.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                      No users found matching your search.
+                      {instructors.length === 0 ? "No users found in the database." : "No users match your search criteria."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -314,14 +317,14 @@ const AdminInstructors: React.FC = () => {
                           <div className="min-w-0">
                             <p className="font-bold truncate">
                               {instructor.first_name || instructor.last_name 
-                                ? `${instructor.first_name} ${instructor.last_name}` 
+                                ? `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim()
                                 : <span className="text-muted-foreground italic">Unnamed User</span>}
                             </p>
                             <div className="flex items-center gap-1.5">
                               <Badge variant="outline" className="text-[8px] h-3.5 px-1 uppercase font-black">
                                 {instructor.role || 'user'}
                               </Badge>
-                              {instructor.role === 'owner' && <Badge variant="default" className="text-[8px] h-3.5 px-1 bg-primary text-primary-foreground font-black">OWNER</Badge>}
+                              {instructor.role?.toLowerCase() === 'owner' && <Badge variant="default" className="text-[8px] h-3.5 px-1 bg-primary text-primary-foreground font-black">OWNER</Badge>}
                             </div>
                           </div>
                         </div>
@@ -412,7 +415,7 @@ const AdminInstructors: React.FC = () => {
           {selectedInstructor && (
             <EditInstructorSubscription
               instructorId={selectedInstructor.id}
-              instructorName={instructor.first_name ? `${selectedInstructor.first_name} ${selectedInstructor.last_name}` : "this user"}
+              instructorName={selectedInstructor.first_name ? `${selectedInstructor.first_name} ${selectedInstructor.last_name || ''}` : "this user"}
               currentStatus={selectedInstructor.subscription_status}
               onSuccess={() => {
                 setIsSubOpen(false);
