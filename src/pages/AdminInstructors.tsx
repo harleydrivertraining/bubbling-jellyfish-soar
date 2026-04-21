@@ -77,71 +77,64 @@ const AdminInstructors: React.FC = () => {
     setErrorDetail(null);
 
     try {
-      const { data: myProfile, error: roleError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      
-      if (roleError) throw new Error("Could not verify your user role: " + roleError.message);
-      
-      if (myProfile?.role?.toLowerCase() !== 'owner') {
-        navigate("/");
-        return;
-      }
+      // We call the RPC function which joins auth.users and public.profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .rpc('get_all_users_for_admin');
 
-      // Fetch ALL profiles to ensure no one is hidden
-      let query = supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status");
-
-      if (filterType === "active") {
-        const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-        query = query.gte("updated_at", weekStart.toISOString());
-      }
-
-      // Changed sort from created_at to updated_at
-      const { data: profiles, error: profilesError } = await query.order("updated_at", { ascending: false });
-
-      if (profilesError) throw profilesError;
-
-      // Fetch student counts separately to avoid complex joins that might fail due to RLS
-      let countMap: Record<string, number> = {};
-      try {
-        const { data: studentCounts } = await supabase
-          .from("students")
-          .select("user_id");
+      if (profilesError) {
+        // If the RPC doesn't exist yet, fallback to the profiles table but warn the user
+        console.warn("RPC 'get_all_users_for_admin' not found. Falling back to profiles table.");
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status")
+          .order("updated_at", { ascending: false });
         
-        studentCounts?.forEach(s => {
-          if (s.user_id) {
-            countMap[s.user_id] = (countMap[s.user_id] || 0) + 1;
-          }
-        });
-      } catch (e) {
-        console.warn("Could not fetch student counts:", e);
+        if (fallbackError) throw fallbackError;
+        
+        processProfiles(fallbackData || []);
+      } else {
+        processProfiles(profiles || []);
       }
-
-      const formatted: InstructorProfile[] = (profiles || []).map(p => ({
-        id: p.id,
-        first_name: p.first_name,
-        last_name: p.last_name,
-        email: p.email,
-        logo_url: p.logo_url,
-        student_count: countMap[p.id] || 0,
-        updated_at: p.updated_at,
-        subscription_status: p.subscription_status,
-        role: p.role
-      }));
-
-      setInstructors(formatted);
     } catch (error: any) {
       console.error("Error fetching instructors:", error);
       setErrorDetail(error.message);
-      showError("Failed to load instructor list.");
+      showError("Failed to load instructor list. Make sure you ran the SQL helper function.");
     } finally {
       setIsLoading(false);
     }
-  }, [user, navigate, filterType]);
+  }, [user]);
+
+  const processProfiles = async (profiles: any[]) => {
+    // Fetch student counts separately
+    let countMap: Record<string, number> = {};
+    try {
+      const { data: studentCounts } = await supabase
+        .from("students")
+        .select("user_id");
+      
+      studentCounts?.forEach(s => {
+        if (s.user_id) {
+          countMap[s.user_id] = (countMap[s.user_id] || 0) + 1;
+        }
+      });
+    } catch (e) {
+      console.warn("Could not fetch student counts:", e);
+    }
+
+    const formatted: InstructorProfile[] = profiles.map(p => ({
+      id: p.id,
+      first_name: p.first_name,
+      last_name: p.last_name,
+      email: p.email,
+      logo_url: p.logo_url,
+      student_count: countMap[p.id] || 0,
+      updated_at: p.updated_at,
+      subscription_status: p.subscription_status,
+      role: p.role
+    }));
+
+    setInstructors(formatted);
+  };
 
   useEffect(() => {
     if (!isSessionLoading) fetchInstructors();
@@ -206,35 +199,6 @@ const AdminInstructors: React.FC = () => {
     );
   }
 
-  if (errorDetail) {
-    return (
-      <div className="space-y-6 max-w-4xl mx-auto p-4">
-        <Button variant="ghost" asChild className="-ml-2">
-          <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
-        </Button>
-        <Card className="border-destructive bg-destructive/5">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Connection Error
-            </CardTitle>
-            <CardDescription>
-              The app was unable to retrieve the instructor list.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 bg-background rounded border text-sm font-mono overflow-auto">
-              {errorDetail}
-            </div>
-            <Button onClick={fetchInstructors} className="font-bold">
-              <RefreshCw className="mr-2 h-4 w-4" /> Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -248,15 +212,6 @@ const AdminInstructors: React.FC = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {filterType === "active" && (
-            <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 border-indigo-200 px-3 py-1 flex items-center gap-2">
-              <Activity className="h-3 w-3" />
-              Active This Week
-              <button onClick={clearFilter} className="hover:text-indigo-900">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
           <Button variant="outline" size="sm" onClick={fetchInstructors} className="font-bold">
             <RefreshCw className="mr-2 h-4 w-4" /> Refresh List
           </Button>
@@ -267,11 +222,9 @@ const AdminInstructors: React.FC = () => {
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>{filterType === "active" ? "Active Users" : "Platform Directory"}</CardTitle>
+              <CardTitle>Platform Directory</CardTitle>
               <CardDescription>
-                {filterType === "active" 
-                  ? "Users who have used the app in the last 7 days." 
-                  : "Overview of every account registered on the platform."}
+                Every account registered on the platform, including those without profiles.
               </CardDescription>
             </div>
             <div className="relative w-full sm:w-72">
@@ -301,7 +254,7 @@ const AdminInstructors: React.FC = () => {
                 {filteredInstructors.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                      {instructors.length === 0 ? "No users found in the database." : "No users match your search criteria."}
+                      {instructors.length === 0 ? "No users found. Ensure you ran the SQL helper function in Supabase." : "No users match your search criteria."}
                     </TableCell>
                   </TableRow>
                 ) : (
