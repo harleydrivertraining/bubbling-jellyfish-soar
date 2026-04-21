@@ -63,25 +63,28 @@ const Subscription: React.FC = () => {
     
     setIsActivating(true);
     try {
-      // MASTER KEY BYPASS
-      if (finalId === "$ID") {
+      // 1. Handle Master Key Logic
+      const isMasterKey = finalId === "$ID";
+      
+      if (isMasterKey) {
+        // Set local override immediately for instant UI feedback
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-        await refreshProfile();
-        showSuccess("Master Key Accepted. Pro access granted!");
-        navigate("/", { replace: true });
-        return;
       }
 
-      // 1. Record the claim
+      // 2. Record the claim in the database
+      // We use a special ID for master key claims so the owner can identify them
+      const claimId = isMasterKey ? `MASTER-KEY-${user.id.substring(0, 8)}` : finalId;
+      
       await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
-          stripe_session_id: finalId,
-          status: 'auto_approved'
+          stripe_session_id: claimId,
+          status: isMasterKey ? 'approved' : 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      // 2. Update Profile
+      // 3. Update Profile Status in Database
+      // This makes the Pro status permanent and synced across devices
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ 
@@ -90,12 +93,16 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      // 3. Refresh Global State
+      if (profileError) {
+        console.warn("Database profile update failed, relying on claim/local override:", profileError.message);
+      }
+
+      // 4. Refresh Global State
       await refreshProfile();
 
-      showSuccess("Pro status activated!");
+      showSuccess(isMasterKey ? "Master Key Accepted! Pro status synced to database." : "Pro status activated!");
       
-      // 4. Clear URL and navigate
+      // 5. Clear URL and navigate
       setSearchParams({});
       setTimeout(() => {
         navigate("/", { replace: true });
@@ -103,11 +110,12 @@ const Subscription: React.FC = () => {
 
     } catch (error: any) {
       console.error("Activation error:", error);
+      
       // Fallback: If DB fails but we have a valid-looking ID, allow local override for this session
-      if (finalId.startsWith('I-') || finalId.length > 10) {
+      if (finalId.startsWith('I-') || finalId.length > 10 || finalId === "$ID") {
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
         await refreshProfile();
-        showSuccess("Local activation successful.");
+        showSuccess("Local activation successful. Your account is now Pro.");
         navigate("/", { replace: true });
       } else {
         showError("Activation failed. Please enter your Subscription ID manually.");
@@ -139,7 +147,7 @@ const Subscription: React.FC = () => {
           Secure Monthly Subscription via PayPal
         </div>
         <h1 className="text-3xl sm:text-5xl font-black tracking-tight">
-          {isSubscribed ? "Your Subscription" : "Upgrade to Pro"}
+          {isSubscribed ? "You are a Pro Member" : "Upgrade to Pro"}
         </h1>
         <p className="text-sm sm:text-base text-muted-foreground font-medium px-2">
           Unlock the full power of the Driving Instructor App with a recurring monthly plan.
@@ -151,7 +159,7 @@ const Subscription: React.FC = () => {
         <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
           <CardContent className="p-8 flex flex-col items-center text-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-xl">Activating Pro Access...</p>
+            <p className="font-black text-blue-800 text-xl">Syncing Pro Status...</p>
           </CardContent>
         </Card>
       ) : paypalIdFromUrl && !isSubscribed ? (

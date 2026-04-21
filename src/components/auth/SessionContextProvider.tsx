@@ -48,8 +48,17 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       // 3. Apply Override if present
       if (localOverride === 'true') {
         status = 'active';
+        
+        // 4. Background Sync: If local is Pro but DB is not, try to fix the DB
+        if (profile.subscription_status !== 'active' && profile.subscription_status !== 'lifetime') {
+          console.log("Syncing local Pro status to database...");
+          await supabase
+            .from("profiles")
+            .update({ subscription_status: 'active' })
+            .eq("id", userId);
+        }
       } 
-      // 4. Secondary check: Look for any approved claims if profile says unsubscribed
+      // 5. Secondary check: Look for any approved claims if profile says unsubscribed
       else if (role === 'instructor' && status === 'unsubscribed') {
         const { data: claims } = await supabase
           .from("subscription_claims")
