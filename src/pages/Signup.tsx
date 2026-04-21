@@ -41,14 +41,31 @@ const Signup: React.FC = () => {
 
       if (error) throw error;
 
-      if (data.session) {
-        // Automatic login successful
-        showSuccess("Account created! Redirecting to dashboard...");
-        // Use window.location to ensure the session is fully initialized in the provider
-        window.location.href = "/";
-      } else if (data.user) {
-        // Email confirmation is likely enabled in Supabase
-        navigate("/signup-success");
+      if (data.user) {
+        // Notify Owner of new signup
+        // We fetch the owner ID first
+        const { data: owners } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("role", "owner");
+        
+        if (owners && owners.length > 0) {
+          const notifications = owners.map(owner => ({
+            user_id: owner.id,
+            title: "New Instructor Signup",
+            message: `${firstName} ${lastName} (${email}) has just registered.`,
+            type: "new_signup"
+          }));
+          
+          await supabase.from("notifications").insert(notifications);
+        }
+
+        if (data.session) {
+          showSuccess("Account created! Redirecting to dashboard...");
+          window.location.href = "/";
+        } else {
+          navigate("/signup-success");
+        }
       }
     } catch (error: any) {
       console.error("Signup error:", error);
