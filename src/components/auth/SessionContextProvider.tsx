@@ -46,14 +46,17 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         } else {
           setSubscriptionStatus(data.subscription_status || 'unsubscribed');
         }
-      } else if (error && error.code === 'PGRST116') {
-        // Profile not found - likely a brand new signup
-        // We default to instructor so the UI can at least render the subscription guard
+      } else {
+        // If profile is missing (PGRST116) or any other error occurs, 
+        // we default to instructor/unsubscribed so the app can load and redirect to subscription.
+        console.warn("Profile fetch failed, using defaults:", error?.message);
         setUserRole('instructor');
         setSubscriptionStatus('unsubscribed');
       }
     } catch (e) {
-      console.warn("Background profile fetch failed:", e);
+      console.error("Critical profile fetch error:", e);
+      setUserRole('instructor');
+      setSubscriptionStatus('unsubscribed');
     } finally {
       setIsProfileLoading(false);
     }
