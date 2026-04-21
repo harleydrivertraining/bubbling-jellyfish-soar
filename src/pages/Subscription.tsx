@@ -37,20 +37,33 @@ const PLANS = [
 
 const Subscription: React.FC = () => {
   const { user, subscriptionStatus, isProfileLoading, refreshProfile } = useSession();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  const handleInstantActivate = useCallback(async () => {
+  const handleInstantActivate = useCallback(async (providedId?: string) => {
     if (!user || isActivating) return;
+    
+    const finalId = providedId || orderId || searchParams.get("subscription_id") || "PAYPAL_RETURN";
     
     setIsActivating(true);
     try {
-      // 1. Update the user's profile to 'active' immediately
-      const { error } = await supabase
+      // 1. Record the claim in the database first
+      const { error: claimError } = await supabase
+        .from("subscription_claims")
+        .upsert({
+          user_id: user.id,
+          stripe_session_id: finalId, // We use this field for the PayPal ID
+          status: 'auto_approved'
+        }, { onConflict: 'stripe_session_id' });
+
+      if (claimError) console.warn("Claim record failed, proceeding with profile update:", claimError.message);
+
+      // 2. Update the user's profile to 'active' permanently
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({ 
           subscription_status: 'active',
@@ -58,32 +71,28 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      // 2. Refresh the global session state
+      // 3. Refresh the global session state to reflect the DB change
       await refreshProfile();
 
-      showSuccess("Welcome to Pro!");
+      showSuccess("Welcome to Pro! Your account is now active.");
       
-      // 3. Navigate to dashboard
+      // 4. Navigate to dashboard and clear URL params
       navigate("/", { replace: true });
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Failed to activate. Please try refreshing.");
+      showError("Failed to save Pro status. Please try again or contact support.");
       setIsActivating(false);
     }
-  }, [user, isActivating, refreshProfile, navigate]);
+  }, [user, isActivating, orderId, searchParams, refreshProfile, navigate]);
 
-  // AUTOMATIC ACTIVATION ON RETURN
+  // AUTOMATIC ACTIVATION ON RETURN FROM PAYPAL
   useEffect(() => {
-    const hasPaypalParams = 
-      searchParams.get("subscription_id") || 
-      searchParams.get("token") || 
-      searchParams.get("ba_token") || 
-      searchParams.get("PayerID");
+    const paypalId = searchParams.get("subscription_id");
     
-    if (hasPaypalParams && user && !isSubscribed && !isActivating && !isProfileLoading) {
-      handleInstantActivate();
+    if (paypalId && user && !isSubscribed && !isActivating && !isProfileLoading) {
+      handleInstantActivate(paypalId);
     }
   }, [searchParams, user, isSubscribed, isActivating, isProfileLoading, handleInstantActivate]);
 
@@ -115,6 +124,7 @@ const Subscription: React.FC = () => {
           <CardContent className="p-6 flex flex-col items-center text-center gap-3">
             <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
             <p className="font-black text-blue-800 text-lg">Activating Pro Status...</p>
+            <p className="text-xs text-blue-600">Saving your subscription to the database.</p>
           </CardContent>
         </Card>
       )}
@@ -195,7 +205,7 @@ const Subscription: React.FC = () => {
               <Button 
                 variant="outline" 
                 className="w-full font-bold h-11"
-                onClick={handleInstantActivate}
+                onClick={() => handleInstantActivate()}
                 disabled={isActivating || !orderId.trim()}
               >
                 {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
