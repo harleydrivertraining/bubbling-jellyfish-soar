@@ -54,6 +54,7 @@ interface InstructorProfile {
   student_count: number;
   updated_at: string;
   subscription_status: string | null;
+  role: string | null;
 }
 
 const AdminInstructors: React.FC = () => {
@@ -67,7 +68,6 @@ const AdminInstructors: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
-  const [isSubDialogOpen] = useState(false); // Note: This was missing a setter in previous version, but I'll keep it simple
   const [isSubOpen, setIsSubOpen] = useState(false);
 
   const filterType = searchParams.get("filter");
@@ -92,10 +92,11 @@ const AdminInstructors: React.FC = () => {
         return;
       }
 
+      // Broaden the query: Show everyone who is NOT a student
       let query = supabase
         .from("profiles")
         .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status")
-        .ilike("role", "instructor");
+        .or('role.is.null,role.neq.student');
 
       if (filterType === "active") {
         const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -127,7 +128,8 @@ const AdminInstructors: React.FC = () => {
         logo_url: p.logo_url,
         student_count: countMap[p.id] || 0,
         updated_at: p.updated_at,
-        subscription_status: p.subscription_status
+        subscription_status: p.subscription_status,
+        role: p.role
       }));
 
       setInstructors(formatted);
@@ -308,7 +310,10 @@ const AdminInstructors: React.FC = () => {
                               {instructor.first_name?.[0]}{instructor.last_name?.[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
+                          <div className="min-w-0">
+                            <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
+                            {instructor.role === 'owner' && <Badge variant="outline" className="text-[8px] h-3 px-1 border-primary text-primary">OWNER</Badge>}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
