@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Phone, Lock, Shield, GraduationCap, UserCog, Info } from "lucide-react";
+import { Phone, Lock, Shield, GraduationCap, UserCog, Info, UserPlus } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { Capacitor } from "@capacitor/core";
@@ -87,7 +87,7 @@ const Login: React.FC = () => {
           </TabsList>
 
           <TabsContent value="instructor" className="mt-6">
-            <div className="bg-white p-8 rounded-xl shadow-sm border hide-signup-toggle space-y-4">
+            <div className="bg-white p-8 rounded-xl shadow-sm border space-y-4">
               <Auth
                 supabaseClient={supabase}
                 providers={[]}
@@ -113,13 +113,12 @@ const Login: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <Link 
-                    to="/74985" 
-                    style={{ color: 'hsl(var(--primary))' }} 
-                    className="text-sm font-bold hover:underline"
-                  >
-                    Don't have an account? Sign up
-                  </Link>
+                  <Button asChild variant="outline" className="w-full font-bold h-11 border-primary/20 text-primary hover:bg-primary/5">
+                    <Link to="/74985">
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Don't have an account? Sign up
+                    </Link>
+                  </Button>
                 )}
               </div>
             </div>

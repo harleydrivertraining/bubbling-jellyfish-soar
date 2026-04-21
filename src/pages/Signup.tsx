@@ -42,26 +42,29 @@ const Signup: React.FC = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Notify Owner of new signup
-        // We fetch the owner ID first
-        const { data: owners } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("role", "owner");
-        
-        if (owners && owners.length > 0) {
-          const notifications = owners.map(owner => ({
-            user_id: owner.id,
-            title: "New Instructor Signup",
-            message: `${firstName} ${lastName} (${email}) has just registered.`,
-            type: "new_signup"
-          }));
+        // Notify Owner of new signup - Wrapped in try/catch to prevent blocking signup
+        try {
+          const { data: owners } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("role", "owner");
           
-          await supabase.from("notifications").insert(notifications);
+          if (owners && owners.length > 0) {
+            const notifications = owners.map(owner => ({
+              user_id: owner.id,
+              title: "New Instructor Signup",
+              message: `${firstName} ${lastName} (${email}) has just registered.`,
+              type: "new_signup"
+            }));
+            
+            await supabase.from("notifications").insert(notifications);
+          }
+        } catch (notifError) {
+          console.warn("Admin notification failed, but signup succeeded:", notifError);
         }
 
         if (data.session) {
-          showSuccess("Account created! Redirecting to dashboard...");
+          showSuccess("Account created! Welcome aboard.");
           window.location.href = "/";
         } else {
           navigate("/signup-success");
@@ -166,7 +169,7 @@ const Signup: React.FC = () => {
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-start gap-3">
               <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
               <p className="text-[11px] text-blue-800 leading-relaxed">
-                <strong>Note:</strong> If you are not redirected automatically, please check your email to confirm your account. To enable instant access, disable "Confirm Email" in your Supabase Auth settings.
+                <strong>Note:</strong> If you are not redirected automatically, please check your email to confirm your account.
               </p>
             </div>
           </CardContent>
