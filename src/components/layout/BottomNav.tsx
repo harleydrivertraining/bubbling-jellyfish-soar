@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, CalendarDays, Menu, Sparkles, Bell, Bot, CreditCard } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Menu, Sparkles, Bell, Bot, CreditCard, LifeBuoy, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./Sidebar";
@@ -51,8 +51,12 @@ const BottomNav: React.FC<BottomNavProps> = ({ logoUrl }) => {
             <CreditCard className="h-5 w-5" />
             <span className={labelClasses}>Subscribe</span>
           </Link>
+          <Link to="/support" className={navItemClasses(location.pathname === "/support")}>
+            <LifeBuoy className="h-5 w-5" />
+            <span className={labelClasses}>Support</span>
+          </Link>
           <Link to="/settings" className={navItemClasses(location.pathname === "/settings")}>
-            <Bot className="h-5 w-5" />
+            <Settings className="h-5 w-5" />
             <span className={labelClasses}>Account</span>
           </Link>
         </div>

@@ -35,9 +35,10 @@ const Layout = () => {
 
     const isSubscriptionPage = location.pathname === "/subscription";
     const isSettingsPage = location.pathname === "/settings";
+    const isSupportPage = location.pathname === "/support";
     const isInstructor = userRole === 'instructor';
     
-    if (isInstructor && !isSubscriptionPage && !isSettingsPage) {
+    if (isInstructor && !isSubscriptionPage && !isSettingsPage && !isSupportPage) {
       const hasAccess = 
         subscriptionStatus === 'active' || 
         subscriptionStatus === 'lifetime';

@@ -125,6 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, logoUrl, onLinkClick }) 
     if (isInstructor && !isSubscribed) {
       setNavItems([
         { id: "subscription", to: "/subscription", icon: CreditCard, label: "Subscription" },
+        { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
         { id: "settings", to: "/settings", icon: Settings, label: "Settings" },
       ]);
       return;
