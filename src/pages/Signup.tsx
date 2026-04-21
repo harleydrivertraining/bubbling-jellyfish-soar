@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Mail, Lock, User, Loader2, ArrowRight } from "lucide-react";
+import { Mail, Lock, User, Loader2, ArrowRight, Info } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 
 const Signup: React.FC = () => {
@@ -42,12 +42,12 @@ const Signup: React.FC = () => {
       if (error) throw error;
 
       if (data.session) {
-        // If Supabase is configured to auto-confirm or skip email verification,
-        // a session is returned immediately.
-        showSuccess("Account created! Welcome to your dashboard.");
-        navigate("/", { replace: true });
+        // Automatic login successful
+        showSuccess("Account created! Redirecting to dashboard...");
+        // Use window.location to ensure the session is fully initialized in the provider
+        window.location.href = "/";
       } else if (data.user) {
-        // If email confirmation is required, no session is returned yet.
+        // Email confirmation is likely enabled in Supabase
         navigate("/signup-success");
       }
     } catch (error: any) {
@@ -145,6 +145,13 @@ const Signup: React.FC = () => {
                 )}
               </Button>
             </form>
+
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-blue-800 leading-relaxed">
+                <strong>Note:</strong> If you are not redirected automatically, please check your email to confirm your account. To enable instant access, disable "Confirm Email" in your Supabase Auth settings.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
