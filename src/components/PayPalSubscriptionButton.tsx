@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { showError, showSuccess } from "@/utils/toast";
 
 interface PayPalSubscriptionButtonProps {
   planId: string;
@@ -11,18 +12,17 @@ interface PayPalSubscriptionButtonProps {
 const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({ planId, onApprove }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const clientId = "AWFJSKD2DXqY_dAZjktQspCZsvwM1M6j_qWsUgrlidsU4mwqyr-DvduPs2UXd11HgLFylQqDvnIKDltz";
     const scriptId = "paypal-sdk-script";
 
-    // Check if script already exists
     let script = document.getElementById(scriptId) as HTMLScriptElement;
 
     const initializeButton = () => {
       if (window.paypal && containerRef.current) {
-        // Clear container before rendering to prevent duplicates
         containerRef.current.innerHTML = "";
         
         window.paypal.Buttons({
@@ -38,11 +38,18 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({ pla
             });
           },
           onApprove: function(data: any, actions: any) {
+            setIsProcessing(true);
+            console.log("PayPal Subscription Approved:", data.subscriptionID);
             onApprove(data.subscriptionID);
           },
+          onCancel: function(data: any) {
+            console.log("PayPal Subscription Cancelled");
+            setIsProcessing(false);
+          },
           onError: function(err: any) {
-            console.error("PayPal Error:", err);
-            setError("The PayPal button failed to load. Please refresh the page.");
+            console.error("PayPal SDK Error:", err);
+            setIsProcessing(false);
+            showError("PayPal encountered an error. Please try again or use a different browser.");
           }
         }).render(containerRef.current);
         setIsLoaded(true);
@@ -58,7 +65,6 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({ pla
       script.onload = initializeButton;
       document.body.appendChild(script);
     } else {
-      // Script exists, just initialize if paypal is ready
       if (window.paypal) {
         initializeButton();
       } else {
@@ -67,7 +73,6 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({ pla
     }
 
     return () => {
-      // We don't remove the script to avoid reloading it if the user navigates back
       if (containerRef.current) {
         containerRef.current.innerHTML = "";
       }
@@ -76,23 +81,29 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({ pla
 
   return (
     <div className="w-full min-h-[150px] flex flex-col items-center justify-center">
-      {!isLoaded && !error && (
-        <div className="flex flex-col items-center gap-2 py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Loading PayPal...</p>
+      {(!isLoaded || isProcessing) && !error && (
+        <div className="flex flex-col items-center gap-3 py-8">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-sm font-black uppercase tracking-widest text-primary">
+            {isProcessing ? "Processing Payment..." : "Loading PayPal..."}
+          </p>
+          {isProcessing && (
+            <p className="text-[10px] text-muted-foreground animate-pulse">
+              Please do not close this window
+            </p>
+          )}
         </div>
       )}
       {error && (
-        <p className="text-sm text-destructive font-medium text-center p-4 border border-destructive/20 bg-destructive/5 rounded-lg">
+        <p className="text-sm text-destructive font-bold text-center p-4 border border-destructive/20 bg-destructive/5 rounded-xl">
           {error}
         </p>
       )}
-      <div ref={containerRef} className={cn("w-full", !isLoaded && "hidden")} />
+      <div ref={containerRef} className={cn("w-full", (!isLoaded || isProcessing) && "hidden")} />
     </div>
   );
 };
 
-// Helper for tailwind classes inside the component
 function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }

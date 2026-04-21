@@ -35,7 +35,7 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { user, subscriptionStatus } = useSession();
+  const { user, subscriptionStatus, refreshProfile } = useSession();
   const [searchParams] = useSearchParams();
   
   const [isActivating, setIsActivating] = useState(false);
@@ -86,7 +86,9 @@ const Subscription: React.FC = () => {
       showSuccess("Pro features activated! Welcome aboard.");
       
       // Force full refresh to clear all restricted states
-      window.location.href = "/";
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
 
     } catch (error: any) {
       console.error("Activation error:", error);
@@ -101,6 +103,15 @@ const Subscription: React.FC = () => {
       handleActivate(paypalIdFromUrl);
     }
   }, [paypalIdFromUrl, user, subscriptionStatus, isActivating, handleActivate]);
+
+  const handleManualRefresh = async () => {
+    setIsActivating(true);
+    await refreshProfile();
+    // If still unsubscribed after refresh, stop loading
+    setTimeout(() => {
+      setIsActivating(false);
+    }, 1000);
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center py-6 sm:py-12 px-4 space-y-8 sm:space-y-12 pb-32">
@@ -127,24 +138,24 @@ const Subscription: React.FC = () => {
           </CardContent>
         </Card>
       ) : paypalIdFromUrl && !isSubscribed ? (
-        <Card className="w-full max-w-md border-green-200 bg-green-50 shadow-md">
+        <Card className="w-full max-w-md border-green-200 bg-green-50 shadow-md animate-bounce">
           <CardContent className="p-5 flex flex-col gap-4">
             <div className="flex items-start gap-3">
               <div className="bg-green-100 p-2 rounded-full">
                 <Check className="h-5 w-5 text-green-600" />
               </div>
               <div className="space-y-1">
-                <p className="font-bold text-green-900">Payment Detected</p>
+                <p className="font-bold text-green-900">Payment Successful!</p>
                 <p className="text-xs text-green-800/80">
-                  We found your PayPal ID. Click below to finish activation.
+                  We've detected your payment. Click below to unlock your Pro features.
                 </p>
               </div>
             </div>
             <Button 
               onClick={() => handleActivate(paypalIdFromUrl)} 
-              className="w-full bg-green-600 hover:bg-green-700 font-black h-11"
+              className="w-full bg-green-600 hover:bg-green-700 font-black h-12 text-lg shadow-lg"
             >
-              Complete Activation
+              Unlock Pro Now
             </Button>
           </CardContent>
         </Card>
@@ -230,15 +241,27 @@ const Subscription: React.FC = () => {
                   className="h-10"
                 />
               </div>
-              <Button 
-                variant="outline" 
-                className="w-full font-bold h-11"
-                onClick={() => handleActivate()}
-                disabled={isActivating || !orderId.trim()}
-              >
-                {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Activate Account
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button 
+                  variant="default" 
+                  className="w-full font-bold h-11"
+                  onClick={() => handleActivate()}
+                  disabled={isActivating || !orderId.trim()}
+                >
+                  {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Activate Account
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="w-full font-bold h-10 text-xs"
+                  onClick={handleManualRefresh}
+                  disabled={isActivating}
+                >
+                  <RefreshCw className="h-3 w-3 mr-2" />
+                  Refresh Status
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
