@@ -38,7 +38,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         setUserRole(data.role?.toLowerCase() || 'instructor');
         
         // OPTIMISTIC CHECK: If we are returning from PayPal, force 'active' status
-        // even if the database hasn't updated yet. This prevents the "stuck" loading screen.
         const urlParams = new URLSearchParams(window.location.search);
         const hasPaypalReturn = urlParams.get("subscription_id") || urlParams.get("token") || urlParams.get("PayerID");
         
@@ -47,6 +46,11 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         } else {
           setSubscriptionStatus(data.subscription_status || 'unsubscribed');
         }
+      } else if (error && error.code === 'PGRST116') {
+        // Profile not found - likely a brand new signup
+        // We default to instructor so the UI can at least render the subscription guard
+        setUserRole('instructor');
+        setSubscriptionStatus('unsubscribed');
       }
     } catch (e) {
       console.warn("Background profile fetch failed:", e);
