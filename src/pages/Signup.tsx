@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Mail, Lock, User, Loader2, ArrowRight } from "lucide-react";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
@@ -41,7 +41,13 @@ const Signup: React.FC = () => {
 
       if (error) throw error;
 
-      if (data.user) {
+      if (data.session) {
+        // If Supabase is configured to auto-confirm or skip email verification,
+        // a session is returned immediately.
+        showSuccess("Account created! Welcome to your dashboard.");
+        navigate("/", { replace: true });
+      } else if (data.user) {
+        // If email confirmation is required, no session is returned yet.
         navigate("/signup-success");
       }
     } catch (error: any) {
