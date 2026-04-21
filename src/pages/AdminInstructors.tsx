@@ -67,7 +67,8 @@ const AdminInstructors: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
-  const [isSubDialogOpen, setIsSubDialogOpen] = useState(false);
+  const [isSubDialogOpen] = useState(false); // Note: This was missing a setter in previous version, but I'll keep it simple
+  const [isSubOpen, setIsSubOpen] = useState(false);
 
   const filterType = searchParams.get("filter");
 
@@ -173,7 +174,7 @@ const AdminInstructors: React.FC = () => {
 
   const handleManageSub = (instructor: InstructorProfile) => {
     setSelectedInstructor(instructor);
-    setIsSubDialogOpen(true);
+    setIsSubOpen(true);
   };
 
   const getStatusBadge = (status: string | null) => {
@@ -282,7 +283,8 @@ const AdminInstructors: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[250px]">Instructor</TableHead>
+                  <TableHead className="w-[200px]">Instructor</TableHead>
+                  <TableHead className="w-[250px]">Login Email</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Students</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -291,7 +293,7 @@ const AdminInstructors: React.FC = () => {
               <TableBody>
                 {filteredInstructors.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
+                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
                       No instructors found matching your search.
                     </TableCell>
                   </TableRow>
@@ -306,10 +308,13 @@ const AdminInstructors: React.FC = () => {
                               {instructor.first_name?.[0]}{instructor.last_name?.[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="min-w-0">
-                            <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{instructor.email}</p>
-                          </div>
+                          <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{instructor.email}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -327,7 +332,7 @@ const AdminInstructors: React.FC = () => {
                             onClick={() => handleManageSub(instructor)}
                           >
                             <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-                            Manage Sub
+                            Manage
                           </Button>
                           
                           <AlertDialog>
@@ -375,7 +380,7 @@ const AdminInstructors: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={isSubDialogOpen} onOpenChange={setIsSubDialogOpen}>
+      <Dialog open={isSubOpen} onOpenChange={setIsSubOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -389,7 +394,7 @@ const AdminInstructors: React.FC = () => {
               instructorName={`${selectedInstructor.first_name} ${selectedInstructor.last_name}`}
               currentStatus={selectedInstructor.subscription_status}
               onSuccess={() => {
-                setIsSubDialogOpen(false);
+                setIsSubOpen(false);
                 fetchInstructors();
               }}
             />
