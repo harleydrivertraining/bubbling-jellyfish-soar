@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { useSearchParams, Link } from "react-router-dom";
 
 // --- CONFIGURATION ---
-// Change this ID to switch your PayPal plan
 const PAYPAL_PLAN_ID = "P-8BE947115X9658739NHTMIOI"; 
 const PLAN_PRICE = "3.99";
 // ---------------------
@@ -25,7 +24,8 @@ const PLANS = [
     name: "Monthly Pro",
     price: PLAN_PRICE,
     interval: "month",
-    subscriptionUrl: `https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=${PAYPAL_PLAN_ID}`, 
+    // Added return URL parameter so PayPal redirects back with the ID
+    subscriptionUrl: `https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=${PAYPAL_PLAN_ID}&return=${encodeURIComponent(window.location.origin + '/subscription')}`, 
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
@@ -47,17 +47,18 @@ const Subscription: React.FC = () => {
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  // Auto-activate if returning from PayPal with a subscription ID
+  // Auto-activate if returning from PayPal with a subscription ID in the URL
   useEffect(() => {
-    const subId = searchParams.get("subscription_id");
+    const subId = searchParams.get("subscription_id") || searchParams.get("ba_token");
     if (subId && user && !isSubscribed && !isActivating) {
       handleInstantActivate(subId);
+      // Clear the URL parameters
       setSearchParams({});
     }
   }, [searchParams, user, isSubscribed]);
 
   const handleSubscribe = (url: string) => {
-    window.open(url, "_blank");
+    window.open(url, "_self"); // Use _self to ensure the return flow works better on mobile
   };
 
   const handleInstantActivate = async (idToUse?: string) => {
@@ -66,13 +67,7 @@ const Subscription: React.FC = () => {
     
     setIsActivating(true);
     try {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ subscription_status: 'active' })
-        .eq("id", user.id);
-
-      if (profileError) throw profileError;
-
+      // 1. Create the claim record first (this is the source of truth for the owner)
       const { error: claimError } = await supabase
         .from("subscription_claims")
         .insert({
@@ -83,15 +78,29 @@ const Subscription: React.FC = () => {
 
       if (claimError) throw claimError;
 
-      showSuccess("Account activated! Welcome to the Pro plan.");
-      setOrderId("");
+      // 2. Attempt to update the profile status
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ subscription_status: 'active' })
+        .eq("id", user.id);
+
+      if (profileError) {
+        // If this fails, it's likely RLS. The claim is still saved for the owner to verify.
+        console.warn("Profile update failed, but claim was saved:", profileError);
+        showSuccess("Payment ID received! An admin will verify your account shortly.");
+      } else {
+        showSuccess("Account activated! Welcome to the Pro plan.");
+        
+        // Refresh the page to unlock the menu
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 2000);
+      }
       
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      setOrderId("");
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Failed to activate: " + error.message);
+      showError("Failed to process activation: " + error.message);
     } finally {
       setIsActivating(false);
     }
@@ -155,9 +164,9 @@ const Subscription: React.FC = () => {
                   isSubscribed ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
                 onClick={() => handleSubscribe(plan.subscriptionUrl)}
-                disabled={isSubscribed}
+                disabled={isSubscribed || isActivating}
               >
-                {isSubscribed ? "Current Plan" : "Subscribe with PayPal"}
+                {isSubscribed ? "Current Plan" : isActivating ? "Activating..." : "Subscribe with PayPal"}
               </Button>
             </CardFooter>
           </Card>
