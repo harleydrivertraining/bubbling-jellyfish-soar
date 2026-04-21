@@ -47,9 +47,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           setSubscriptionStatus(data.subscription_status || 'unsubscribed');
         }
       } else {
-        // If profile is missing (PGRST116) or any other error occurs, 
-        // we default to instructor/unsubscribed so the app can load and redirect to subscription.
-        console.warn("Profile fetch failed, using defaults:", error?.message);
+        // Fallback for new users or fetch errors
         setUserRole('instructor');
         setSubscriptionStatus('unsubscribed');
       }
@@ -77,12 +75,13 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          await fetchProfileData(initialSession.user.id);
+          // We trigger the profile fetch but don't 'await' it here.
+          // This allows setIsLoading(false) to run immediately so the Layout can render.
+          fetchProfileData(initialSession.user.id);
         }
-        
-        setIsLoading(false);
       } catch (error) {
         console.error("Auth init error:", error);
+      } finally {
         setIsLoading(false);
       }
     };
