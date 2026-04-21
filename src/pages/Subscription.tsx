@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw, AlertCircle } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw, AlertCircle, Search } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -106,11 +106,21 @@ const Subscription: React.FC = () => {
 
   const handleManualRefresh = async () => {
     setIsActivating(true);
-    await refreshProfile();
-    // If still unsubscribed after refresh, stop loading
-    setTimeout(() => {
+    try {
+      await refreshProfile();
+      // If still unsubscribed after refresh, stop loading
+      setTimeout(() => {
+        setIsActivating(false);
+        if (subscriptionStatus === 'active' || subscriptionStatus === 'lifetime') {
+          showSuccess("Subscription confirmed!");
+          window.location.href = "/";
+        } else {
+          showError("No active subscription found yet. It may take a minute to process.");
+        }
+      }, 1500);
+    } catch (e) {
       setIsActivating(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -133,8 +143,8 @@ const Subscription: React.FC = () => {
         <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
           <CardContent className="p-8 flex flex-col items-center text-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-xl">Activating Pro...</p>
-            <p className="text-xs text-blue-600">Refreshing your dashboard, please wait.</p>
+            <p className="font-black text-blue-800 text-xl">Checking Status...</p>
+            <p className="text-xs text-blue-600">Verifying your payment with PayPal.</p>
           </CardContent>
         </Card>
       ) : paypalIdFromUrl && !isSubscribed ? (
@@ -220,50 +230,63 @@ const Subscription: React.FC = () => {
         ))}
 
         {!isSubscribed && (
-          <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
-            <CardHeader className="p-0 mb-4">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <ClipboardCheck className="h-5 w-5 text-primary" />
-                Manual Activation
-              </CardTitle>
-              <CardDescription className="text-xs">
-                If you've just paid but weren't redirected, enter your PayPal Subscription ID (starts with I-...) to activate.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
-                <Input 
-                  id="orderId"
-                  placeholder="e.g. I-12345ABCDE"
-                  value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
-                  className="h-10"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
+          <div className="space-y-4">
+            <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
+              <CardHeader className="p-0 mb-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Search className="h-5 w-5 text-primary" />
+                  Already Paid?
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  If you've just completed payment but the app hasn't updated, click below to check for your new subscription.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
                 <Button 
                   variant="default" 
+                  className="w-full font-bold h-12 text-base bg-blue-600 hover:bg-blue-700"
+                  onClick={handleManualRefresh}
+                  disabled={isActivating}
+                >
+                  {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Check for Payment
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
+              <CardHeader className="p-0 mb-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5 text-primary" />
+                  Manual ID Entry
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Enter your PayPal Subscription ID (starts with I-...) from your receipt to activate manually.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
+                  <Input 
+                    id="orderId"
+                    placeholder="e.g. I-12345ABCDE"
+                    value={orderId}
+                    onChange={(e) => setOrderId(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <Button 
+                  variant="outline" 
                   className="w-full font-bold h-11"
                   onClick={() => handleActivate()}
                   disabled={isActivating || !orderId.trim()}
                 >
                   {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                  Activate Account
+                  Activate with ID
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="w-full font-bold h-10 text-xs"
-                  onClick={handleManualRefresh}
-                  disabled={isActivating}
-                >
-                  <RefreshCw className="h-3 w-3 mr-2" />
-                  Refresh Status
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
 

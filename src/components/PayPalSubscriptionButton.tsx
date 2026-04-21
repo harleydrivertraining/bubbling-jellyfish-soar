@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Info } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 
 interface PayPalSubscriptionButtonProps {
@@ -88,9 +88,12 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({ pla
             {isProcessing ? "Processing Payment..." : "Loading PayPal..."}
           </p>
           {isProcessing && (
-            <p className="text-[10px] text-muted-foreground animate-pulse">
-              Please do not close this window
-            </p>
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 max-w-xs">
+              <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-blue-800 leading-relaxed">
+                If you have finished paying but this screen doesn't change, please <strong>manually return to the app</strong> and click "Check for Payment".
+              </p>
+            </div>
           )}
         </div>
       )}
