@@ -43,13 +43,13 @@ const Subscription: React.FC = () => {
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  const handleInstantActivate = useCallback(async (idToUse: string) => {
-    if (!user || !idToUse.trim() || isActivating) return;
+  const handleInstantActivate = useCallback(async () => {
+    if (!user || isActivating) return;
     
     setIsActivating(true);
     try {
-      // 1. Update the user's profile to 'active' immediately
-      const { error: profileError } = await supabase
+      // Force update the user's profile to 'active' immediately
+      const { error } = await supabase
         .from("profiles")
         .update({ 
           subscription_status: 'active',
@@ -57,60 +57,34 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      if (profileError) throw profileError;
+      if (error) throw error;
 
-      // 2. Record the activation for the owner to verify
-      const { error: claimError } = await supabase
-        .from("subscription_claims")
-        .insert({
-          user_id: user.id,
-          stripe_session_id: idToUse.trim(),
-          status: 'auto_approved'
-        });
-
-      if (claimError) throw claimError;
-
-      showSuccess("Account activated! Welcome to the Pro plan.");
-      setOrderId("");
+      showSuccess("Welcome to Pro! Redirecting...");
       
-      // Force a page reload to update the UI/Sidebar across the whole app
+      // Force a hard reload to the home page to ensure all components pick up the new status
       setTimeout(() => {
         window.location.href = "/";
-      }, 1500);
+      }, 500);
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Failed to activate: " + error.message);
+      showError("Failed to activate. Please try refreshing.");
       setIsActivating(false);
     }
   }, [user, isActivating]);
 
-  // 1. Auto-activate if returning from PayPal with ANY success parameter
+  // AUTOMATIC ACTIVATION ON RETURN
   useEffect(() => {
-    // PayPal success URLs usually contain one of these
-    const subId = searchParams.get("subscription_id");
-    const token = searchParams.get("token");
-    const baToken = searchParams.get("ba_token");
+    // Check for any common PayPal return parameters
+    const hasPaypalParams = 
+      searchParams.get("subscription_id") || 
+      searchParams.get("token") || 
+      searchParams.get("ba_token") || 
+      searchParams.get("PayerID");
     
-    const anyId = subId || token || baToken;
-    
-    if (anyId && user && !isSubscribed && !isActivating && !isProfileLoading) {
-      handleInstantActivate(anyId);
-      setSearchParams({}); // Clear URL
+    if (hasPaypalParams && user && !isSubscribed && !isActivating && !isProfileLoading) {
+      handleInstantActivate();
     }
-  }, [searchParams, user, isSubscribed, isActivating, isProfileLoading, handleInstantActivate, setSearchParams]);
-
-  // 2. Aggressive Mobile Refresh: Refresh status whenever the user returns to the app tab
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !isSubscribed && !isActivating) {
-        // If the user just switched back from the PayPal tab, reload the page to pick up webhook updates
-        window.location.reload();
-      }
-    };
-
-    window.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => window.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isSubscribed, isActivating]);
+  }, [searchParams, user, isSubscribed, isActivating, isProfileLoading, handleInstantActivate]);
 
   const handleSubscribe = async (url: string) => {
     if (Capacitor.isNativePlatform()) {
@@ -118,10 +92,6 @@ const Subscription: React.FC = () => {
     } else {
       window.open(url, "_blank");
     }
-  };
-
-  const handleManualRefresh = () => {
-    window.location.reload();
   };
 
   return (
@@ -140,11 +110,10 @@ const Subscription: React.FC = () => {
       </div>
 
       {isActivating && (
-        <Card className="w-full max-w-md border-blue-200 bg-blue-50 animate-pulse shadow-lg">
+        <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
           <CardContent className="p-6 flex flex-col items-center text-center gap-3">
             <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-lg">Verifying Payment...</p>
-            <p className="text-xs text-blue-600 font-medium">We're activating your Pro account. Please wait a moment.</p>
+            <p className="font-black text-blue-800 text-lg">Activating Pro Status...</p>
           </CardContent>
         </Card>
       )}
@@ -226,7 +195,7 @@ const Subscription: React.FC = () => {
               <Button 
                 variant="outline" 
                 className="w-full font-bold h-11"
-                onClick={() => handleInstantActivate(orderId)}
+                onClick={handleInstantActivate}
                 disabled={isActivating || !orderId.trim()}
               >
                 {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
@@ -235,16 +204,6 @@ const Subscription: React.FC = () => {
             </CardContent>
           </Card>
         )}
-      </div>
-
-      {/* Status Refresh for Mobile */}
-      <div className="flex flex-col items-center gap-4 pt-4">
-        <p className="text-xs text-muted-foreground text-center max-w-xs">
-          If you've just subscribed and your status hasn't updated, click below to refresh.
-        </p>
-        <Button variant="secondary" size="lg" onClick={handleManualRefresh} className="font-black px-8 h-12 shadow-md">
-          <RefreshCw className="mr-2 h-5 w-5" /> Check Subscription Status
-        </Button>
       </div>
 
       {/* Cancellation and Management Info */}
