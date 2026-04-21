@@ -1,10 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui<dyad-write path="src/pages/Subscription.tsx" description="Updating the subscription page to use the new refresh logic and handle redirects more smoothly.">
-"use client";
-
-import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw } from "lucide-react";
@@ -15,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 
@@ -64,12 +60,12 @@ const Subscription: React.FC = () => {
 
       if (error) throw error;
 
-      // 2. Refresh the global session state so the Layout guard passes
+      // 2. Refresh the global session state
       await refreshProfile();
 
       showSuccess("Welcome to Pro!");
       
-      // 3. Use internal navigation instead of hard reload to avoid mobile browser lag
+      // 3. Navigate to dashboard
       navigate("/", { replace: true });
     } catch (error: any) {
       console.error("Activation error:", error);
