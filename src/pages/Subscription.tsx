@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw, AlertCircle } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -36,22 +36,41 @@ const PLANS = [
 ];
 
 const Subscription: React.FC = () => {
-  const { user, subscriptionStatus, isProfileLoading, refreshProfile } = useSession();
+  const { user, subscriptionStatus, refreshProfile } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  
   const [isActivating, setIsActivating] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [detectedId, setDetectedId] = useState<string | null>(null);
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
+  // 1. Extract ID from URL immediately
+  useEffect(() => {
+    const paypalId = searchParams.get("subscription_id") || searchParams.get("ba_token") || searchParams.get("token");
+    if (paypalId) {
+      setDetectedId(paypalId);
+      console.log("PayPal ID Detected in URL:", paypalId);
+    }
+  }, [searchParams]);
+
   const handleInstantActivate = useCallback(async (providedId?: string) => {
-    if (!user || isActivating) return;
+    const finalId = providedId || orderId || detectedId;
     
-    const finalId = providedId || orderId || searchParams.get("subscription_id") || "PAYPAL_MANUAL";
+    if (!user) {
+      showError("Please wait for your session to load, then try again.");
+      return;
+    }
+
+    if (!finalId) {
+      showError("No Subscription ID found.");
+      return;
+    }
     
     setIsActivating(true);
     try {
-      // 1. Record the claim in the database
+      // 1. Record the claim
       await supabase
         .from("subscription_claims")
         .upsert({
@@ -60,7 +79,7 @@ const Subscription: React.FC = () => {
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
 
-      // 2. Update the user's profile to 'active'
+      // 2. Update Profile
       const { data: updateResult, error: profileError } = await supabase
         .from("profiles")
         .update({ 
@@ -73,35 +92,36 @@ const Subscription: React.FC = () => {
       if (profileError) throw profileError;
 
       if (!updateResult || updateResult.length === 0) {
-        throw new Error("Database update failed to confirm. Please try again.");
+        throw new Error("Database update failed to verify. Please try again.");
       }
 
-      // 3. Force a refresh of the global session state
+      // 3. Refresh Global State
       await refreshProfile();
 
       showSuccess("Pro status activated successfully!");
       
       // 4. Clear URL and navigate
       setSearchParams({});
+      setDetectedId(null);
+      
       setTimeout(() => {
         navigate("/", { replace: true });
       }, 800);
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      showError("Failed to activate: " + (error.message || "Connection error"));
+      showError("Activation failed: " + (error.message || "Connection error"));
       setIsActivating(false);
     }
-  }, [user, isActivating, orderId, searchParams, refreshProfile, navigate, setSearchParams]);
+  }, [user, orderId, detectedId, refreshProfile, navigate, setSearchParams]);
 
-  // AUTOMATIC ACTIVATION ON RETURN FROM PAYPAL
+  // 2. Auto-trigger activation if ID is found and user is logged in
   useEffect(() => {
-    const paypalId = searchParams.get("subscription_id");
-    
-    if (paypalId && user && subscriptionStatus === 'unsubscribed' && !isActivating && !isProfileLoading) {
-      handleInstantActivate(paypalId);
+    if (detectedId && user && subscriptionStatus === 'unsubscribed' && !isActivating) {
+      console.log("Auto-activating detected payment...");
+      handleInstantActivate(detectedId);
     }
-  }, [searchParams, user, subscriptionStatus, isActivating, isProfileLoading, handleInstantActivate]);
+  }, [detectedId, user, subscriptionStatus, isActivating, handleInstantActivate]);
 
   const handleSubscribe = async (url: string) => {
     if (Capacitor.isNativePlatform()) {
@@ -126,12 +146,43 @@ const Subscription: React.FC = () => {
         </p>
       </div>
 
+      {/* ACTIVATION OVERLAY */}
       {isActivating && (
-        <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg">
-          <CardContent className="p-6 flex flex-col items-center text-center gap-3">
-            <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-            <p className="font-black text-blue-800 text-lg">Verifying with Database...</p>
-            <p className="text-xs text-blue-600">Please wait while we secure your Pro access.</p>
+        <Card className="w-full max-w-md border-blue-200 bg-blue-50 shadow-lg animate-in zoom-in-95 duration-300">
+          <CardContent className="p-8 flex flex-col items-center text-center gap-4">
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+              <Zap className="h-5 w-5 text-blue-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-black text-blue-800 text-xl">Activating Pro Access</p>
+              <p className="text-xs text-blue-600 font-medium">Securing your subscription in the database...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* DETECTED PAYMENT ALERT (If auto-activation fails) */}
+      {detectedId && !isActivating && !isSubscribed && (
+        <Card className="w-full max-w-md border-orange-200 bg-orange-50 shadow-md animate-in slide-in-from-top-4 duration-500">
+          <CardContent className="p-5 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="bg-orange-100 p-2 rounded-full">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-bold text-orange-900">Payment Detected!</p>
+                <p className="text-xs text-orange-800/80 leading-relaxed">
+                  We found a PayPal ID in your URL. Click the button below to finish activating your Pro account.
+                </p>
+              </div>
+            </div>
+            <Button 
+              onClick={() => handleInstantActivate(detectedId)} 
+              className="w-full bg-orange-600 hover:bg-orange-700 font-black h-11"
+            >
+              Complete Activation Now
+            </Button>
           </CardContent>
         </Card>
       )}
