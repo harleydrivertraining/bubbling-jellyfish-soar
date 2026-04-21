@@ -71,19 +71,17 @@ const Subscription: React.FC = () => {
         // Save to local storage immediately
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
         
-        // Trigger a background refresh of the session state
-        await refreshProfile();
+        showSuccess("Master Key Accepted! Refreshing...");
         
-        showSuccess("Master Key Accepted! Redirecting...");
-        
-        // Navigate immediately - the SessionProvider will handle the DB sync in the background
+        // 2. FORCE FULL PAGE REFRESH TO DASHBOARD
+        // This is the most reliable way to ensure the app picks up the new status
         setTimeout(() => {
-          navigate("/", { replace: true });
-        }, 300);
+          window.location.href = "/";
+        }, 500);
         return;
       }
 
-      // 2. STANDARD ACTIVATION (PayPal ID)
+      // 3. STANDARD ACTIVATION (PayPal ID)
       const claimId = finalId;
 
       // Update Subscription Claims Table
@@ -104,11 +102,12 @@ const Subscription: React.FC = () => {
         })
         .eq("id", user.id);
 
-      await refreshProfile();
-      showSuccess("Pro status activated!");
+      showSuccess("Pro status activated! Refreshing...");
       
-      setSearchParams({});
-      navigate("/", { replace: true });
+      // FORCE FULL PAGE REFRESH TO DASHBOARD
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 500);
 
     } catch (error: any) {
       console.error("Activation error:", error);
@@ -116,14 +115,13 @@ const Subscription: React.FC = () => {
       // If it looks like a valid ID, allow local override as a fallback
       if (finalId.startsWith('I-') || finalId.length > 10) {
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
-        await refreshProfile();
-        navigate("/", { replace: true });
+        window.location.href = "/";
       } else {
         showError("Activation failed. Please check your ID.");
         setIsActivating(false);
       }
     }
-  }, [user, orderId, paypalIdFromUrl, refreshProfile, navigate, setSearchParams]);
+  }, [user, orderId, paypalIdFromUrl]);
 
   // Auto-activate if we just returned from PayPal
   useEffect(() => {
@@ -161,6 +159,7 @@ const Subscription: React.FC = () => {
           <CardContent className="p-8 flex flex-col items-center text-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
             <p className="font-black text-blue-800 text-xl">Activating Pro...</p>
+            <p className="text-xs text-blue-600">Refreshing your dashboard, please wait.</p>
           </CardContent>
         </Card>
       ) : paypalIdFromUrl && !isSubscribed ? (
