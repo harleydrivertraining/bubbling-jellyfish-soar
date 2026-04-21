@@ -112,15 +112,19 @@ const OwnerDashboard: React.FC = () => {
       
       setNewSignups(signupData || []);
 
-      // Fetch Last 10 Activated Pro Members
-      const { data: proData } = await supabase
+      // Fetch Last 10 Pro Members (Active or Lifetime)
+      // We remove the strict role filter here to ensure we catch everyone with a Pro status
+      const { data: proData, error: proError } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
-        .ilike("role", "instructor")
         .in("subscription_status", ["active", "lifetime"])
         .order("updated_at", { ascending: false })
         .limit(10);
       
+      if (proError) {
+        console.error("Error fetching pro members:", proError);
+      }
+
       if (proData && proData.length > 0) {
         const proUserIds = proData.map(p => p.id);
         const { data: proClaims } = await supabase
@@ -317,7 +321,7 @@ const OwnerDashboard: React.FC = () => {
                         {pro.order_id && (
                           <p className="text-[9px] font-mono text-primary font-bold mt-1">ID: {pro.order_id}</p>
                         )}
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Activated {format(new Date(pro.updated_at), "MMM d, p")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Activated {format(new Date(pro.updated_at || pro.created_at), "MMM d, p")}</p>
                       </div>
                       <Button variant="ghost" size="icon" className="font-bold text-primary shrink-0 ml-2" asChild>
                         <Link to="/admin/instructors">
