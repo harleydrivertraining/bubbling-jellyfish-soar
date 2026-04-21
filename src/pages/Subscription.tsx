@@ -52,7 +52,7 @@ const Subscription: React.FC = () => {
     const finalId = idToUse || orderId || paypalIdFromUrl;
     
     if (!user) {
-      showError("Session not found. Please log in again.");
+      showError("Please wait for your session to load.");
       return;
     }
 
@@ -65,57 +65,61 @@ const Subscription: React.FC = () => {
 
     try {
       const isMasterKey = finalId === "$ID";
-      const claimId = isMasterKey ? `MASTER-KEY-${user.id.substring(0, 8)}` : finalId;
-
-      // 1. Set Local Override IMMEDIATELY (This is our safety net)
+      
+      // 1. MASTER KEY: INSTANT LOCAL BYPASS
       if (isMasterKey) {
+        // Save to local storage immediately
         localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
+        
+        // Trigger a background refresh of the session state
+        await refreshProfile();
+        
+        showSuccess("Master Key Accepted! Redirecting...");
+        
+        // Navigate immediately - the SessionProvider will handle the DB sync in the background
+        setTimeout(() => {
+          navigate("/", { replace: true });
+        }, 300);
+        return;
       }
 
-      // 2. Attempt Cloud Sync with a 3-second timeout
-      const syncPromise = (async () => {
-        // Update Subscription Claims Table
-        await supabase
-          .from("subscription_claims")
-          .upsert({
-            user_id: user.id,
-            stripe_session_id: claimId,
-            status: isMasterKey ? 'approved' : 'auto_approved'
-          }, { onConflict: 'stripe_session_id' });
+      // 2. STANDARD ACTIVATION (PayPal ID)
+      const claimId = finalId;
 
-        // Update Profile Status
-        await supabase
-          .from("profiles")
-          .update({ 
-            subscription_status: 'active',
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", user.id);
-      })();
+      // Update Subscription Claims Table
+      await supabase
+        .from("subscription_claims")
+        .upsert({
+          user_id: user.id,
+          stripe_session_id: claimId,
+          status: 'auto_approved'
+        }, { onConflict: 'stripe_session_id' });
 
-      // We wait for the sync OR 3 seconds, whichever is faster
-      await Promise.race([
-        syncPromise,
-        new Promise((resolve) => setTimeout(resolve, 3000))
-      ]);
+      // Update Profile Status
+      await supabase
+        .from("profiles")
+        .update({ 
+          subscription_status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
 
-      // 3. Refresh and Navigate regardless of sync completion
-      // If sync is still running, the SessionProvider will handle it in the background
       await refreshProfile();
-
-      showSuccess(isMasterKey ? "Master Key Accepted!" : "Pro status activated!");
+      showSuccess("Pro status activated!");
       
       setSearchParams({});
       navigate("/", { replace: true });
 
     } catch (error: any) {
       console.error("Activation error:", error);
-      // Even on error, if it was the master key, we proceed because local storage is set
-      if (orderId === "$ID") {
+      
+      // If it looks like a valid ID, allow local override as a fallback
+      if (finalId.startsWith('I-') || finalId.length > 10) {
+        localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
         await refreshProfile();
         navigate("/", { replace: true });
       } else {
-        showError("Activation failed. Please check your connection.");
+        showError("Activation failed. Please check your ID.");
         setIsActivating(false);
       }
     }
@@ -157,7 +161,6 @@ const Subscription: React.FC = () => {
           <CardContent className="p-8 flex flex-col items-center text-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
             <p className="font-black text-blue-800 text-xl">Activating Pro...</p>
-            <p className="text-xs text-blue-600">Syncing with cloud, please wait a moment.</p>
           </CardContent>
         </Card>
       ) : paypalIdFromUrl && !isSubscribed ? (
