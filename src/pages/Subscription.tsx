@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCcw } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,6 @@ const PLANS = [
     name: "Monthly Pro",
     price: PLAN_PRICE,
     interval: "month",
-    // Added return URL parameter so PayPal redirects back with the ID
     subscriptionUrl: `https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=${PAYPAL_PLAN_ID}&return=${encodeURIComponent(window.location.origin + '/subscription')}`, 
     description: "Full access to all professional instructor features.",
     features: [
@@ -43,6 +42,7 @@ const Subscription: React.FC = () => {
   const { user, subscriptionStatus } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isActivating, setIsActivating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [orderId, setOrderId] = useState("");
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
@@ -52,13 +52,18 @@ const Subscription: React.FC = () => {
     const subId = searchParams.get("subscription_id") || searchParams.get("ba_token");
     if (subId && user && !isSubscribed && !isActivating) {
       handleInstantActivate(subId);
-      // Clear the URL parameters
       setSearchParams({});
     }
   }, [searchParams, user, isSubscribed]);
 
   const handleSubscribe = (url: string) => {
-    window.open(url, "_self"); // Use _self to ensure the return flow works better on mobile
+    window.open(url, "_self");
+  };
+
+  const handleRefreshStatus = async () => {
+    setIsRefreshing(true);
+    // Force a reload of the page to trigger the SessionContextProvider to re-fetch the profile
+    window.location.reload();
   };
 
   const handleInstantActivate = async (idToUse?: string) => {
@@ -67,35 +72,34 @@ const Subscription: React.FC = () => {
     
     setIsActivating(true);
     try {
-      // 1. Create the claim record first (this is the source of truth for the owner)
+      // 1. Create the claim record (this allows the owner to verify if auto-update fails)
       const { error: claimError } = await supabase
         .from("subscription_claims")
-        .insert({
+        .upsert({
           user_id: user.id,
           stripe_session_id: finalId.trim(),
           status: 'auto_approved'
-        });
+        }, { onConflict: 'stripe_session_id' });
 
       if (claimError) throw claimError;
 
-      // 2. Attempt to update the profile status
+      // 2. Attempt to update the profile status directly
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ subscription_status: 'active' })
         .eq("id", user.id);
 
       if (profileError) {
-        // If this fails, it's likely RLS. The claim is still saved for the owner to verify.
-        console.warn("Profile update failed, but claim was saved:", profileError);
-        showSuccess("Payment ID received! An admin will verify your account shortly.");
+        console.warn("Direct profile update failed (likely RLS), but claim was saved:", profileError);
+        showSuccess("Payment ID received! We are verifying your account now.");
       } else {
         showSuccess("Account activated! Welcome to the Pro plan.");
-        
-        // Refresh the page to unlock the menu
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 2000);
       }
+      
+      // Refresh the app state
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2000);
       
       setOrderId("");
     } catch (error: any) {
@@ -172,40 +176,66 @@ const Subscription: React.FC = () => {
           </Card>
         ))}
 
-        {!isSubscribed && (
-          <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
-            <CardHeader className="p-0 mb-4">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <ClipboardCheck className="h-5 w-5 text-primary" />
-                Already Subscribed?
+        <div className="space-y-4">
+          {!isSubscribed && (
+            <Card className="border-dashed border-2 flex flex-col justify-center p-5 sm:p-6 bg-muted/10">
+              <CardHeader className="p-0 mb-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5 text-primary" />
+                  Already Subscribed?
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Enter your PayPal Subscription ID (starts with I-...) from your confirmation email.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
+                  <Input 
+                    id="orderId"
+                    placeholder="e.g. I-12345ABCDE"
+                    value={orderId}
+                    onChange={(e) => setOrderId(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full font-bold h-11"
+                  onClick={() => handleInstantActivate()}
+                  disabled={isActivating || !orderId.trim()}
+                >
+                  {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Activate My Account
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="border-none shadow-sm bg-blue-50/30">
+            <CardHeader className="p-5">
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <RefreshCcw className="h-4 w-4 text-blue-600" />
+                Check Status
               </CardTitle>
-              <CardDescription className="text-xs">
-                Enter your PayPal Subscription ID (starts with I-...) to activate your account manually.
+              <CardDescription className="text-[10px]">
+                If you've already paid but the app is still locked, click below to refresh your account status.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="orderId" className="text-[10px] font-bold uppercase">Subscription ID</Label>
-                <Input 
-                  id="orderId"
-                  placeholder="e.g. I-12345ABCDE"
-                  value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
-                  className="h-10"
-                />
-              </div>
+            <CardContent className="p-5 pt-0">
               <Button 
-                variant="outline" 
-                className="w-full font-bold h-11"
-                onClick={() => handleInstantActivate()}
-                disabled={isActivating || !orderId.trim()}
+                variant="ghost" 
+                size="sm" 
+                className="w-full font-bold text-blue-700 hover:bg-blue-100"
+                onClick={handleRefreshStatus}
+                disabled={isRefreshing}
               >
-                {isActivating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Activate My Account
+                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCcw className="h-4 w-4 mr-2" />}
+                Refresh My Account Status
               </Button>
             </CardContent>
           </Card>
-        )}
+        </div>
       </div>
 
       <div className="max-w-4xl w-full space-y-6">
