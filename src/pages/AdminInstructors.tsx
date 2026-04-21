@@ -77,12 +77,24 @@ const AdminInstructors: React.FC = () => {
     setErrorDetail(null);
 
     try {
+      const { data: myProfile, error: roleError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      
+      if (roleError) throw new Error("Could not verify your user role: " + roleError.message);
+      
+      if (myProfile?.role?.toLowerCase() !== 'owner') {
+        navigate("/");
+        return;
+      }
+
       // We call the RPC function which joins auth.users and public.profiles
       const { data: profiles, error: profilesError } = await supabase
         .rpc('get_all_users_for_admin');
 
       if (profilesError) {
-        // If the RPC doesn't exist yet, fallback to the profiles table but warn the user
         console.warn("RPC 'get_all_users_for_admin' not found. Falling back to profiles table.");
         const { data: fallbackData, error: fallbackError } = await supabase
           .from("profiles")
@@ -98,14 +110,17 @@ const AdminInstructors: React.FC = () => {
     } catch (error: any) {
       console.error("Error fetching instructors:", error);
       setErrorDetail(error.message);
-      showError("Failed to load instructor list. Make sure you ran the SQL helper function.");
+      showError("Failed to load instructor list.");
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, navigate]);
 
   const processProfiles = async (profiles: any[]) => {
-    // Fetch student counts separately
+    // 1. Filter out students immediately
+    const filteredProfiles = (profiles || []).filter(p => p.role?.toLowerCase() !== 'student');
+
+    // 2. Fetch student counts separately
     let countMap: Record<string, number> = {};
     try {
       const { data: studentCounts } = await supabase
@@ -121,7 +136,7 @@ const AdminInstructors: React.FC = () => {
       console.warn("Could not fetch student counts:", e);
     }
 
-    const formatted: InstructorProfile[] = profiles.map(p => ({
+    const formatted: InstructorProfile[] = filteredProfiles.map(p => ({
       id: p.id,
       first_name: p.first_name,
       last_name: p.last_name,
@@ -168,10 +183,6 @@ const AdminInstructors: React.FC = () => {
     return fullName.includes(search) || email.includes(search) || id.includes(search);
   });
 
-  const clearFilter = () => {
-    setSearchParams({});
-  };
-
   const handleManageSub = (instructor: InstructorProfile) => {
     setSelectedInstructor(instructor);
     setIsSubOpen(true);
@@ -199,6 +210,35 @@ const AdminInstructors: React.FC = () => {
     );
   }
 
+  if (errorDetail) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto p-4">
+        <Button variant="ghost" asChild className="-ml-2">
+          <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+        </Button>
+        <Card className="border-destructive bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Connection Error
+            </CardTitle>
+            <CardDescription>
+              The app was unable to retrieve the instructor list.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-background rounded border text-sm font-mono overflow-auto">
+              {errorDetail}
+            </div>
+            <Button onClick={fetchInstructors} className="font-bold">
+              <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -208,7 +248,7 @@ const AdminInstructors: React.FC = () => {
           </Button>
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
             <ShieldCheck className="h-8 w-8 text-primary" />
-            All Platform Users
+            Instructor Directory
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -224,7 +264,7 @@ const AdminInstructors: React.FC = () => {
             <div>
               <CardTitle>Platform Directory</CardTitle>
               <CardDescription>
-                Every account registered on the platform, including those without profiles.
+                Overview of every instructor account registered on the platform.
               </CardDescription>
             </div>
             <div className="relative w-full sm:w-72">
@@ -243,7 +283,7 @@ const AdminInstructors: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[200px]">User / Name</TableHead>
+                  <TableHead className="w-[200px]">Instructor / Name</TableHead>
                   <TableHead className="w-[250px]">Login / Username</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Students</TableHead>
@@ -254,7 +294,7 @@ const AdminInstructors: React.FC = () => {
                 {filteredInstructors.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                      {instructors.length === 0 ? "No users found. Ensure you ran the SQL helper function in Supabase." : "No users match your search criteria."}
+                      {instructors.length === 0 ? "No instructors found in the database." : "No instructors match your search criteria."}
                     </TableCell>
                   </TableRow>
                 ) : (
