@@ -26,71 +26,45 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const initializationStarted = useRef(false);
 
   const fetchProfileData = useCallback(async (userId: string) => {
-    // 1. IMMEDIATE LOCAL CHECK (Non-blocking)
-    const localOverride = localStorage.getItem(`hdt_pro_override_${userId}`);
-    if (localOverride === 'true') {
-      setSubscriptionStatus('active');
-      setUserRole('instructor');
-      // We don't return here, we still want to sync with DB in background
-    }
-
     setIsProfileLoading(true);
     
     try {
-      // 2. Fetch profile with a 5-second timeout to prevent hanging the app
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
+      // 1. Fetch profile from DB
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role, subscription_status")
         .eq("id", userId)
         .single();
       
-      clearTimeout(timeoutId);
-
       if (profileError) throw profileError;
 
       const role = profile.role?.toLowerCase() || 'instructor';
       const status = profile.subscription_status || 'unsubscribed';
 
-      // Update state with fresh DB data
+      // 2. Update state with fresh DB data
       setUserRole(role);
-      
-      // If we have a local override, keep 'active', otherwise use DB status
-      if (localOverride === 'true') {
-        setSubscriptionStatus('active');
-        
-        // Background Sync: If DB is out of sync with local Pro status, fix it
-        if (status !== 'active' && status !== 'lifetime') {
-          const claimId = `SYNC-${userId.substring(0, 8)}`;
-          supabase.from("subscription_claims").upsert({
-            user_id: userId,
-            stripe_session_id: claimId,
-            status: 'approved'
-          }, { onConflict: 'stripe_session_id' }).then(() => {
-            return supabase.from("profiles").update({ subscription_status: 'active' }).eq("id", userId);
-          });
-        }
+      setSubscriptionStatus(status);
+
+      // 3. Sync local storage hint (only for UI speed on next boot)
+      if (status === 'active' || status === 'lifetime') {
+        localStorage.setItem(`hdt_pro_override_${userId}`, 'true');
       } else {
-        setSubscriptionStatus(status);
+        localStorage.removeItem(`hdt_pro_override_${userId}`);
       }
 
     } catch (e) {
-      console.error("Profile sync error (using local state):", e);
-      // If network fails, we rely on the local state we set at the start
-      if (localOverride === 'true') {
+      console.error("Profile sync error:", e);
+      
+      // Fallback to local hint ONLY if network fails
+      const localOverride = localStorage.getItem(`hdt_pro_override_${userId}`);
+      if (localOverride === 'true' && !subscriptionStatus) {
         setSubscriptionStatus('active');
         setUserRole('instructor');
-      } else if (!userRole) {
-        // Fallback for new users with no local state and no network
-        setUserRole('instructor');
-        setSubscriptionStatus('unsubscribed');
       }
     } finally {
       setIsProfileLoading(false);
     }
-  }, [userRole]);
+  }, [subscriptionStatus]);
 
   const refreshProfile = useCallback(async () => {
     if (user) await fetchProfileData(user.id);
@@ -107,7 +81,14 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         if (initialSession) {
           setSession(initialSession);
           setUser(initialSession.user);
-          // Start profile fetch but don't necessarily block the whole app if local state exists
+          
+          // Initial fast-path for UI (prevents flicker)
+          const localOverride = localStorage.getItem(`hdt_pro_override_${initialSession.user.id}`);
+          if (localOverride === 'true') {
+            setSubscriptionStatus('active');
+            setUserRole('instructor');
+          }
+
           fetchProfileData(initialSession.user.id);
         }
       } catch (error) {
@@ -141,6 +122,42 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       subscription.unsubscribe();
     };
   }, [fetchProfileData]);
+
+  // REAL-TIME SUBSCRIPTION SYNC
+  // This ensures that if an owner changes a user's status, the user's app reacts instantly
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`profile-status-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`
+        },
+        (payload) => {
+          const newStatus = payload.new.subscription_status;
+          const newRole = payload.new.role;
+          
+          setSubscriptionStatus(newStatus);
+          setUserRole(newRole);
+
+          if (newStatus === 'active' || newStatus === 'lifetime') {
+            localStorage.setItem(`hdt_pro_override_${user.id}`, 'true');
+          } else {
+            localStorage.removeItem(`hdt_pro_override_${user.id}`);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   return (
     <SessionContext.Provider value={{ 
