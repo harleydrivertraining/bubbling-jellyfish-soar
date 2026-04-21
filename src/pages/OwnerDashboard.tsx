@@ -43,6 +43,7 @@ interface InstructorSummary {
   created_at: string;
   updated_at: string;
   subscription_status: string;
+  order_id?: string;
 }
 
 const OwnerDashboard: React.FC = () => {
@@ -110,16 +111,32 @@ const OwnerDashboard: React.FC = () => {
       
       setNewSignups(signupData || []);
 
-      // Fetch Recently Activated Pro Members
+      // Fetch Recently Activated Pro Members with their Order IDs
       const { data: proData } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
         .ilike("role", "instructor")
         .in("subscription_status", ["active", "lifetime"])
         .order("updated_at", { ascending: false })
-        .limit(5);
+        .limit(10);
       
-      setRecentProMembers(proData || []);
+      if (proData && proData.length > 0) {
+        const proUserIds = proData.map(p => p.id);
+        const { data: proClaims } = await supabase
+          .from("subscription_claims")
+          .select("user_id, stripe_session_id")
+          .in("user_id", proUserIds)
+          .order("created_at", { ascending: false });
+
+        const claimMap = new Map(proClaims?.map(c => [c.user_id, c.stripe_session_id]));
+        
+        setRecentProMembers(proData.map(p => ({
+          ...p,
+          order_id: claimMap.get(p.id)
+        })));
+      } else {
+        setRecentProMembers([]);
+      }
 
     } catch (error: any) {
       console.error("Error fetching owner dashboard data:", error);
@@ -282,29 +299,34 @@ const OwnerDashboard: React.FC = () => {
                 No recent Pro upgrades.
               </div>
             ) : (
-              <div className="divide-y">
-                {recentProMembers.map((pro) => (
-                  <div key={pro.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold">{pro.first_name} {pro.last_name}</p>
-                        {pro.subscription_status === 'lifetime' ? (
-                          <Badge className="bg-blue-600 text-[8px] h-4 px-1"><Infinity className="h-2 w-2 mr-0.5" /> LIFETIME</Badge>
-                        ) : (
-                          <Badge className="bg-green-600 text-[8px] h-4 px-1"><Zap className="h-2 w-2 mr-0.5" /> PRO</Badge>
+              <ScrollArea className="h-[400px]">
+                <div className="divide-y">
+                  {recentProMembers.map((pro) => (
+                    <div key={pro.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold truncate">{pro.first_name} {pro.last_name}</p>
+                          {pro.subscription_status === 'lifetime' ? (
+                            <Badge className="bg-blue-600 text-[8px] h-4 px-1"><Infinity className="h-2 w-2 mr-0.5" /> LIFETIME</Badge>
+                          ) : (
+                            <Badge className="bg-green-600 text-[8px] h-4 px-1"><Zap className="h-2 w-2 mr-0.5" /> PRO</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{pro.email}</p>
+                        {pro.order_id && (
+                          <p className="text-[9px] font-mono text-primary font-bold mt-1">ID: {pro.order_id}</p>
                         )}
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Activated {format(new Date(pro.updated_at), "MMM d, p")}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">{pro.email}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">Activated {format(new Date(pro.updated_at), "MMM d, p")}</p>
+                      <Button variant="ghost" size="icon" className="font-bold text-primary shrink-0 ml-2" asChild>
+                        <Link to="/admin/instructors">
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="icon" className="font-bold text-primary" asChild>
-                      <Link to="/admin/instructors">
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </ScrollArea>
             )}
           </CardContent>
         </Card>
