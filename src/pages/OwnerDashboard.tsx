@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import GlobalBroadcastForm from "@/components/GlobalBroadcastForm";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface PlatformStats {
   totalInstructors: number;
@@ -100,18 +101,18 @@ const OwnerDashboard: React.FC = () => {
         setPendingClaims([]);
       }
 
-      // Fetch New Unsubscribed Signups
+      // Fetch Last 10 Unsubscribed Signups
       const { data: signupData } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
         .ilike("role", "instructor")
         .eq("subscription_status", "unsubscribed")
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(10);
       
       setNewSignups(signupData || []);
 
-      // Fetch Recently Activated Pro Members with their Order IDs
+      // Fetch Last 10 Activated Pro Members
       const { data: proData } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, created_at, updated_at, subscription_status")
@@ -284,19 +285,19 @@ const OwnerDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Recently Activated Pro Members */}
+        {/* Last 10 Pro Members */}
         <Card className="border-l-4 border-l-green-500 shadow-md overflow-hidden h-full">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <Zap className="h-5 w-5 text-green-600" />
-              Recent Pro Members
+              Last 10 Pro Members
             </CardTitle>
-            <CardDescription>Instructors who recently became active Pro members.</CardDescription>
+            <CardDescription>The most recent instructors to upgrade to Pro or Lifetime.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {recentProMembers.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground italic text-sm">
-                No recent Pro upgrades.
+                No Pro members found.
               </div>
             ) : (
               <ScrollArea className="h-[400px]">
@@ -331,37 +332,39 @@ const OwnerDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* New Signups Widget */}
+        {/* Last 10 Signups Widget */}
         <Card className="border-l-4 border-l-blue-500 shadow-md overflow-hidden h-full">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-blue-600" />
-              New Signups (Unpaid)
+              Last 10 Signups (Unpaid)
             </CardTitle>
-            <CardDescription>Instructors who joined but haven't subscribed yet.</CardDescription>
+            <CardDescription>The most recent instructors to join the platform.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {newSignups.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground italic text-sm">
-                No new unsubscribed instructors.
+                No unsubscribed instructors found.
               </div>
             ) : (
-              <div className="divide-y">
-                {newSignups.map((signup) => (
-                  <div key={signup.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="min-w-0">
-                      <p className="font-bold">{signup.first_name} {signup.last_name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{signup.email}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">Joined {format(new Date(signup.created_at), "MMM d, yyyy")}</p>
+              <ScrollArea className="h-[400px]">
+                <div className="divide-y">
+                  {newSignups.map((signup) => (
+                    <div key={signup.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                      <div className="min-w-0">
+                        <p className="font-bold">{signup.first_name} {signup.last_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{signup.email}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Joined {format(new Date(signup.created_at), "MMM d, yyyy")}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="font-bold text-primary" asChild>
+                        <Link to="/admin/instructors">
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="icon" className="font-bold text-primary" asChild>
-                      <Link to="/admin/instructors">
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </ScrollArea>
             )}
           </CardContent>
           <div className="p-3 bg-muted/10 border-t text-center">
@@ -394,18 +397,17 @@ const OwnerDashboard: React.FC = () => {
             <CardContent>
               <div className="text-4xl font-black">{stats?.activeInstructorsThisWeek}</div>
             </CardContent>
-          </Card>
-        </Link>
+          </Link>
 
-        <Card className="border-l-4 border-l-blue-500 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Students</CardTitle>
-            <GraduationCap className="h-5 w-5 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-black">{stats?.totalStudents}</div>
-          </CardContent>
-        </Card>
+          <Card className="border-l-4 border-l-blue-500 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Students</CardTitle>
+              <GraduationCap className="h-5 w-5 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-black">{stats?.totalStudents}</div>
+            </CardContent>
+          </Card>
 
         <Link to="/admin/support" className="block group">
           <Card className={cn("border-l-4 shadow-sm group-hover:shadow-md transition-all", stats?.openSupportRequests && stats.openSupportRequests > 0 ? "border-l-orange-500 bg-orange-50/30" : "border-l-green-500")}>
