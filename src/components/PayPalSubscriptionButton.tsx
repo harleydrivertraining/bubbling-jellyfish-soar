@@ -15,8 +15,8 @@ const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> = ({
   onApprove, 
   onError 
 }) => {
-  // Replace with your actual PayPal Client ID from the PayPal Developer Dashboard
-  const PAYPAL_CLIENT_ID = "AWY_placeholder_client_id_replace_me";
+  // Live PayPal Client ID
+  const PAYPAL_CLIENT_ID = "AcOO9id17TgIkgRPk9-JUBmSQB2TTaoM1Nv9ZOZ3ALA_DtEltr87zyGp2wHcAsnX3WF7PHaEBEmh_8Sd";
 
   return (
     <div className="w-full min-h-[150px] flex flex-col justify-center">
