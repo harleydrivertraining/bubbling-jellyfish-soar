@@ -25,7 +25,8 @@ import {
   Ban,
   Clock,
   Trash2,
-  Loader2
+  Loader2,
+  Fingerprint
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -92,18 +93,17 @@ const AdminInstructors: React.FC = () => {
         return;
       }
 
-      // Broaden the query: Show everyone who is NOT a student
+      // Broaden the query: Show EVERYONE in the profiles table to ensure no one is hidden
       let query = supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status")
-        .or('role.is.null,role.neq.student');
+        .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status");
 
       if (filterType === "active") {
         const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
         query = query.gte("updated_at", weekStart.toISOString());
       }
 
-      const { data: profiles, error: profilesError } = await query.order("last_name", { ascending: true });
+      const { data: profiles, error: profilesError } = await query.order("created_at", { ascending: false });
 
       if (profilesError) throw profilesError;
 
@@ -167,7 +167,8 @@ const AdminInstructors: React.FC = () => {
 
   const filteredInstructors = instructors.filter(i => 
     `${i.first_name} ${i.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    i.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    i.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    i.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const clearFilter = () => {
@@ -239,7 +240,7 @@ const AdminInstructors: React.FC = () => {
           </Button>
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
             <ShieldCheck className="h-8 w-8 text-primary" />
-            Instructors
+            All Platform Users
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -262,17 +263,17 @@ const AdminInstructors: React.FC = () => {
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>{filterType === "active" ? "Active Instructors" : "Platform Instructors"}</CardTitle>
+              <CardTitle>{filterType === "active" ? "Active Users" : "Platform Directory"}</CardTitle>
               <CardDescription>
                 {filterType === "active" 
-                  ? "Instructors who have used the app in the last 7 days." 
-                  : "Overview of all teaching accounts registered on the app."}
+                  ? "Users who have used the app in the last 7 days." 
+                  : "Overview of every account registered on the platform."}
               </CardDescription>
             </div>
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by name or email..." 
+                placeholder="Search by name, email or ID..." 
                 className="pl-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -285,8 +286,8 @@ const AdminInstructors: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[200px]">Instructor</TableHead>
-                  <TableHead className="w-[250px]">Login Email</TableHead>
+                  <TableHead className="w-[200px]">User / Name</TableHead>
+                  <TableHead className="w-[250px]">Login / Username</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Students</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -296,7 +297,7 @@ const AdminInstructors: React.FC = () => {
                 {filteredInstructors.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                      No instructors found matching your search.
+                      No users found matching your search.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -307,19 +308,34 @@ const AdminInstructors: React.FC = () => {
                           <Avatar className="h-9 w-9 border">
                             <AvatarImage src={instructor.logo_url || undefined} />
                             <AvatarFallback className="bg-primary/5 text-primary font-bold">
-                              {instructor.first_name?.[0]}{instructor.last_name?.[0]}
+                              {instructor.first_name?.[0] || '?'}{instructor.last_name?.[0] || ''}
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
-                            {instructor.role === 'owner' && <Badge variant="outline" className="text-[8px] h-3 px-1 border-primary text-primary">OWNER</Badge>}
+                            <p className="font-bold truncate">
+                              {instructor.first_name || instructor.last_name 
+                                ? `${instructor.first_name} ${instructor.last_name}` 
+                                : <span className="text-muted-foreground italic">Unnamed User</span>}
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="outline" className="text-[8px] h-3.5 px-1 uppercase font-black">
+                                {instructor.role || 'user'}
+                              </Badge>
+                              {instructor.role === 'owner' && <Badge variant="default" className="text-[8px] h-3.5 px-1 bg-primary text-primary-foreground font-black">OWNER</Badge>}
+                            </div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <Mail className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{instructor.email}</span>
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+                            <span className="truncate">{instructor.email || "No Email"}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono mt-0.5">
+                            <Fingerprint className="h-2.5 w-2.5" />
+                            <span>ID: {instructor.id.substring(0, 8)}</span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -359,7 +375,7 @@ const AdminInstructors: React.FC = () => {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Permanently Delete Account?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will completely remove <strong>{instructor.first_name} {instructor.last_name}</strong> from the platform. 
+                                  This will completely remove this user from the platform. 
                                   All their students, bookings, and data will be lost forever. This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
@@ -396,7 +412,7 @@ const AdminInstructors: React.FC = () => {
           {selectedInstructor && (
             <EditInstructorSubscription
               instructorId={selectedInstructor.id}
-              instructorName={`${selectedInstructor.first_name} ${selectedInstructor.last_name}`}
+              instructorName={instructor.first_name ? `${selectedInstructor.first_name} ${selectedInstructor.last_name}` : "this user"}
               currentStatus={selectedInstructor.subscription_status}
               onSuccess={() => {
                 setIsSubOpen(false);
