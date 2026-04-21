@@ -84,18 +84,33 @@ const Subscription: React.FC = () => {
     }
   }, [user, isActivating]);
 
-  // Auto-activate if returning from PayPal with a subscription ID
+  // 1. Auto-activate if returning from PayPal with ANY success parameter
   useEffect(() => {
-    const subId = searchParams.get("subscription_id") || searchParams.get("token");
+    // PayPal success URLs usually contain one of these
+    const subId = searchParams.get("subscription_id");
+    const token = searchParams.get("token");
+    const baToken = searchParams.get("ba_token");
     
-    // If we have an ID but the user session isn't ready yet, we wait.
-    // Once user is ready and we aren't already subscribed, trigger activation.
-    if (subId && user && !isSubscribed && !isActivating && !isProfileLoading) {
-      handleInstantActivate(subId);
-      // Clear the params so it doesn't trigger again on refresh
-      setSearchParams({});
+    const anyId = subId || token || baToken;
+    
+    if (anyId && user && !isSubscribed && !isActivating && !isProfileLoading) {
+      handleInstantActivate(anyId);
+      setSearchParams({}); // Clear URL
     }
   }, [searchParams, user, isSubscribed, isActivating, isProfileLoading, handleInstantActivate, setSearchParams]);
+
+  // 2. Aggressive Mobile Refresh: Refresh status whenever the user returns to the app tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isSubscribed && !isActivating) {
+        // If the user just switched back from the PayPal tab, reload the page to pick up webhook updates
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => window.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isSubscribed, isActivating]);
 
   const handleSubscribe = async (url: string) => {
     if (Capacitor.isNativePlatform()) {
@@ -125,11 +140,11 @@ const Subscription: React.FC = () => {
       </div>
 
       {isActivating && (
-        <Card className="w-full max-w-md border-blue-200 bg-blue-50 animate-pulse">
+        <Card className="w-full max-w-md border-blue-200 bg-blue-50 animate-pulse shadow-lg">
           <CardContent className="p-6 flex flex-col items-center text-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="font-bold text-blue-800">Activating your Pro account...</p>
-            <p className="text-xs text-blue-600">Please don't close this page. We're verifying your subscription with PayPal.</p>
+            <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+            <p className="font-black text-blue-800 text-lg">Verifying Payment...</p>
+            <p className="text-xs text-blue-600 font-medium">We're activating your Pro account. Please wait a moment.</p>
           </CardContent>
         </Card>
       )}
@@ -194,7 +209,7 @@ const Subscription: React.FC = () => {
                 Already Subscribed?
               </CardTitle>
               <CardDescription className="text-xs">
-                Enter your PayPal Subscription ID (starts with I-...) to activate your account manually.
+                If you've just paid, enter your PayPal Subscription ID (starts with I-...) to activate instantly.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 space-y-4">
@@ -225,10 +240,10 @@ const Subscription: React.FC = () => {
       {/* Status Refresh for Mobile */}
       <div className="flex flex-col items-center gap-4 pt-4">
         <p className="text-xs text-muted-foreground text-center max-w-xs">
-          If you've just subscribed and your status hasn't updated, try refreshing the app.
+          If you've just subscribed and your status hasn't updated, click below to refresh.
         </p>
-        <Button variant="ghost" size="sm" onClick={handleManualRefresh} className="font-bold">
-          <RefreshCw className="mr-2 h-4 w-4" /> Refresh App Status
+        <Button variant="secondary" size="lg" onClick={handleManualRefresh} className="font-black px-8 h-12 shadow-md">
+          <RefreshCw className="mr-2 h-5 w-5" /> Check Subscription Status
         </Button>
       </div>
 
