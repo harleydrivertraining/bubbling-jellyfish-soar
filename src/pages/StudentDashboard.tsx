@@ -100,7 +100,8 @@ const StudentDashboard: React.FC = () => {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      navigate("/login", { replace: true });
+      // Force a full page reload to the login page to clear all state
+      window.location.href = "/login";
     } catch (error) {
       console.error("Logout error:", error);
       window.location.href = "/login";
