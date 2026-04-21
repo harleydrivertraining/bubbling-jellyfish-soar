@@ -47,9 +47,9 @@ const Subscription: React.FC = () => {
   // Get the ID from the URL if it exists
   const paypalIdFromUrl = searchParams.get("subscription_id") || searchParams.get("ba_token") || searchParams.get("token");
 
-  // Core activation logic
+  // Core activation logic - Memoized to prevent PayPal button re-renders
   const performActivation = useCallback(async (finalId: string) => {
-    if (!user?.id) return;
+    if (!user?.id || !finalId) return;
     
     setIsActivating(true);
     try {
@@ -87,16 +87,14 @@ const Subscription: React.FC = () => {
       showError("Activation failed. Please check your ID.");
       setIsActivating(false);
     }
-  }, [user, navigate, refreshProfile]);
+  }, [user?.id, navigate, refreshProfile]);
 
   // AUTO-ACTIVATION: Only runs when the URL params change or on mount
   useEffect(() => {
     if (paypalIdFromUrl && user && subscriptionStatus === 'unsubscribed' && !isActivating) {
       performActivation(paypalIdFromUrl);
     }
-    // We intentionally exclude performActivation from dependencies to prevent loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paypalIdFromUrl, user, subscriptionStatus]);
+  }, [paypalIdFromUrl, user, subscriptionStatus, isActivating, performActivation]);
 
   const handleManualActivate = () => {
     if (!orderId.trim()) {
@@ -211,7 +209,7 @@ const Subscription: React.FC = () => {
                 <div className="pt-4 border-t">
                   <PayPalSubscriptionButton 
                     planId={plan.planId} 
-                    onApprove={(id) => performActivation(id)} 
+                    onApprove={performActivation} 
                   />
                 </div>
               )}
