@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw, AlertCircle } from "lucide-react";
+import { Check, Sparkles, ShieldCheck, Zap, Loader2, ClipboardCheck, Mail, XCircle, ExternalLink, Info, RefreshCw, AlertCircle, Search } from "lucide-react";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -46,17 +46,41 @@ const Subscription: React.FC = () => {
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'lifetime';
 
-  // 1. Extract ID from URL immediately
-  useEffect(() => {
-    const paypalId = searchParams.get("subscription_id") || searchParams.get("ba_token") || searchParams.get("token");
-    if (paypalId) {
-      setDetectedId(paypalId);
-      console.log("PayPal ID Detected in URL:", paypalId);
+  // DEEP SCAN: Manually parse the URL to find PayPal IDs that hooks might miss on mobile
+  const scanUrlForId = useCallback(() => {
+    const rawSearch = window.location.search;
+    const rawHash = window.location.hash;
+    const fullUrl = window.location.href;
+
+    // Helper to extract from a string
+    const getParam = (urlStr: string, key: string) => {
+      const regex = new RegExp(`[?&]${key}=([^&#]*)`, 'i');
+      const match = urlStr.match(regex);
+      return match ? match[1] : null;
+    };
+
+    // Keys PayPal uses: subscription_id (Standard), token/ba_token (Express/Vault), PayerID (Fallback)
+    const keys = ['subscription_id', 'token', 'ba_token', 'PayerID'];
+    
+    for (const key of keys) {
+      const found = getParam(rawSearch, key) || getParam(rawHash, key) || getParam(fullUrl, key);
+      if (found) return found;
     }
-  }, [searchParams]);
+    
+    return null;
+  }, []);
+
+  // 1. Initial Scan on Load
+  useEffect(() => {
+    const id = scanUrlForId();
+    if (id) {
+      setDetectedId(id);
+      console.log("Deep Scan Detected ID:", id);
+    }
+  }, [scanUrlForId]);
 
   const handleInstantActivate = useCallback(async (providedId?: string) => {
-    const finalId = providedId || orderId || detectedId;
+    const finalId = providedId || orderId || detectedId || scanUrlForId();
     
     if (!user) {
       showError("Please wait for your session to load, then try again.");
@@ -64,20 +88,22 @@ const Subscription: React.FC = () => {
     }
 
     if (!finalId) {
-      showError("No Subscription ID found.");
+      showError("No Subscription ID found in the URL or input.");
       return;
     }
     
     setIsActivating(true);
     try {
       // 1. Record the claim
-      await supabase
+      const { error: claimError } = await supabase
         .from("subscription_claims")
         .upsert({
           user_id: user.id,
           stripe_session_id: finalId,
           status: 'auto_approved'
         }, { onConflict: 'stripe_session_id' });
+
+      if (claimError) console.error("Claim recording error:", claimError);
 
       // 2. Update Profile
       const { data: updateResult, error: profileError } = await supabase
@@ -106,19 +132,19 @@ const Subscription: React.FC = () => {
       
       setTimeout(() => {
         navigate("/", { replace: true });
-      }, 800);
+      }, 1000);
 
     } catch (error: any) {
       console.error("Activation error:", error);
       showError("Activation failed: " + (error.message || "Connection error"));
       setIsActivating(false);
     }
-  }, [user, orderId, detectedId, refreshProfile, navigate, setSearchParams]);
+  }, [user, orderId, detectedId, scanUrlForId, refreshProfile, navigate, setSearchParams]);
 
   // 2. Auto-trigger activation if ID is found and user is logged in
   useEffect(() => {
+    // If we have an ID and a user, and they aren't already Pro, try to activate
     if (detectedId && user && subscriptionStatus === 'unsubscribed' && !isActivating) {
-      console.log("Auto-activating detected payment...");
       handleInstantActivate(detectedId);
     }
   }, [detectedId, user, subscriptionStatus, isActivating, handleInstantActivate]);
@@ -162,24 +188,24 @@ const Subscription: React.FC = () => {
         </Card>
       )}
 
-      {/* DETECTED PAYMENT ALERT (If auto-activation fails) */}
+      {/* DETECTED PAYMENT ALERT */}
       {detectedId && !isActivating && !isSubscribed && (
-        <Card className="w-full max-w-md border-orange-200 bg-orange-50 shadow-md animate-in slide-in-from-top-4 duration-500">
+        <Card className="w-full max-w-md border-green-200 bg-green-50 shadow-md animate-in slide-in-from-top-4 duration-500">
           <CardContent className="p-5 flex flex-col gap-4">
             <div className="flex items-start gap-3">
-              <div className="bg-orange-100 p-2 rounded-full">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
+              <div className="bg-green-100 p-2 rounded-full">
+                <Check className="h-5 w-5 text-green-600" />
               </div>
               <div className="space-y-1">
-                <p className="font-bold text-orange-900">Payment Detected!</p>
-                <p className="text-xs text-orange-800/80 leading-relaxed">
-                  We found a PayPal ID in your URL. Click the button below to finish activating your Pro account.
+                <p className="font-bold text-green-900">Payment ID Found!</p>
+                <p className="text-xs text-green-800/80 leading-relaxed">
+                  We've detected your PayPal ID: <span className="font-mono font-bold">{detectedId.substring(0, 12)}...</span>
                 </p>
               </div>
             </div>
             <Button 
               onClick={() => handleInstantActivate(detectedId)} 
-              className="w-full bg-orange-600 hover:bg-orange-700 font-black h-11"
+              className="w-full bg-green-600 hover:bg-green-700 font-black h-11"
             >
               Complete Activation Now
             </Button>
