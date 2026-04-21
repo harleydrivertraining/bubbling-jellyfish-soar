@@ -20,8 +20,7 @@ const PLANS = [
     name: "Monthly Pro",
     price: "3.99",
     interval: "month",
-    // Replace this with your actual PayPal Plan ID created in your PayPal Dashboard
-    paypalPlanId: "P-placeholder_plan_id_replace_me",
+    paypalPlanId: "P-8W475365B2106821DNHT2ZYA",
     description: "Full access to all professional instructor features.",
     features: [
       "Unlimited Students",
