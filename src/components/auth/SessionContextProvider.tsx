@@ -29,7 +29,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     setIsProfileLoading(true);
     
     try {
-      // 1. Fetch profile from DB
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role, subscription_status")
@@ -41,11 +40,9 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       const role = profile.role?.toLowerCase() || 'instructor';
       const status = profile.subscription_status || 'unsubscribed';
 
-      // 2. Update state with fresh DB data
       setUserRole(role);
       setSubscriptionStatus(status);
 
-      // 3. Sync local storage hint (only for UI speed on next boot)
       if (status === 'active' || status === 'lifetime') {
         localStorage.setItem(`hdt_pro_override_${userId}`, 'true');
       } else {
@@ -54,8 +51,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
     } catch (e) {
       console.error("Profile sync error:", e);
-      
-      // Fallback to local hint ONLY if network fails
       const localOverride = localStorage.getItem(`hdt_pro_override_${userId}`);
       if (localOverride === 'true' && !subscriptionStatus) {
         setSubscriptionStatus('active');
@@ -82,7 +77,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           setSession(initialSession);
           setUser(initialSession.user);
           
-          // Initial fast-path for UI (prevents flicker)
           const localOverride = localStorage.getItem(`hdt_pro_override_${initialSession.user.id}`);
           if (localOverride === 'true') {
             setSubscriptionStatus('active');
@@ -101,6 +95,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     initialize();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      // Update core auth state
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
@@ -109,9 +104,13 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           fetchProfileData(currentSession.user.id);
         }
       } else if (event === 'SIGNED_OUT') {
+        // Force clear everything immediately on sign out
+        setSession(null);
+        setUser(null);
         setSubscriptionStatus(null);
         setUserRole(null);
-        // Clear overrides on logout
+        
+        // Clear local storage hints
         Object.keys(localStorage).forEach(key => {
           if (key.startsWith('hdt_pro_override_')) localStorage.removeItem(key);
         });
@@ -123,8 +122,6 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     };
   }, [fetchProfileData]);
 
-  // REAL-TIME SUBSCRIPTION SYNC
-  // This ensures that if an owner changes a user's status, the user's app reacts instantly
   useEffect(() => {
     if (!user) return;
 

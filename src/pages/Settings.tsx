@@ -14,11 +14,13 @@ import MenuCustomizer from "@/components/MenuCustomizer";
 import BillingSettings from "@/components/BillingSettings";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useNavigate } from "react-router-dom";
 
 type SettingsTab = "profile" | "notifications" | "menu" | "billing" | "account";
 
 const Settings: React.FC = () => {
   const { user } = useSession();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +37,6 @@ const Settings: React.FC = () => {
       const role = data?.role?.toLowerCase() || 'instructor';
       setUserRole(role);
       
-      // If student, force the account tab
       if (role === 'student') {
         setActiveTab("account");
       }
@@ -45,7 +46,13 @@ const Settings: React.FC = () => {
   }, [user]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout error:", error);
+      window.location.href = "/login";
+    }
   };
 
   if (isLoading) {
@@ -77,7 +84,6 @@ const Settings: React.FC = () => {
       </div>
       
       <div className="space-y-6">
-        {/* Top Navigation Tabs - Scrollable on mobile */}
         {!isStudent && (
           <div className="px-1">
             <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border w-full overflow-x-auto no-scrollbar scroll-smooth">
@@ -101,7 +107,6 @@ const Settings: React.FC = () => {
           </div>
         )}
 
-        {/* Content Area */}
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 px-1">
           {activeTab === "profile" && !isStudent && (
             <Card className="border-none shadow-sm bg-card overflow-hidden">
