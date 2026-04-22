@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2, Inbox, Ban, UserPlus, Zap, Infinity } from "lucide-react";
+import { Users, GraduationCap, MessageSquare, ArrowRight, ShieldCheck, Activity, Clock, AlertCircle, RefreshCw, UserCheck, Megaphone, CreditCard, Check, X, Loader2, Inbox, Ban, UserPlus, Zap, Infinity, ListTodo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { format, startOfWeek } from "date-fns";
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import GlobalBroadcastForm from "@/components/GlobalBroadcastForm";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import DashboardTodoWidget from "@/components/DashboardTodoWidget";
 
 interface PlatformStats {
   totalInstructors: number;
@@ -287,6 +288,11 @@ const OwnerDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* To Do List Widget */}
+        <div className="lg:col-span-1">
+          <DashboardTodoWidget />
+        </div>
+
         {/* Last 10 Pro Members */}
         <Card className="border-l-4 border-l-green-500 shadow-md overflow-hidden h-full">
           <CardHeader className="pb-2">
@@ -332,48 +338,6 @@ const OwnerDashboard: React.FC = () => {
               </ScrollArea>
             )}
           </CardContent>
-        </Card>
-
-        {/* Last 10 Signups Widget */}
-        <Card className="border-l-4 border-l-blue-500 shadow-md overflow-hidden h-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-blue-600" />
-              Last 10 Signups (Unpaid)
-            </CardTitle>
-            <CardDescription>The most recent instructors to join the platform.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            {newSignups.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground italic text-sm">
-                No unsubscribed instructors found.
-              </div>
-            ) : (
-              <ScrollArea className="h-[400px]">
-                <div className="divide-y">
-                  {newSignups.map((signup) => (
-                    <div key={signup.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                      <div className="min-w-0">
-                        <p className="font-bold">{signup.first_name} {signup.last_name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{signup.email}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">Last Active {format(new Date(signup.updated_at), "MMM d, yyyy")}</p>
-                      </div>
-                      <Button variant="ghost" size="icon" className="font-bold text-primary" asChild>
-                        <Link to="/admin/instructors">
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-          <div className="p-3 bg-muted/10 border-t text-center">
-            <Button variant="link" size="sm" className="text-xs font-bold" asChild>
-              <Link to="/admin/instructors">View All Instructors</Link>
-            </Button>
-          </div>
         </Card>
       </div>
 
