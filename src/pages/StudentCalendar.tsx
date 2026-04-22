@@ -75,6 +75,8 @@ const StudentCalendar: React.FC = () => {
   const [isBooking, setIsBooking] = useState(false);
   const [filterDuration, setFilterDuration] = useState<number>(60);
 
+  const STALE_TIME = 1000 * 60 * 5;
+
   // 1. Fetch Student Data
   const { data: studentData, isLoading: isLoadingStudent, isError: isStudentError } = useQuery({
     queryKey: ['student-profile', user?.id],
@@ -88,6 +90,7 @@ const StudentCalendar: React.FC = () => {
       return data;
     },
     enabled: !!user,
+    staleTime: STALE_TIME,
   });
 
   // 2. Get Instructor Data
@@ -103,6 +106,7 @@ const StudentCalendar: React.FC = () => {
       return data;
     },
     enabled: !!studentData?.user_id,
+    staleTime: STALE_TIME,
   });
 
   // 3. Fetch Bookings for the range
@@ -124,6 +128,7 @@ const StudentCalendar: React.FC = () => {
       return data || [];
     },
     enabled: !!studentData?.user_id,
+    staleTime: STALE_TIME,
   });
 
   // Pre-process busy periods into a map

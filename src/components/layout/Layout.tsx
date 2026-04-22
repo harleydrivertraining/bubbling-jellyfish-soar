@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import NotificationBell from "@/components/NotificationBell";
 import BookingRequestAlert from "@/components/BookingRequestAlert";
 import AIAssistant from "@/components/AIAssistant";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   format, 
   startOfMonth, 
@@ -21,18 +21,22 @@ import {
   subMonths, 
   addMonths, 
   startOfWeek, 
-  endOfWeek 
+  endOfWeek,
+  addWeeks
 } from "date-fns";
 
 const Layout = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { session, user, isLoading, isProfileLoading, subscriptionStatus, userRole } = useSession();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // --- BACKGROUND PREFETCHING ---
+  // We use a 5-minute stale time for background loads to ensure they are ready for pages
+  const PREFETCH_STALE_TIME = 1000 * 60 * 5;
   
   // 1. Prefetch Student Profile (if student)
   const { data: studentData } = useQuery({
@@ -47,7 +51,7 @@ const Layout = () => {
       return data;
     },
     enabled: !!user && userRole === 'student',
-    staleTime: 1000 * 60 * 5,
+    staleTime: PREFETCH_STALE_TIME,
   });
 
   // 2. Prefetch Instructor Profile/Settings
@@ -64,7 +68,7 @@ const Layout = () => {
       return data;
     },
     enabled: !!instructorId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: PREFETCH_STALE_TIME,
   });
 
   // 3. Prefetch Calendar Bookings (for students)
@@ -85,10 +89,30 @@ const Layout = () => {
       return data || [];
     },
     enabled: !!user && userRole === 'student' && !!studentData?.user_id,
-    staleTime: 1000 * 60 * 5,
+    staleTime: PREFETCH_STALE_TIME,
   });
 
-  // 4. Prefetch Schedule Events (for instructors)
+  // 4. Prefetch All Instructor Bookings (for student gap calculation)
+  useQuery({
+    queryKey: ['instructor-all-bookings', studentData?.user_id],
+    queryFn: async () => {
+      const start = new Date().toISOString();
+      const end = addWeeks(new Date(), 2).toISOString();
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, start_time, end_time, status")
+        .eq("user_id", studentData!.user_id)
+        .gte("start_time", start)
+        .lte("end_time", end)
+        .neq("status", "cancelled");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && userRole === 'student' && !!studentData?.user_id,
+    staleTime: PREFETCH_STALE_TIME,
+  });
+
+  // 5. Prefetch Schedule Events (for instructors)
   useQuery({
     queryKey: ['schedule-events', user?.id, format(new Date(), 'yyyy-MM')],
     queryFn: async () => {
@@ -99,14 +123,14 @@ const Layout = () => {
         .from("bookings")
         .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, is_paid, students(name)")
         .eq("user_id", user!.id)
-        .gte("start_time", start.toISOString())
-        .lte("end_time", end.toISOString());
+        .gte("start_time", start)
+        .lte("end_time", end);
 
       if (error) throw error;
       return data || [];
     },
     enabled: !!user && userRole === 'instructor',
-    staleTime: 1000 * 60 * 5,
+    staleTime: PREFETCH_STALE_TIME,
   });
 
   // Auth Guard: Redirect to login if not authenticated
