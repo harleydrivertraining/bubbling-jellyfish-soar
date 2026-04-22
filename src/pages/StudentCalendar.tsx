@@ -126,13 +126,177 @@ const StudentCalendar: React.FC = () => {
     enabled: !!studentData?.user_id,
   });
 
-  const existingBookings = useMemo(() => 
-    bookingsData.filter(b => b.status !== 'available' && b.status !== 'cancelled'),
-  [bookingsData]);
+  const busyByDay = useMemo(() => {
+    const map: Record<string, {start: number, end: number}[]> = {};
+    const bufferMs = (instructor?.booking_buffer_mins || 0) * 60000;
 
-  const manualAvailableSlots = useMemo(() => 
-    bookingsData.filter(b => b.status === 'available'),
-  [bookingsData]);
+    bookingsData.forEach(b => {
+      if (b.status === 'available' || b.status === 'cancelled' || !b.start_time || !b.end_time) return;
+      const dateKey = b.start_time.split('T')[0];
+      if (!map[dateKey]) map[dateKey] = [];
+      map[dateKey].push({
+        start: parseISO(b.start_time).getTime() - bufferMs,
+        end: parseISO(b.end_time).getTime() + bufferMs
+      });
+    });
+    return map;
+  }, [bookingsData, instructor?.booking_buffer_mins]);
+
+  const manualGapsByDay = useMemo(() => {
+    const map: Record<string, Booking[]> = {};
+    bookingsData.forEach(b => {
+      if (b.status !== 'available' || !b.start_time) return;
+      const dateKey = b.start_time.split('T')[0];
+      if (!map[dateKey]) map[dateKey] = [];
+      map[dateKey].push(b);
+    });
+    return map;
+  }, [bookingsData]);
+
+  // LIGHTWEIGHT CHECK: Which days have ANY slots?
+  const daysWithSlots = useMemo(() => {
+    if (!instructor || !studentData) return new Set<string>();
+    
+    const mode = instructor.booking_mode || "gaps";
+    const now = new Date();
+    const noticeHours = instructor.min_booking_notice_hours ?? 48;
+    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
+    const minStartTimeMs = addHours(now, noticeHours).getTime();
+    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
+    const durationMs = filterDuration * 60000;
+    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
+
+    const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
+    const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
+    const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
+    
+    const result = new Set<string>();
+
+    daysInRange.forEach(day => {
+      const dateKey = format(day, 'yyyy-MM-dd');
+      const dayBusy = busyByDay[dateKey] || [];
+
+      if (mode === "gaps") {
+        const gaps = manualGapsByDay[dateKey] || [];
+        for (const gap of gaps) {
+          const gapStartMs = parseISO(gap.start_time).getTime();
+          const gapEndMs = parseISO(gap.end_time).getTime();
+          let currentPointerMs = gapStartMs;
+          let iterations = 0;
+          while (currentPointerMs + durationMs <= gapEndMs && iterations < 50) {
+            iterations++;
+            const endPointerMs = currentPointerMs + durationMs;
+            const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+              result.add(dateKey);
+              return; // Found one, move to next day
+            }
+            currentPointerMs += intervalMs;
+          }
+        }
+      } else {
+        const dayOfWeek = getDay(day).toString();
+        const dayConfig = instructor.working_hours?.[dayOfWeek];
+        if (!dayConfig || !dayConfig.active) return;
+
+        const parseTime = (t: any) => {
+          if (typeof t === 'number') return [t, 0];
+          return (t || "09:00").split(':').map(Number);
+        };
+
+        const [startH, startM] = parseTime(dayConfig.start);
+        const [endH, endM] = parseTime(dayConfig.end);
+        const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
+        const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
+
+        let currentPointerMs = dayStartMs;
+        let iterations = 0;
+        while (currentPointerMs + durationMs <= dayEndMs && iterations < 50) {
+          iterations++;
+          const endPointerMs = currentPointerMs + durationMs;
+          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+            result.add(dateKey);
+            return; // Found one, move to next day
+          }
+          currentPointerMs += intervalMs;
+        }
+      }
+    });
+
+    return result;
+  }, [instructor, studentData, busyByDay, manualGapsByDay, filterDuration, currentMonth]);
+
+  // FOCUSED CALCULATION: Only for the selected day
+  const slotsForSelectedDate = useMemo(() => {
+    if (!instructor || !studentData) return [];
+    
+    const dateKey = format(selectedDate, 'yyyy-MM-dd');
+    const dayBusy = busyByDay[dateKey] || [];
+    const mode = instructor.booking_mode || "gaps";
+    const now = new Date();
+    const noticeHours = instructor.min_booking_notice_hours ?? 48;
+    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
+    const minStartTimeMs = addHours(now, noticeHours).getTime();
+    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
+    const durationMs = filterDuration * 60000;
+    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
+
+    const slots: any[] = [];
+
+    if (mode === "gaps") {
+      const gaps = manualGapsByDay[dateKey] || [];
+      gaps.forEach(gap => {
+        const gapStartMs = parseISO(gap.start_time).getTime();
+        const gapEndMs = parseISO(gap.end_time).getTime();
+        let currentPointerMs = gapStartMs;
+        let iterations = 0;
+        while (currentPointerMs + durationMs <= gapEndMs && iterations < 100) {
+          iterations++;
+          const endPointerMs = currentPointerMs + durationMs;
+          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+            slots.push({
+              id: `gap-${gap.id}-${currentPointerMs}`,
+              start_time: new Date(currentPointerMs).toISOString(),
+              end_time: new Date(endPointerMs).toISOString()
+            });
+          }
+          currentPointerMs += intervalMs;
+        }
+      });
+    } else {
+      const dayOfWeek = getDay(selectedDate).toString();
+      const dayConfig = instructor.working_hours?.[dayOfWeek];
+      if (dayConfig?.active) {
+        const parseTime = (t: any) => {
+          if (typeof t === 'number') return [t, 0];
+          return (t || "09:00").split(':').map(Number);
+        };
+        const [startH, startM] = parseTime(dayConfig.start);
+        const [endH, endM] = parseTime(dayConfig.end);
+        const dayStartMs = setMinutes(setHours(startOfDay(selectedDate), startH), startM).getTime();
+        const dayEndMs = setMinutes(setHours(startOfDay(selectedDate), endH), endM).getTime();
+
+        let currentPointerMs = dayStartMs;
+        let iterations = 0;
+        while (currentPointerMs + durationMs <= dayEndMs && iterations < 100) {
+          iterations++;
+          const endPointerMs = currentPointerMs + durationMs;
+          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+            slots.push({
+              id: `gen-${currentPointerMs}`,
+              start_time: new Date(currentPointerMs).toISOString(),
+              end_time: new Date(endPointerMs).toISOString()
+            });
+          }
+          currentPointerMs += intervalMs;
+        }
+      }
+    }
+    return slots;
+  }, [instructor, studentData, selectedDate, busyByDay, manualGapsByDay, filterDuration]);
 
   const calculatePrice = useCallback((durationMins: number) => {
     if (!instructor) return 0;
@@ -142,128 +306,6 @@ const StudentCalendar: React.FC = () => {
     if (hours === 2 && instructor.rate_2h) return instructor.rate_2h;
     return hours * (instructor.hourly_rate || 0);
   }, [instructor]);
-
-  // OPTIMIZED SLOT GENERATION
-  const generatedSlots = useMemo(() => {
-    if (!instructor || !studentData) return [];
-    
-    const mode = instructor.booking_mode || "gaps";
-    const now = new Date();
-    const noticeHours = instructor.min_booking_notice_hours ?? 48;
-    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
-    
-    const minStartTimeMs = addHours(now, noticeHours).getTime();
-    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
-    
-    const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
-    const durationMs = filterDuration * 60000;
-    // Safety check: interval must be at least 15 mins to prevent infinite loops
-    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
-
-    // Group busy intervals by date string for O(1) lookup per day
-    const busyByDay: Record<string, {start: number, end: number}[]> = {};
-    existingBookings.forEach(b => {
-      if (!b.start_time || !b.end_time) return;
-      const dateKey = b.start_time.split('T')[0];
-      if (!busyByDay[dateKey]) busyByDay[dateKey] = [];
-      busyByDay[dateKey].push({
-        start: parseISO(b.start_time).getTime() - bufferMs,
-        end: parseISO(b.end_time).getTime() + bufferMs
-      });
-    });
-
-    const slots: any[] = [];
-
-    if (mode === "gaps") {
-      manualAvailableSlots.forEach(gap => {
-        if (!gap.start_time || !gap.end_time) return;
-        const gapStartMs = parseISO(gap.start_time).getTime();
-        const gapEndMs = parseISO(gap.end_time).getTime();
-        const dateKey = gap.start_time.split('T')[0];
-        const dayBusy = busyByDay[dateKey] || [];
-
-        let currentPointerMs = gapStartMs;
-        // Safety limit to prevent runaway loops
-        let iterations = 0;
-        while (currentPointerMs + durationMs <= gapEndMs && iterations < 100) {
-          iterations++;
-          const endPointerMs = currentPointerMs + durationMs;
-          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
-
-          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
-            slots.push({
-              id: `gap-${gap.id}-${currentPointerMs}`,
-              start_time: new Date(currentPointerMs).toISOString(),
-              end_time: new Date(endPointerMs).toISOString(),
-              isGenerated: true
-            });
-          }
-          currentPointerMs += intervalMs;
-        }
-      });
-    } else {
-      const schedule = instructor.working_hours || {};
-      const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
-      const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
-      const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
-
-      const parseTime = (time: string | number | undefined, defaultTime: string) => {
-        const t = time ?? defaultTime;
-        if (typeof t === 'number') return [t, 0];
-        const parts = t.split(':').map(Number);
-        return parts.length === 2 ? parts : [9, 0];
-      };
-
-      daysInRange.forEach(day => {
-        const dayOfWeek = getDay(day).toString();
-        const dayConfig = schedule[dayOfWeek];
-        if (!dayConfig || !dayConfig.active) return;
-
-        const dateKey = format(day, 'yyyy-MM-dd');
-        const dayBusy = busyByDay[dateKey] || [];
-
-        const [startH, startM] = parseTime(dayConfig.start, "09:00");
-        const [endH, endM] = parseTime(dayConfig.end, "17:00");
-
-        const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
-        const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
-
-        let currentPointerMs = dayStartMs;
-        let iterations = 0;
-        while (currentPointerMs + durationMs <= dayEndMs && iterations < 100) {
-          iterations++;
-          const endPointerMs = currentPointerMs + durationMs;
-          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
-
-          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
-            slots.push({
-              id: `gen-${currentPointerMs}`,
-              start_time: new Date(currentPointerMs).toISOString(),
-              end_time: new Date(endPointerMs).toISOString(),
-              isGenerated: true
-            });
-          }
-          currentPointerMs += intervalMs;
-        }
-      });
-    }
-
-    return slots;
-  }, [instructor, studentData, existingBookings, manualAvailableSlots, filterDuration, currentMonth]);
-
-  const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, [currentMonth]);
-
-  const slotsForSelectedDate = useMemo(() => {
-    return generatedSlots.filter(slot => isSameDay(parseISO(slot.start_time), selectedDate));
-  }, [generatedSlots, selectedDate]);
-
-  const hasSlots = (date: Date) => {
-    return generatedSlots.some(slot => isSameDay(parseISO(slot.start_time), date));
-  };
 
   const handleConfirmBooking = async () => {
     if (!selectedSlot || !studentData || !instructor) return;
@@ -335,6 +377,10 @@ const StudentCalendar: React.FC = () => {
   }
 
   const showPrices = instructor?.show_prices_on_booking ?? true;
+  const days = eachDayOfInterval({
+    start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
+    end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+  });
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20 px-4">
@@ -415,7 +461,7 @@ const StudentCalendar: React.FC = () => {
               {days.map((day, i) => {
                 const isSelected = isSameDay(day, selectedDate);
                 const isCurrentMonth = isSameMonth(day, currentMonth);
-                const available = hasSlots(day);
+                const available = daysWithSlots.has(format(day, 'yyyy-MM-dd'));
                 
                 return (
                   <div key={i} className="flex justify-center items-center aspect-square">
