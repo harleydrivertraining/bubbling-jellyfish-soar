@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -20,7 +20,7 @@ import {
   Calendar as CalendarIcon,
   Filter,
   RefreshCw,
-  AlertTriangle
+  Loader2
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -36,28 +36,24 @@ import {
   format, 
   addHours, 
   addWeeks,
-  isBefore, 
-  isAfter,
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  eachDayOfInterval, 
   isSameMonth, 
   isSameDay, 
   addMonths, 
   subMonths,
   parseISO,
   differenceInMinutes,
-  addMinutes,
-  subMinutes,
   setHours,
   setMinutes,
-  endOfDay,
   startOfDay,
-  getDay
+  getDay,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval
 } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Booking {
   id: string;
@@ -70,12 +66,7 @@ interface Booking {
 
 const StudentCalendar: React.FC = () => {
   const { user, isLoading: isSessionLoading } = useSession();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [studentData, setStudentData] = useState<any>(null);
-  const [instructor, setInstructor] = useState<any>(null);
-  const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
-  const [manualAvailableSlots, setManualAvailableSlots] = useState<Booking[]>([]);
+  const queryClient = useQueryClient();
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -83,70 +74,74 @@ const StudentCalendar: React.FC = () => {
   const [isBooking, setIsBooking] = useState(false);
   const [filterDuration, setFilterDuration] = useState<number>(60);
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!user) return;
-    if (!silent) setIsLoading(true);
-    else setIsRefreshing(true);
-
-    try {
-      const { data: sData, error: sError } = await supabase
+  // 1. Fetch Student Data
+  const { data: studentData, isLoading: isLoadingStudent } = useQuery({
+    queryKey: ['student-profile', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("students")
         .select("*")
-        .eq("auth_user_id", user.id)
+        .eq("auth_user_id", user!.id)
         .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
 
-      if (sError) throw sError;
-      setStudentData(sData);
-
-      const { data: instructorProfile } = await supabase
+  // 2. Fetch Instructor Data
+  const { data: instructor, isLoading: isLoadingInstructor } = useQuery({
+    queryKey: ['instructor-profile', studentData?.user_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", sData.user_id)
+        .eq("id", studentData!.user_id)
         .single();
-      
-      setInstructor(instructorProfile);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!studentData?.user_id,
+  });
 
+  // 3. Fetch Bookings for the range
+  const { data: bookingsData = [], isLoading: isLoadingBookings, isFetching: isFetchingBookings } = useQuery({
+    queryKey: ['calendar-bookings', studentData?.user_id, format(currentMonth, 'yyyy-MM')],
+    queryFn: async () => {
       const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
       const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
 
-      const { data: bookingsData, error: bError } = await supabase
+      const { data, error } = await supabase
         .from("bookings")
         .select("id, start_time, end_time, status, lesson_type")
-        .eq("user_id", sData.user_id)
+        .eq("user_id", studentData!.user_id)
         .gte("start_time", rangeStart)
         .lte("end_time", rangeEnd);
 
-      if (bError) throw bError;
-      
-      const allBookings = bookingsData || [];
-      
-      setExistingBookings(allBookings.filter(b => b.status !== 'available' && b.status !== 'cancelled'));
-      setManualAvailableSlots(allBookings.filter(b => b.status === 'available'));
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!studentData?.user_id,
+  });
 
-    } catch (error: any) {
-      console.error("Error fetching calendar data:", error);
-      showError("Failed to load calendar.");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [user, currentMonth]);
+  const existingBookings = useMemo(() => 
+    bookingsData.filter(b => b.status !== 'available' && b.status !== 'cancelled'),
+  [bookingsData]);
 
-  useEffect(() => {
-    if (!isSessionLoading) fetchData();
-  }, [isSessionLoading, fetchData]);
+  const manualAvailableSlots = useMemo(() => 
+    bookingsData.filter(b => b.status === 'available'),
+  [bookingsData]);
 
   const calculatePrice = useCallback((durationMins: number) => {
     if (!instructor) return 0;
     const hours = durationMins / 60;
-    
     if (hours === 1 && instructor.rate_1h) return instructor.rate_1h;
     if (hours === 1.5 && instructor.rate_1_5h) return instructor.rate_1_5h;
     if (hours === 2 && instructor.rate_2h) return instructor.rate_2h;
-    
     return hours * (instructor.hourly_rate || 0);
   }, [instructor]);
 
+  // OPTIMIZED SLOT GENERATION
   const generatedSlots = useMemo(() => {
     if (!instructor || !studentData) return [];
     
@@ -162,16 +157,16 @@ const StudentCalendar: React.FC = () => {
     const durationMs = filterDuration * 60000;
     const intervalMs = (instructor.booking_interval_mins || 30) * 60000;
 
-    const busyIntervals = existingBookings.map(b => ({
-      start: parseISO(b.start_time).getTime() - bufferMs,
-      end: parseISO(b.end_time).getTime() + bufferMs
-    }));
-
-    const isClashing = (startMs: number, endMs: number) => {
-      return busyIntervals.some(busy => {
-        return startMs < busy.end && endMs > busy.start;
+    // Group busy intervals by date string for O(1) lookup per day
+    const busyByDay: Record<string, {start: number, end: number}[]> = {};
+    existingBookings.forEach(b => {
+      const dateKey = b.start_time.split('T')[0];
+      if (!busyByDay[dateKey]) busyByDay[dateKey] = [];
+      busyByDay[dateKey].push({
+        start: parseISO(b.start_time).getTime() - bufferMs,
+        end: parseISO(b.end_time).getTime() + bufferMs
       });
-    };
+    });
 
     const slots: any[] = [];
 
@@ -179,14 +174,19 @@ const StudentCalendar: React.FC = () => {
       manualAvailableSlots.forEach(gap => {
         const gapStartMs = parseISO(gap.start_time).getTime();
         const gapEndMs = parseISO(gap.end_time).getTime();
+        const dateKey = gap.start_time.split('T')[0];
+        const dayBusy = busyByDay[dateKey] || [];
 
         let currentPointerMs = gapStartMs;
         while (currentPointerMs + durationMs <= gapEndMs) {
-          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
+          const endPointerMs = currentPointerMs + durationMs;
+          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+
+          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
             slots.push({
               id: `gap-${gap.id}-${currentPointerMs}`,
               start_time: new Date(currentPointerMs).toISOString(),
-              end_time: new Date(currentPointerMs + durationMs).toISOString(),
+              end_time: new Date(endPointerMs).toISOString(),
               isGenerated: true
             });
           }
@@ -195,7 +195,6 @@ const StudentCalendar: React.FC = () => {
       });
     } else {
       const schedule = instructor.working_hours || {};
-
       const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
       const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
       const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
@@ -209,8 +208,10 @@ const StudentCalendar: React.FC = () => {
       daysInRange.forEach(day => {
         const dayOfWeek = getDay(day).toString();
         const dayConfig = schedule[dayOfWeek];
-
         if (!dayConfig || !dayConfig.active) return;
+
+        const dateKey = format(day, 'yyyy-MM-dd');
+        const dayBusy = busyByDay[dateKey] || [];
 
         const [startH, startM] = parseTime(dayConfig.start, "09:00");
         const [endH, endM] = parseTime(dayConfig.end, "17:00");
@@ -220,11 +221,14 @@ const StudentCalendar: React.FC = () => {
 
         let currentPointerMs = dayStartMs;
         while (currentPointerMs + durationMs <= dayEndMs) {
-          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing(currentPointerMs, currentPointerMs + durationMs)) {
+          const endPointerMs = currentPointerMs + durationMs;
+          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+
+          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
             slots.push({
               id: `gen-${currentPointerMs}`,
               start_time: new Date(currentPointerMs).toISOString(),
-              end_time: new Date(currentPointerMs + durationMs).toISOString(),
+              end_time: new Date(endPointerMs).toISOString(),
               isGenerated: true
             });
           }
@@ -284,7 +288,7 @@ const StudentCalendar: React.FC = () => {
 
       showSuccess(requireApproval ? "Request sent! Waiting for instructor approval." : "Lesson booked successfully!");
       setSelectedSlot(null);
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ['calendar-bookings'] });
     } catch (error: any) {
       showError("Failed to book lesson: " + error.message);
     } finally {
@@ -292,7 +296,11 @@ const StudentCalendar: React.FC = () => {
     }
   };
 
-  if (isSessionLoading || isLoading) {
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['calendar-bookings'] });
+  };
+
+  if (isSessionLoading || isLoadingStudent || isLoadingInstructor || (isLoadingBookings && bookingsData.length === 0)) {
     return <div className="p-6 space-y-6 max-w-6xl mx-auto"><Skeleton className="h-10 w-48" /><Skeleton className="h-[500px] w-full" /></div>;
   }
 
@@ -310,11 +318,11 @@ const StudentCalendar: React.FC = () => {
         <Button 
           variant="ghost" 
           size="icon" 
-          onClick={() => fetchData(true)} 
-          disabled={isRefreshing}
+          onClick={handleRefresh} 
+          disabled={isFetchingBookings}
           className="h-10 w-10"
         >
-          <RefreshCw className={cn("h-5 w-5", isRefreshing && "animate-spin")} />
+          <RefreshCw className={cn("h-5 w-5", isFetchingBookings && "animate-spin")} />
         </Button>
       </div>
 
@@ -349,7 +357,6 @@ const StudentCalendar: React.FC = () => {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[400px_1fr] items-start">
-        {/* Left Column: Calendar (Fixed Width on Desktop) */}
         <Card className="shadow-md border-none overflow-hidden">
           <CardHeader className="bg-primary text-primary-foreground p-4 sm:p-6">
             <div className="flex items-center justify-between">
@@ -404,7 +411,6 @@ const StudentCalendar: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Right Column: Slots (Takes remaining space) */}
         <div className="space-y-6">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-black text-xl flex items-center gap-2">
@@ -521,7 +527,7 @@ const StudentCalendar: React.FC = () => {
                 instructor?.require_booking_approval ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"
               )}
             >
-              {isBooking ? "Processing..." : instructor?.require_booking_approval ? "Send Request" : "Confirm Booking"}
+              {isBooking ? <Loader2 className="h-5 w-5 animate-spin" /> : instructor?.require_booking_approval ? "Send Request" : "Confirm Booking"}
             </Button>
           </DialogFooter>
         </DialogContent>
