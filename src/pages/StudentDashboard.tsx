@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -90,7 +90,7 @@ const StudentDashboard: React.FC = () => {
     enabled: !!user,
   });
 
-  // 2. Get Instructor Info
+  // 2. Get Instructor Info (Fetch ALL settings for calculations)
   const { data: instructor, isLoading: isLoadingInstructor } = useQuery({
     queryKey: ['instructor-profile', student?.user_id],
     queryFn: async () => {
@@ -186,7 +186,11 @@ const StudentDashboard: React.FC = () => {
         const dayOfWeek = day.getDay().toString();
         const dayConfig = instructor.working_hours?.[dayOfWeek];
         if (dayConfig?.active) {
-          const parseTime = (t: any) => (t || "09:00").split(':').map(Number);
+          const parseTime = (t: any) => {
+            if (typeof t === 'number') return [t, 0];
+            const parts = (t || "09:00").split(':').map(Number);
+            return parts.length === 2 ? parts : [9, 0];
+          };
           const [startH, startM] = parseTime(dayConfig.start);
           const [endH, endM] = parseTime(dayConfig.end);
           const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
@@ -307,6 +311,7 @@ const StudentDashboard: React.FC = () => {
       const newStatus = requireApproval ? "pending_approval" : "scheduled";
       const displayTitle = requireApproval ? `${student.name} - Pending Approval` : `${student.name} - Driving lesson`;
 
+      // Always use insert for student bookings to ensure clean records
       const { error } = await supabase.from("bookings").insert({ 
         user_id: student.user_id,
         student_id: student.id, 
