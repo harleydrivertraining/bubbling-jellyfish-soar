@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -20,7 +20,8 @@ import {
   Calendar as CalendarIcon,
   Filter,
   RefreshCw,
-  Loader2
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -50,7 +51,8 @@ import {
   endOfMonth,
   startOfWeek,
   endOfWeek,
-  eachDayOfInterval
+  eachDayOfInterval,
+  isValid
 } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -75,7 +77,7 @@ const StudentCalendar: React.FC = () => {
   const [filterDuration, setFilterDuration] = useState<number>(60);
 
   // 1. Fetch Student Data
-  const { data: studentData, isLoading: isLoadingStudent } = useQuery({
+  const { data: studentData, isLoading: isLoadingStudent, isError: isStudentError } = useQuery({
     queryKey: ['student-profile', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -155,11 +157,13 @@ const StudentCalendar: React.FC = () => {
     
     const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
     const durationMs = filterDuration * 60000;
-    const intervalMs = (instructor.booking_interval_mins || 30) * 60000;
+    // Safety check: interval must be at least 15 mins to prevent infinite loops
+    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
 
     // Group busy intervals by date string for O(1) lookup per day
     const busyByDay: Record<string, {start: number, end: number}[]> = {};
     existingBookings.forEach(b => {
+      if (!b.start_time || !b.end_time) return;
       const dateKey = b.start_time.split('T')[0];
       if (!busyByDay[dateKey]) busyByDay[dateKey] = [];
       busyByDay[dateKey].push({
@@ -172,13 +176,17 @@ const StudentCalendar: React.FC = () => {
 
     if (mode === "gaps") {
       manualAvailableSlots.forEach(gap => {
+        if (!gap.start_time || !gap.end_time) return;
         const gapStartMs = parseISO(gap.start_time).getTime();
         const gapEndMs = parseISO(gap.end_time).getTime();
         const dateKey = gap.start_time.split('T')[0];
         const dayBusy = busyByDay[dateKey] || [];
 
         let currentPointerMs = gapStartMs;
-        while (currentPointerMs + durationMs <= gapEndMs) {
+        // Safety limit to prevent runaway loops
+        let iterations = 0;
+        while (currentPointerMs + durationMs <= gapEndMs && iterations < 100) {
+          iterations++;
           const endPointerMs = currentPointerMs + durationMs;
           const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
 
@@ -202,7 +210,8 @@ const StudentCalendar: React.FC = () => {
       const parseTime = (time: string | number | undefined, defaultTime: string) => {
         const t = time ?? defaultTime;
         if (typeof t === 'number') return [t, 0];
-        return t.split(':').map(Number);
+        const parts = t.split(':').map(Number);
+        return parts.length === 2 ? parts : [9, 0];
       };
 
       daysInRange.forEach(day => {
@@ -220,7 +229,9 @@ const StudentCalendar: React.FC = () => {
         const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
 
         let currentPointerMs = dayStartMs;
-        while (currentPointerMs + durationMs <= dayEndMs) {
+        let iterations = 0;
+        while (currentPointerMs + durationMs <= dayEndMs && iterations < 100) {
+          iterations++;
           const endPointerMs = currentPointerMs + durationMs;
           const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
 
@@ -300,8 +311,27 @@ const StudentCalendar: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['calendar-bookings'] });
   };
 
-  if (isSessionLoading || isLoadingStudent || isLoadingInstructor || (isLoadingBookings && bookingsData.length === 0)) {
-    return <div className="p-6 space-y-6 max-w-6xl mx-auto"><Skeleton className="h-10 w-48" /><Skeleton className="h-[500px] w-full" /></div>;
+  if (isSessionLoading || isLoadingStudent || (studentData && isLoadingInstructor)) {
+    return (
+      <div className="p-6 space-y-6 max-w-6xl mx-auto">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid gap-8 lg:grid-cols-[400px_1fr]">
+          <Skeleton className="h-[400px] w-full" />
+          <Skeleton className="h-[400px] w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isStudentError || !studentData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center space-y-4">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <h2 className="text-xl font-bold">Profile Not Found</h2>
+        <p className="text-muted-foreground max-w-xs">We couldn't find your student record. Please contact your instructor.</p>
+        <Button asChild variant="outline"><Link to="/">Return Home</Link></Button>
+      </div>
+    );
   }
 
   const showPrices = instructor?.show_prices_on_booking ?? true;
@@ -423,7 +453,12 @@ const StudentCalendar: React.FC = () => {
           </div>
 
           <ScrollArea className="h-[500px] pr-4">
-            {slotsForSelectedDate.length === 0 ? (
+            {isLoadingBookings ? (
+              <div className="space-y-4">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : slotsForSelectedDate.length === 0 ? (
               <Card className="border-dashed bg-muted/20 h-full flex items-center justify-center">
                 <CardContent className="p-12 text-center space-y-4">
                   <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto">
