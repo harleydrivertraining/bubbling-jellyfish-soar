@@ -220,9 +220,16 @@ const OwnerDashboard: React.FC = () => {
         <div className="flex items-center gap-3">
           <Dialog open={isBroadcastOpen} onOpenChange={setIsBroadcastOpen}>
             <DialogTrigger asChild>
-              <Button className="font-bold"><Megaphone className="mr-2 h-4 w-4" /> Global Broadcast</Button>
+              <Button className="font-bold bg-primary hover:bg-primary/90">
+                <Megaphone className="mr-2 h-4 w-4" /> Global Broadcast
+              </Button>
             </DialogTrigger>
-            <DialogContent><GlobalBroadcastForm onSuccess={() => setIsBroadcastOpen(false)} /></DialogContent>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Send Platform-Wide Notification</DialogTitle>
+              </DialogHeader>
+              <GlobalBroadcastForm onSuccess={() => setIsBroadcastOpen(false)} />
+            </DialogContent>
           </Dialog>
           <Button onClick={fetchOwnerData} variant="outline" size="sm" className="font-bold"><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
         </div>

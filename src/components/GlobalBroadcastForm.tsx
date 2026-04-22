@@ -55,7 +55,6 @@ const GlobalBroadcastForm: React.FC<GlobalBroadcastFormProps> = ({ onSuccess }) 
       } else if (values.target === "students") {
         query = query.eq("role", "student");
       }
-      // "all" doesn't need a filter (except maybe excluding owners if desired, but usually 'all' includes everyone)
 
       const { data: profiles, error: fetchError } = await query;
 
@@ -71,7 +70,7 @@ const GlobalBroadcastForm: React.FC<GlobalBroadcastFormProps> = ({ onSuccess }) 
         read: false
       }));
 
-      // 3. Insert in batches of 100
+      // 3. Insert in batches of 100 to avoid payload limits
       const batchSize = 100;
       for (let i = 0; i < notifications.length; i += batchSize) {
         const batch = notifications.slice(i, i + batchSize);
@@ -101,7 +100,7 @@ const GlobalBroadcastForm: React.FC<GlobalBroadcastFormProps> = ({ onSuccess }) 
           <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-800">
             <p className="font-bold">Important Notice</p>
-            <p>This message will be sent as a notification to the selected group. Use this only for critical updates or maintenance news.</p>
+            <p>This message will be sent as an in-app notification to the selected group. Use this only for critical updates or maintenance news.</p>
           </div>
         </div>
 
@@ -123,7 +122,7 @@ const GlobalBroadcastForm: React.FC<GlobalBroadcastFormProps> = ({ onSuccess }) 
                     </FormControl>
                     <Label className="font-bold flex items-center gap-2 cursor-pointer flex-1">
                       <Users className="h-4 w-4 text-primary" />
-                      Everyone
+                      Everyone (Instructors & Students)
                     </Label>
                   </FormItem>
                   <FormItem className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
