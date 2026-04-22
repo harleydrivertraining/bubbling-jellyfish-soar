@@ -12,12 +12,15 @@ import {
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { ShieldCheck, Zap, Ban, Loader2, Infinity, Clock } from "lucide-react";
+import { ShieldCheck, Zap, Ban, Loader2, Infinity, Clock, CalendarDays } from "lucide-react";
+import DatePicker from "@/components/DatePicker";
+import { format, parseISO } from "date-fns";
 
 interface EditInstructorSubscriptionProps {
   instructorId: string;
   instructorName: string;
   currentStatus: string | null;
+  currentExpiry: string | null;
   onSuccess: () => void;
 }
 
@@ -25,19 +28,23 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
   instructorId,
   instructorName,
   currentStatus,
+  currentExpiry,
   onSuccess,
 }) => {
   const [status, setStatus] = useState<string>(currentStatus || "unsubscribed");
+  const [expiryDate, setExpiryDate] = useState<Date | undefined>(
+    currentExpiry ? parseISO(currentExpiry) : undefined
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleUpdate = async () => {
     setIsSubmitting(true);
     try {
-      // We use select() to verify the update actually happened
-      const { data, error, count } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .update({ 
           subscription_status: status,
+          subscription_expiry: expiryDate ? format(expiryDate, "yyyy-MM-dd") : null,
           updated_at: new Date().toISOString() 
         })
         .eq("id", instructorId)
@@ -45,11 +52,7 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
 
       if (error) throw error;
 
-      if (!data || data.length === 0) {
-        throw new Error("No changes were made. This might be due to database permissions (RLS).");
-      }
-
-      showSuccess(`Subscription set to ${status} for ${instructorName}`);
+      showSuccess(`Subscription updated for ${instructorName}`);
       onSuccess();
     } catch (error: any) {
       console.error("Update error:", error);
@@ -62,7 +65,7 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
   return (
     <div className="space-y-6 py-4">
       <div className="space-y-2">
-        <Label className="text-xs font-bold uppercase text-muted-foreground">Subscription Status for {instructorName}</Label>
+        <Label className="text-xs font-bold uppercase text-muted-foreground">Subscription Status</Label>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-full h-12 font-bold">
             <SelectValue placeholder="Select status" />
@@ -96,10 +99,24 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
         </Select>
       </div>
 
+      <div className="space-y-2">
+        <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+          <CalendarDays className="h-3.5 w-3.5" />
+          Subscription Expiry Date
+        </Label>
+        <DatePicker 
+          date={expiryDate} 
+          setDate={setExpiryDate} 
+          placeholder="No expiry set"
+        />
+        <p className="text-[10px] text-muted-foreground italic">
+          Leave blank for Lifetime or Unsubscribed accounts.
+        </p>
+      </div>
+
       <div className="bg-muted/50 p-4 rounded-xl text-[11px] text-muted-foreground space-y-2 border">
         <p><strong>Active:</strong> Full access to all professional features.</p>
-        <p><strong>Lifetime:</strong> Permanent professional access that never expires.</p>
-        <p><strong>Unsubscribed:</strong> Restricts the instructor to the subscription page only.</p>
+        <p><strong>Expiry Date:</strong> Used to track when manual payments or trials end.</p>
       </div>
 
       <Button 
@@ -113,7 +130,7 @@ const EditInstructorSubscription: React.FC<EditInstructorSubscriptionProps> = ({
             Updating...
           </>
         ) : (
-          "Save Subscription Status"
+          "Save Subscription Details"
         )}
       </Button>
     </div>

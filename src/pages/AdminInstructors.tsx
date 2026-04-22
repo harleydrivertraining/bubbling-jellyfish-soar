@@ -24,7 +24,8 @@ import {
   Clock,
   Trash2,
   Loader2,
-  Fingerprint
+  Fingerprint,
+  CalendarDays
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -37,11 +38,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { startOfWeek } from "date-fns";
+import { format, isBefore, parseISO, startOfDay } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import EditInstructorSubscription from "@/components/EditInstructorSubscription";
+import { cn } from "@/lib/utils";
 
 interface InstructorProfile {
   id: string;
@@ -52,6 +54,7 @@ interface InstructorProfile {
   student_count: number;
   updated_at: string;
   subscription_status: string | null;
+  subscription_expiry: string | null;
   role: string | null;
 }
 
@@ -67,8 +70,6 @@ const AdminInstructors: React.FC = () => {
   
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
   const [isSubOpen, setIsSubOpen] = useState(false);
-
-  const filterType = searchParams.get("filter");
 
   const fetchInstructors = useCallback(async () => {
     if (!user) return;
@@ -90,19 +91,16 @@ const AdminInstructors: React.FC = () => {
         return;
       }
 
-      // We call the RPC function which joins auth.users and public.profiles
       const { data: profiles, error: profilesError } = await supabase
         .rpc('get_all_users_for_admin');
 
       if (profilesError) {
-        console.warn("RPC 'get_all_users_for_admin' not found. Falling back to profiles table.");
         const { data: fallbackData, error: fallbackError } = await supabase
           .from("profiles")
-          .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status")
+          .select("id, first_name, last_name, email, logo_url, role, updated_at, subscription_status, subscription_expiry")
           .order("updated_at", { ascending: false });
         
         if (fallbackError) throw fallbackError;
-        
         processProfiles(fallbackData || []);
       } else {
         processProfiles(profiles || []);
@@ -117,10 +115,8 @@ const AdminInstructors: React.FC = () => {
   }, [user, navigate]);
 
   const processProfiles = async (profiles: any[]) => {
-    // 1. Filter out students immediately
     const filteredProfiles = (profiles || []).filter(p => p.role?.toLowerCase() !== 'student');
 
-    // 2. Fetch student counts separately
     let countMap: Record<string, number> = {};
     try {
       const { data: studentCounts } = await supabase
@@ -145,6 +141,7 @@ const AdminInstructors: React.FC = () => {
       student_count: countMap[p.id] || 0,
       updated_at: p.updated_at,
       subscription_status: p.subscription_status,
+      subscription_expiry: p.subscription_expiry,
       role: p.role
     }));
 
@@ -161,9 +158,7 @@ const AdminInstructors: React.FC = () => {
       const { error } = await supabase.rpc('delete_user_account', { 
         target_user_id: instructorId 
       });
-
       if (error) throw error;
-
       showSuccess("Account permanently deleted.");
       fetchInstructors();
     } catch (error: any) {
@@ -177,10 +172,8 @@ const AdminInstructors: React.FC = () => {
   const filteredInstructors = instructors.filter(i => {
     const fullName = `${i.first_name || ''} ${i.last_name || ''}`.toLowerCase();
     const email = (i.email || '').toLowerCase();
-    const id = i.id.toLowerCase();
     const search = searchTerm.toLowerCase();
-    
-    return fullName.includes(search) || email.includes(search) || id.includes(search);
+    return fullName.includes(search) || email.includes(search);
   });
 
   const handleManageSub = (instructor: InstructorProfile) => {
@@ -202,41 +195,7 @@ const AdminInstructors: React.FC = () => {
   };
 
   if (isSessionLoading || isLoading) {
-    return (
-      <div className="space-y-6 max-w-6xl mx-auto p-4">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
-  if (errorDetail) {
-    return (
-      <div className="space-y-6 max-w-4xl mx-auto p-4">
-        <Button variant="ghost" asChild className="-ml-2">
-          <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
-        </Button>
-        <Card className="border-destructive bg-destructive/5">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Connection Error
-            </CardTitle>
-            <CardDescription>
-              The app was unable to retrieve the instructor list.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 bg-background rounded border text-sm font-mono overflow-auto">
-              {errorDetail}
-            </div>
-            <Button onClick={fetchInstructors} className="font-bold">
-              <RefreshCw className="mr-2 h-4 w-4" /> Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <div className="space-y-6 max-w-6xl mx-auto p-4"><Skeleton className="h-10 w-48" /><Skeleton className="h-64 w-full" /></div>;
   }
 
   return (
@@ -251,11 +210,9 @@ const AdminInstructors: React.FC = () => {
             Instructor Directory
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchInstructors} className="font-bold">
-            <RefreshCw className="mr-2 h-4 w-4" /> Refresh List
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={fetchInstructors} className="font-bold">
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh List
+        </Button>
       </div>
 
       <Card>
@@ -263,14 +220,12 @@ const AdminInstructors: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle>Platform Directory</CardTitle>
-              <CardDescription>
-                Overview of every instructor account registered on the platform.
-              </CardDescription>
+              <CardDescription>Overview of every instructor account and their subscription status.</CardDescription>
             </div>
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by name, email or ID..." 
+                placeholder="Search instructors..." 
                 className="pl-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -283,9 +238,9 @@ const AdminInstructors: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[200px]">Instructor / Name</TableHead>
-                  <TableHead className="w-[250px]">Login / Username</TableHead>
+                  <TableHead className="w-[200px]">Instructor</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Expiry Date</TableHead>
                   <TableHead className="text-center">Students</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -293,104 +248,78 @@ const AdminInstructors: React.FC = () => {
               <TableBody>
                 {filteredInstructors.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                      {instructors.length === 0 ? "No instructors found in the database." : "No instructors match your search criteria."}
-                    </TableCell>
+                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No instructors found.</TableCell>
                   </TableRow>
                 ) : (
-                  filteredInstructors.map((instructor) => (
-                    <TableRow key={instructor.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9 border">
-                            <AvatarImage src={instructor.logo_url || undefined} />
-                            <AvatarFallback className="bg-primary/5 text-primary font-bold">
-                              {instructor.first_name?.[0] || '?'}{instructor.last_name?.[0] || ''}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="font-bold truncate">
-                              {instructor.first_name || instructor.last_name 
-                                ? `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim()
-                                : <span className="text-muted-foreground italic">Unnamed User</span>}
-                            </p>
-                            <div className="flex items-center gap-1.5">
-                              <Badge variant="outline" className="text-[8px] h-3.5 px-1 uppercase font-black">
-                                {instructor.role || 'user'}
-                              </Badge>
-                              {instructor.role?.toLowerCase() === 'owner' && <Badge variant="default" className="text-[8px] h-3.5 px-1 bg-primary text-primary-foreground font-black">OWNER</Badge>}
+                  filteredInstructors.map((instructor) => {
+                    const isExpired = instructor.subscription_expiry && isBefore(parseISO(instructor.subscription_expiry), startOfDay(new Date()));
+                    
+                    return (
+                      <TableRow key={instructor.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9 border">
+                              <AvatarImage src={instructor.logo_url || undefined} />
+                              <AvatarFallback className="bg-primary/5 text-primary font-bold">
+                                {instructor.first_name?.[0] || '?'}{instructor.last_name?.[0] || ''}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="font-bold truncate">{instructor.first_name} {instructor.last_name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{instructor.email}</p>
                             </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                            <Mail className="h-3.5 w-3.5 shrink-0 text-primary/60" />
-                            <span className="truncate">{instructor.email || "No Email"}</span>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(instructor.subscription_status)}</TableCell>
+                        <TableCell>
+                          {instructor.subscription_expiry ? (
+                            <div className={cn(
+                              "flex items-center gap-1.5 text-xs font-bold",
+                              isExpired ? "text-destructive" : "text-foreground"
+                            )}>
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              {format(parseISO(instructor.subscription_expiry), "MMM d, yyyy")}
+                              {isExpired && <Badge variant="destructive" className="text-[8px] h-3.5 px-1 ml-1">EXPIRED</Badge>}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">No expiry</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center font-black">{instructor.student_count}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="font-bold"
+                              onClick={() => handleManageSub(instructor)}
+                            >
+                              <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                              Manage
+                            </Button>
+                            
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-destructive" disabled={isDeleting === instructor.id}>
+                                  {isDeleting === instructor.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Account?</AlertDialogTitle>
+                                  <AlertDialogDescription>This will permanently remove this user and all their data.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteAccount(instructor.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono mt-0.5">
-                            <Fingerprint className="h-2.5 w-2.5" />
-                            <span>ID: {instructor.id.substring(0, 8)}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(instructor.subscription_status)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="font-black text-lg">{instructor.student_count}</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="font-bold border-primary/20 text-primary hover:bg-primary/5"
-                            onClick={() => handleManageSub(instructor)}
-                          >
-                            <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-                            Manage
-                          </Button>
-                          
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="font-bold text-destructive hover:text-destructive hover:bg-destructive/5"
-                                disabled={isDeleting === instructor.id}
-                              >
-                                {isDeleting === instructor.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Permanently Delete Account?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will completely remove this user from the platform. 
-                                  All their students, bookings, and data will be lost forever. This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => handleDeleteAccount(instructor.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Delete Permanently
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -409,8 +338,9 @@ const AdminInstructors: React.FC = () => {
           {selectedInstructor && (
             <EditInstructorSubscription
               instructorId={selectedInstructor.id}
-              instructorName={selectedInstructor.first_name ? `${selectedInstructor.first_name} ${selectedInstructor.last_name || ''}` : "this user"}
+              instructorName={`${selectedInstructor.first_name} ${selectedInstructor.last_name || ''}`}
               currentStatus={selectedInstructor.subscription_status}
+              currentExpiry={selectedInstructor.subscription_expiry}
               onSuccess={() => {
                 setIsSubOpen(false);
                 fetchInstructors();
