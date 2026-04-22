@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, isAfter, parseISO, differenceInMinutes, addHours } from "date-fns";
+import { format, isAfter, parseISO, differenceInMinutes, addHours, startOfDay, setHours, setMinutes, addWeeks } from "date-fns";
 import { 
   GraduationCap, 
   CalendarDays, 
@@ -91,12 +91,12 @@ const StudentDashboard: React.FC = () => {
   });
 
   // 2. Get Instructor Info
-  const { data: instructor } = useQuery({
+  const { data: instructor, isLoading: isLoadingInstructor } = useQuery({
     queryKey: ['instructor-profile', student?.user_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, logo_url, min_booking_notice_hours, require_booking_approval")
+        .select("*")
         .eq("id", student!.user_id)
         .single();
       if (error) throw error;
@@ -105,7 +105,7 @@ const StudentDashboard: React.FC = () => {
     enabled: !!student?.user_id,
   });
 
-  // 3. Get Bookings
+  // 3. Get Bookings (Next 2 weeks for gap calculation)
   const { data: bookings = [], isLoading: isLoadingBookings } = useQuery({
     queryKey: ['student-bookings', student?.id],
     queryFn: async () => {
@@ -120,27 +120,95 @@ const StudentDashboard: React.FC = () => {
     enabled: !!student?.id,
   });
 
-  // 4. Get Available Slots
-  const { data: availableSlots = [] } = useQuery({
-    queryKey: ['available-slots-dashboard', student?.user_id, instructor?.min_booking_notice_hours],
+  // 4. Get All Instructor Bookings (to find gaps)
+  const { data: allInstructorBookings = [] } = useQuery({
+    queryKey: ['instructor-all-bookings', student?.user_id],
     queryFn: async () => {
-      const noticeHours = instructor?.min_booking_notice_hours ?? 48;
-      const minBookingTime = addHours(new Date(), noticeHours).toISOString();
+      const start = new Date().toISOString();
+      const end = addWeeks(new Date(), 2).toISOString();
       const { data, error } = await supabase
         .from("bookings")
-        .select("*")
+        .select("id, start_time, end_time, status")
         .eq("user_id", student!.user_id)
-        .eq("status", "available")
-        .gte("start_time", minBookingTime)
-        .order("start_time", { ascending: true })
-        .limit(5);
+        .gte("start_time", start)
+        .lte("end_time", end)
+        .neq("status", "cancelled");
       if (error) throw error;
-      return data as Booking[];
+      return data;
     },
     enabled: !!student?.user_id,
   });
 
-  // 5. Get Messages
+  // 5. Calculate Available Slots (Dynamic Logic)
+  const availableSlots = useMemo(() => {
+    if (!instructor || !student) return [];
+
+    const mode = instructor.booking_mode || "gaps";
+    const now = new Date();
+    const noticeHours = instructor.min_booking_notice_hours ?? 48;
+    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
+    const minStartTimeMs = addHours(now, noticeHours).getTime();
+    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
+    const durationMs = 60 * 60000; // Default to 1 hour for dashboard preview
+    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
+    const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
+
+    const busyPeriods = allInstructorBookings
+      .filter(b => b.status !== 'available')
+      .map(b => ({
+        start: parseISO(b.start_time).getTime() - bufferMs,
+        end: parseISO(b.end_time).getTime() + bufferMs
+      }));
+
+    const slots: any[] = [];
+    const daysToSearch = 14; // Look ahead 2 weeks for the dashboard
+
+    for (let i = 0; i < daysToSearch; i++) {
+      const day = addHours(startOfDay(now), i * 24);
+      const dateKey = format(day, 'yyyy-MM-dd');
+      
+      if (mode === "gaps") {
+        const manualGaps = allInstructorBookings.filter(b => b.status === 'available' && b.start_time.startsWith(dateKey));
+        manualGaps.forEach(gap => {
+          const gapStartMs = parseISO(gap.start_time).getTime();
+          const gapEndMs = parseISO(gap.end_time).getTime();
+          let currentPointerMs = gapStartMs;
+          while (currentPointerMs + durationMs <= gapEndMs && slots.length < 5) {
+            const endPointerMs = currentPointerMs + durationMs;
+            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+              slots.push({ id: `gap-${gap.id}-${currentPointerMs}`, start_time: new Date(currentPointerMs).toISOString(), end_time: new Date(endPointerMs).toISOString() });
+            }
+            currentPointerMs += intervalMs;
+          }
+        });
+      } else {
+        const dayOfWeek = day.getDay().toString();
+        const dayConfig = instructor.working_hours?.[dayOfWeek];
+        if (dayConfig?.active) {
+          const parseTime = (t: any) => (t || "09:00").split(':').map(Number);
+          const [startH, startM] = parseTime(dayConfig.start);
+          const [endH, endM] = parseTime(dayConfig.end);
+          const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
+          const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
+
+          let currentPointerMs = dayStartMs;
+          while (currentPointerMs + durationMs <= dayEndMs && slots.length < 5) {
+            const endPointerMs = currentPointerMs + durationMs;
+            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+              slots.push({ id: `gen-${currentPointerMs}`, start_time: new Date(currentPointerMs).toISOString(), end_time: new Date(endPointerMs).toISOString() });
+            }
+            currentPointerMs += intervalMs;
+          }
+        }
+      }
+      if (slots.length >= 5) break;
+    }
+    return slots;
+  }, [instructor, student, allInstructorBookings]);
+
+  // 6. Get Messages
   const { data: directMessages = [] } = useQuery({
     queryKey: ['student-messages', student?.id],
     queryFn: async () => {
@@ -155,7 +223,7 @@ const StudentDashboard: React.FC = () => {
     enabled: !!student?.id,
   });
 
-  // 6. Get Pre-paid Hours
+  // 7. Get Pre-paid Hours
   const { data: totalCredit = 0 } = useQuery({
     queryKey: ['student-credit', student?.id],
     queryFn: async () => {
@@ -169,7 +237,7 @@ const StudentDashboard: React.FC = () => {
     enabled: !!student?.id,
   });
 
-  // 7. Get Notifications
+  // 8. Get Notifications
   const { data: notifications = [] } = useQuery({
     queryKey: ['student-notifications', user?.id],
     queryFn: async () => {
@@ -185,7 +253,7 @@ const StudentDashboard: React.FC = () => {
     enabled: !!user,
   });
 
-  // 8. Calculate Progress
+  // 9. Calculate Progress
   const { data: progressPercentage = 0 } = useQuery({
     queryKey: ['student-progress-stats', student?.id, student?.user_id],
     queryFn: async () => {
@@ -219,7 +287,7 @@ const StudentDashboard: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, () => queryClient.invalidateQueries({ queryKey: ['student-notifications'] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
         queryClient.invalidateQueries({ queryKey: ['student-bookings'] });
-        queryClient.invalidateQueries({ queryKey: ['available-slots-dashboard'] });
+        queryClient.invalidateQueries({ queryKey: ['instructor-all-bookings'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'instructor_messages' }, () => queryClient.invalidateQueries({ queryKey: ['student-messages'] }))
       .subscribe();
@@ -231,7 +299,7 @@ const StudentDashboard: React.FC = () => {
     if (!error) queryClient.invalidateQueries({ queryKey: ['student-notifications'] });
   };
 
-  const handleBookSlot = async (slot: Booking) => {
+  const handleBookSlot = async (slot: any) => {
     if (!student || !instructor) return;
     setIsBooking(slot.id);
     try {
@@ -239,7 +307,16 @@ const StudentDashboard: React.FC = () => {
       const newStatus = requireApproval ? "pending_approval" : "scheduled";
       const displayTitle = requireApproval ? `${student.name} - Pending Approval` : `${student.name} - Driving lesson`;
 
-      const { error } = await supabase.from("bookings").update({ student_id: student.id, status: newStatus, title: displayTitle, lesson_type: "Driving lesson" }).eq("id", slot.id);
+      const { error } = await supabase.from("bookings").insert({ 
+        user_id: student.user_id,
+        student_id: student.id, 
+        status: newStatus, 
+        title: displayTitle, 
+        lesson_type: "Driving lesson",
+        start_time: slot.start_time,
+        end_time: slot.end_time
+      });
+      
       if (error) throw error;
 
       await supabase.from("notifications").insert({
@@ -251,7 +328,7 @@ const StudentDashboard: React.FC = () => {
 
       showSuccess(requireApproval ? "Request sent! Waiting for instructor approval." : "Lesson booked successfully!");
       queryClient.invalidateQueries({ queryKey: ['student-bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['available-slots-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['instructor-all-bookings'] });
     } catch (error: any) {
       showError("Failed to book lesson: " + error.message);
     } finally {
@@ -287,7 +364,7 @@ const StudentDashboard: React.FC = () => {
     return items.sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
   }, [bookings, directMessages]);
 
-  if (isSessionLoading || isLoadingStudent) {
+  if (isSessionLoading || isLoadingStudent || isLoadingInstructor) {
     return <div className="space-y-6 p-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div></div>;
   }
 
@@ -376,6 +453,11 @@ const StudentDashboard: React.FC = () => {
                   </div>
                 )}
               </CardContent>
+              <CardFooter className="p-3 bg-muted/10 border-t text-center">
+                <Button asChild variant="link" size="sm" className="w-full font-bold text-blue-600">
+                  <Link to="/available-slots">View Full Calendar <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </CardFooter>
             </Card>
           </div>
         </TabsContent>
