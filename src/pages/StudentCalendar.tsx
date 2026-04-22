@@ -90,7 +90,7 @@ const StudentCalendar: React.FC = () => {
     enabled: !!user,
   });
 
-  // 2. Fetch Instructor Data
+  // 2. Get Instructor Data
   const { data: instructor, isLoading: isLoadingInstructor } = useQuery({
     queryKey: ['instructor-profile', studentData?.user_id],
     queryFn: async () => {
@@ -105,7 +105,7 @@ const StudentCalendar: React.FC = () => {
     enabled: !!studentData?.user_id,
   });
 
-  // 3. Fetch Bookings for the range (Reduced to 1 month for faster initial load)
+  // 3. Fetch Bookings for the range
   const { data: bookingsData = [], isLoading: isLoadingBookings, isFetching: isFetchingBookings } = useQuery({
     queryKey: ['calendar-bookings', studentData?.user_id, format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
@@ -118,7 +118,7 @@ const StudentCalendar: React.FC = () => {
         .eq("user_id", studentData!.user_id)
         .gte("start_time", rangeStart)
         .lte("end_time", rangeEnd)
-        .neq("status", "cancelled"); // Filter at DB level
+        .neq("status", "cancelled");
 
       if (error) throw error;
       return data || [];
@@ -126,7 +126,7 @@ const StudentCalendar: React.FC = () => {
     enabled: !!studentData?.user_id,
   });
 
-  // Pre-process busy periods into a map for O(1) lookup
+  // Pre-process busy periods into a map
   const busyByDay = useMemo(() => {
     const map: Record<string, {start: number, end: number}[]> = {};
     const bufferMs = (instructor?.booking_buffer_mins || 0) * 60000;
@@ -154,7 +154,7 @@ const StudentCalendar: React.FC = () => {
     return map;
   }, [bookingsData]);
 
-  // HIGH-EFFICIENCY GAP ANALYSIS: Which days have ANY slots?
+  // GAP ANALYSIS: Which days have ANY slots?
   const daysWithSlots = useMemo(() => {
     if (!instructor || !studentData) return new Set<string>();
     
@@ -189,17 +189,24 @@ const StudentCalendar: React.FC = () => {
           const gapStartMs = parseISO(gap.start_time).getTime();
           const gapEndMs = parseISO(gap.end_time).getTime();
           
-          let lastEnd = Math.max(gapStartMs, minStartTimeMs);
-          const actualEnd = Math.min(gapEndMs, maxStartTimeMs);
+          const currentStart = Math.max(gapStartMs, minStartTimeMs);
+          const currentEnd = Math.min(gapEndMs, maxStartTimeMs);
 
+          if (currentEnd - currentStart < durationMs) continue;
+
+          let lastEnd = currentStart;
+          let found = false;
           for (const busy of sortedBusy) {
+            if (busy.end <= lastEnd) continue;
+            if (busy.start >= currentEnd) break;
+
             if (busy.start - lastEnd >= durationMs) {
-              result.add(dateKey);
-              return;
+              found = true;
+              break;
             }
             lastEnd = Math.max(lastEnd, busy.end);
           }
-          if (actualEnd - lastEnd >= durationMs) {
+          if (found || currentEnd - lastEnd >= durationMs) {
             result.add(dateKey);
             return;
           }
@@ -214,17 +221,24 @@ const StudentCalendar: React.FC = () => {
         const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
         const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
 
-        let lastEnd = Math.max(dayStartMs, minStartTimeMs);
-        const actualEnd = Math.min(dayEndMs, maxStartTimeMs);
+        const currentStart = Math.max(dayStartMs, minStartTimeMs);
+        const currentEnd = Math.min(dayEndMs, maxStartTimeMs);
 
+        if (currentEnd - currentStart < durationMs) continue;
+
+        let lastEnd = currentStart;
+        let found = false;
         for (const busy of sortedBusy) {
+          if (busy.end <= lastEnd) continue;
+          if (busy.start >= currentEnd) break;
+
           if (busy.start - lastEnd >= durationMs) {
-            result.add(dateKey);
-            return;
+            found = true;
+            break;
           }
           lastEnd = Math.max(lastEnd, busy.end);
         }
-        if (actualEnd - lastEnd >= durationMs) {
+        if (found || currentEnd - lastEnd >= durationMs) {
           result.add(dateKey);
           return;
         }
@@ -234,7 +248,7 @@ const StudentCalendar: React.FC = () => {
     return result;
   }, [instructor, studentData, busyByDay, manualGapsByDay, filterDuration, currentMonth]);
 
-  // FOCUSED CALCULATION: Only for the selected day
+  // Only for the selected day
   const slotsForSelectedDate = useMemo(() => {
     if (!instructor || !studentData) return [];
     
