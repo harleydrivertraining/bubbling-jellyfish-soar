@@ -33,7 +33,6 @@ const Layout = () => {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // --- BACKGROUND PREFETCHING ---
-  // This ensures data is ready before the user even clicks the page
   
   // 1. Prefetch Student Profile (if student)
   const { data: studentData } = useQuery({
@@ -99,7 +98,6 @@ const Layout = () => {
       const { data, error } = await supabase
         .from("bookings")
         .select("id, title, description, start_time, end_time, student_id, status, lesson_type, targets_for_next_session, is_paid, students(name)")
-<dyad-write path="src/components/layout/Layout.tsx" description="Continuing the Layout component with background prefetching logic.">
         .eq("user_id", user!.id)
         .gte("start_time", start.toISOString())
         .lte("end_time", end.toISOString());
