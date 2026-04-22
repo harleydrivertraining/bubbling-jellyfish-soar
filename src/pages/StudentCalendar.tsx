@@ -224,7 +224,7 @@ const StudentCalendar: React.FC = () => {
         const currentStart = Math.max(dayStartMs, minStartTimeMs);
         const currentEnd = Math.min(dayEndMs, maxStartTimeMs);
 
-        if (currentEnd - currentStart < durationMs) continue;
+        if (currentEnd - currentStart < durationMs) return;
 
         let lastEnd = currentStart;
         let found = false;
