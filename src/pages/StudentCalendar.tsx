@@ -51,8 +51,7 @@ import {
   endOfMonth,
   startOfWeek,
   endOfWeek,
-  eachDayOfInterval,
-  isValid
+  eachDayOfInterval
 } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -82,7 +81,7 @@ const StudentCalendar: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
-        .select("*")
+        .select("id, name, user_id, auth_user_id")
         .eq("auth_user_id", user!.id)
         .single();
       if (error) throw error;
@@ -106,19 +105,20 @@ const StudentCalendar: React.FC = () => {
     enabled: !!studentData?.user_id,
   });
 
-  // 3. Fetch Bookings for the range
+  // 3. Fetch Bookings for the range (Reduced to 1 month for faster initial load)
   const { data: bookingsData = [], isLoading: isLoadingBookings, isFetching: isFetchingBookings } = useQuery({
     queryKey: ['calendar-bookings', studentData?.user_id, format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
-      const rangeStart = startOfMonth(subMonths(currentMonth, 1)).toISOString();
-      const rangeEnd = endOfMonth(addMonths(currentMonth, 1)).toISOString();
+      const rangeStart = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }).toISOString();
+      const rangeEnd = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 }).toISOString();
 
       const { data, error } = await supabase
         .from("bookings")
-        .select("id, start_time, end_time, status, lesson_type")
+        .select("id, start_time, end_time, status")
         .eq("user_id", studentData!.user_id)
         .gte("start_time", rangeStart)
-        .lte("end_time", rangeEnd);
+        .lte("end_time", rangeEnd)
+        .neq("status", "cancelled"); // Filter at DB level
 
       if (error) throw error;
       return data || [];
@@ -126,12 +126,13 @@ const StudentCalendar: React.FC = () => {
     enabled: !!studentData?.user_id,
   });
 
+  // Pre-process busy periods into a map for O(1) lookup
   const busyByDay = useMemo(() => {
     const map: Record<string, {start: number, end: number}[]> = {};
     const bufferMs = (instructor?.booking_buffer_mins || 0) * 60000;
 
     bookingsData.forEach(b => {
-      if (b.status === 'available' || b.status === 'cancelled' || !b.start_time || !b.end_time) return;
+      if (b.status === 'available' || !b.start_time || !b.end_time) return;
       const dateKey = b.start_time.split('T')[0];
       if (!map[dateKey]) map[dateKey] = [];
       map[dateKey].push({
@@ -148,12 +149,12 @@ const StudentCalendar: React.FC = () => {
       if (b.status !== 'available' || !b.start_time) return;
       const dateKey = b.start_time.split('T')[0];
       if (!map[dateKey]) map[dateKey] = [];
-      map[dateKey].push(b);
+      map[dateKey].push(b as any);
     });
     return map;
   }, [bookingsData]);
 
-  // LIGHTWEIGHT CHECK: Which days have ANY slots?
+  // HIGH-EFFICIENCY GAP ANALYSIS: Which days have ANY slots?
   const daysWithSlots = useMemo(() => {
     if (!instructor || !studentData) return new Set<string>();
     
@@ -164,7 +165,6 @@ const StudentCalendar: React.FC = () => {
     const minStartTimeMs = addHours(now, noticeHours).getTime();
     const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
     const durationMs = filterDuration * 60000;
-    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
 
     const startRange = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
     const endRange = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
@@ -172,26 +172,36 @@ const StudentCalendar: React.FC = () => {
     
     const result = new Set<string>();
 
+    const parseTime = (t: any) => {
+      if (typeof t === 'number') return [t, 0];
+      const parts = (t || "09:00").split(':').map(Number);
+      return parts.length === 2 ? parts : [9, 0];
+    };
+
     daysInRange.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
       const dayBusy = busyByDay[dateKey] || [];
+      const sortedBusy = [...dayBusy].sort((a, b) => a.start - b.start);
 
       if (mode === "gaps") {
         const gaps = manualGapsByDay[dateKey] || [];
         for (const gap of gaps) {
           const gapStartMs = parseISO(gap.start_time).getTime();
           const gapEndMs = parseISO(gap.end_time).getTime();
-          let currentPointerMs = gapStartMs;
-          let iterations = 0;
-          while (currentPointerMs + durationMs <= gapEndMs && iterations < 50) {
-            iterations++;
-            const endPointerMs = currentPointerMs + durationMs;
-            const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
-            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+          
+          let lastEnd = Math.max(gapStartMs, minStartTimeMs);
+          const actualEnd = Math.min(gapEndMs, maxStartTimeMs);
+
+          for (const busy of sortedBusy) {
+            if (busy.start - lastEnd >= durationMs) {
               result.add(dateKey);
-              return; // Found one, move to next day
+              return;
             }
-            currentPointerMs += intervalMs;
+            lastEnd = Math.max(lastEnd, busy.end);
+          }
+          if (actualEnd - lastEnd >= durationMs) {
+            result.add(dateKey);
+            return;
           }
         }
       } else {
@@ -199,27 +209,24 @@ const StudentCalendar: React.FC = () => {
         const dayConfig = instructor.working_hours?.[dayOfWeek];
         if (!dayConfig || !dayConfig.active) return;
 
-        const parseTime = (t: any) => {
-          if (typeof t === 'number') return [t, 0];
-          return (t || "09:00").split(':').map(Number);
-        };
-
         const [startH, startM] = parseTime(dayConfig.start);
         const [endH, endM] = parseTime(dayConfig.end);
         const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
         const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
 
-        let currentPointerMs = dayStartMs;
-        let iterations = 0;
-        while (currentPointerMs + durationMs <= dayEndMs && iterations < 50) {
-          iterations++;
-          const endPointerMs = currentPointerMs + durationMs;
-          const isClashing = dayBusy.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
-          if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+        let lastEnd = Math.max(dayStartMs, minStartTimeMs);
+        const actualEnd = Math.min(dayEndMs, maxStartTimeMs);
+
+        for (const busy of sortedBusy) {
+          if (busy.start - lastEnd >= durationMs) {
             result.add(dateKey);
-            return; // Found one, move to next day
+            return;
           }
-          currentPointerMs += intervalMs;
+          lastEnd = Math.max(lastEnd, busy.end);
+        }
+        if (actualEnd - lastEnd >= durationMs) {
+          result.add(dateKey);
+          return;
         }
       }
     });
