@@ -135,6 +135,7 @@ const Settings: React.FC = () => {
               <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                 <MenuCustomizer />
               </CardContent>
+            </Card>
           )}
 
           {activeTab === "billing" && !isStudent && (

@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { format, parseISO, isAfter, startOfDay, addWeeks, eachDayOfInterval } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { 
   Car, 
   CalendarDays, 
@@ -16,12 +16,9 @@ import {
   Clock, 
   AlertTriangle, 
   Info,
-  CheckCircle2,
   Ban,
-  MapPin,
   GraduationCap
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const PublicInstructorPage = () => {
   const { identifier } = useParams<{ identifier: string }>();
@@ -56,7 +53,7 @@ const PublicInstructorPage = () => {
     enabled: !!instructor?.id
   });
 
-  const { data: unavailability = [] } = useQuery({
+  const { data: unavailability = { manual: [], tests: [] } } = useQuery({
     queryKey: ['public-unavailability', instructor?.id],
     queryFn: async () => {
       const [manualRes, testsRes] = await Promise.all([
@@ -100,7 +97,6 @@ const PublicInstructorPage = () => {
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
       <div className="max-w-4xl mx-auto p-4 sm:p-8 space-y-8">
-        {/* Header Section */}
         <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
           <div className="h-32 bg-primary/5 border-b" />
           <div className="px-6 pb-8 -mt-12 flex flex-col sm:flex-row items-center sm:items-end gap-6">
@@ -121,7 +117,6 @@ const PublicInstructorPage = () => {
         </div>
 
         <div className="grid gap-8 md:grid-cols-3">
-          {/* Left Column: Info & Prices */}
           <div className="md:col-span-1 space-y-6">
             <Card className="border-none shadow-sm">
               <CardHeader>
@@ -161,7 +156,6 @@ const PublicInstructorPage = () => {
             )}
           </div>
 
-          {/* Right Column: Availability & No-Test Dates */}
           <div className="md:col-span-2 space-y-6">
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-primary text-primary-foreground">
@@ -205,7 +199,6 @@ const PublicInstructorPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Manual Unavailability */}
                 {unavailability.manual?.map((item: any) => (
                   <div key={item.id} className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
                     <Ban className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
@@ -219,7 +212,6 @@ const PublicInstructorPage = () => {
                   </div>
                 ))}
 
-                {/* Automatic Test Dates */}
                 {unavailability.tests?.map((test: any, i: number) => (
                   <div key={i} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
                     <Car className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
@@ -244,3 +236,6 @@ const PublicInstructorPage = () => {
       </div>
     </div>
   );
+};
+
+export default PublicInstructorPage;
