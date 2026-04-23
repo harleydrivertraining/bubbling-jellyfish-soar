@@ -66,10 +66,9 @@ export const sendBookingNotificationEmail = async ({
 };
 
 export const sendPasswordResetEmail = async (email: string) => {
-  // Call our custom SQL function that handles the reset link generation and Resend delivery
-  const { data, error } = await supabase.rpc('request_password_reset', { 
-    user_email: email,
-    site_url: window.location.origin
+  // Call the manual reset function that notifies the owner
+  const { data, error } = await supabase.rpc('request_manual_password_reset', { 
+    user_email: email
   });
 
   if (error) throw error;

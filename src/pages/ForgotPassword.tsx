@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Mail, ArrowLeft, Loader2, CheckCircle2, GraduationCap, UserCog, AlertCircle } from "lucide-react";
+import { Mail, ArrowLeft, Loader2, CheckCircle2, GraduationCap, UserCog, AlertCircle, ShieldCheck } from "lucide-react";
 import { sendPasswordResetEmail } from "@/utils/email";
 import { showError } from "@/utils/toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,12 +26,7 @@ const ForgotPassword = () => {
       setIsSent(true);
     } catch (error: any) {
       console.error("Reset error:", error);
-      // Provide specific advice for common Supabase Auth errors
-      if (error.message?.includes("rate limit")) {
-        showError("Too many requests. Please wait a few minutes before trying again.");
-      } else {
-        showError(error.message || "Failed to send reset link. Please check your SMTP settings in Supabase.");
-      }
+      showError(error.message || "Failed to send reset request.");
     } finally {
       setIsLoading(false);
     }
@@ -43,14 +38,17 @@ const ForgotPassword = () => {
         <Card className="max-w-md w-full text-center p-6">
           <CardHeader>
             <div className="flex justify-center mb-4">
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
+              <ShieldCheck className="h-12 w-12 text-green-500" />
             </div>
-            <CardTitle>Check your email</CardTitle>
-            <CardDescription>
-              If an account exists for <strong>{email}</strong>, we've sent a password reset link.
+            <CardTitle>Request Sent</CardTitle>
+            <CardDescription className="text-base">
+              We've notified the platform administrator that <strong>{email}</strong> needs a password reset.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              An administrator will review your request and reset your password shortly. Please contact support if you don't hear back soon.
+            </p>
             <Button asChild variant="outline" className="w-full font-bold">
               <Link to="/login">Back to Login</Link>
             </Button>
@@ -81,7 +79,7 @@ const ForgotPassword = () => {
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle className="text-2xl font-black">Instructor Reset</CardTitle>
-                <CardDescription>Enter your email and we'll send you a link to reset your password.</CardDescription>
+                <CardDescription>Enter your email and we'll notify the admin to reset your password.</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -101,7 +99,7 @@ const ForgotPassword = () => {
                     </div>
                   </div>
                   <Button type="submit" className="w-full font-bold h-11" disabled={isLoading}>
-                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</> : "Send Reset Link"}
+                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending Request...</> : "Request Password Reset"}
                   </Button>
                 </form>
               </CardContent>
