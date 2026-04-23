@@ -25,7 +25,8 @@ import {
   Trash2,
   Loader2,
   Fingerprint,
-  CalendarDays
+  CalendarDays,
+  KeyRound
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -37,12 +38,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/avatar";
 import { format, isBefore, parseISO, startOfDay } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import EditInstructorSubscription from "@/components/EditInstructorSubscription";
+import AdminChangePasswordForm from "@/components/AdminChangePasswordForm";
 import { cn } from "@/lib/utils";
 
 interface InstructorProfile {
@@ -70,6 +72,7 @@ const AdminInstructors: React.FC = () => {
   
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
   const [isSubOpen, setIsSubOpen] = useState(false);
+  const [isPasswordOpen, setIsPasswordOpen] = useState(false);
 
   const fetchInstructors = useCallback(async () => {
     if (!user) return;
@@ -181,6 +184,11 @@ const AdminInstructors: React.FC = () => {
     setIsSubOpen(true);
   };
 
+  const handleManagePassword = (instructor: InstructorProfile) => {
+    setSelectedInstructor(instructor);
+    setIsPasswordOpen(true);
+  };
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case 'active':
@@ -289,6 +297,16 @@ const AdminInstructors: React.FC = () => {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              onClick={() => handleManagePassword(instructor)}
+                              title="Change Password"
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                            
+                            <Button 
                               variant="outline" 
                               size="sm" 
                               className="font-bold"
@@ -300,7 +318,7 @@ const AdminInstructors: React.FC = () => {
                             
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="text-destructive" disabled={isDeleting === instructor.id}>
+                                <Button variant="ghost" size="icon" className="text-destructive" disabled={isDeleting === instructor.id}>
                                   {isDeleting === instructor.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                 </Button>
                               </AlertDialogTrigger>
@@ -344,6 +362,26 @@ const AdminInstructors: React.FC = () => {
               onSuccess={() => {
                 setIsSubOpen(false);
                 fetchInstructors();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPasswordOpen} onOpenChange={setIsPasswordOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" />
+              Change Password
+            </DialogTitle>
+          </DialogHeader>
+          {selectedInstructor && (
+            <AdminChangePasswordForm
+              instructorId={selectedInstructor.id}
+              instructorName={`${selectedInstructor.first_name} ${selectedInstructor.last_name || ''}`}
+              onSuccess={() => {
+                setIsPasswordOpen(false);
               }}
             />
           )}
