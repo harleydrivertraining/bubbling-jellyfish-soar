@@ -45,6 +45,7 @@ const Signup = lazy(() => import("./pages/Signup"));
 const SignupSuccess = lazy(() => import("./pages/SignupSuccess"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const PublicInstructorPage = lazy(() => import("./pages/PublicInstructorPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -84,6 +85,10 @@ const AppContent = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/74985" element={<Signup />} />
         <Route path="/signup-success" element={<SignupSuccess />} />
+        
+        {/* Public Instructor Route */}
+        <Route path="/instructor/:identifier" element={<PublicInstructorPage />} />
+
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="subscription" element={<Subscription />} />
