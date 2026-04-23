@@ -54,13 +54,16 @@ workflows:
           # Fetch certificates and profiles for your specific bundle ID
           app-store-connect fetch-signing-files "com.hdt.app" --type IOS_APP_STORE --create
           keychain add-certificates
-          xcode-project use-profiles
       - name: Install CocoaPods
         script: |
           cd ios/App && pod install
+      - name: Apply Provisioning Profiles
+        script: |
+          # This command maps the downloaded profiles to your Xcode project
+          xcode-project use-profiles --workspace ios/App/App.xcworkspace
       - name: Build iOS
         script: |
-          # Removed the unrecognized --bundle-id flag
+          # Build the IPA using the profiles applied in the previous step
           xcode-project build-ipa \
             --workspace ios/App/App.xcworkspace \
             --scheme App
