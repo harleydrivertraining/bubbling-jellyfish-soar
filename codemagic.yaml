@@ -1,0 +1,64 @@
+# Codemagic CI/CD configuration for Capacitor
+# Documentation: https://docs.codemagic.io/yaml-basic-configuration/yaml-getting-started/
+
+workflows:
+  android-workflow:
+    name: Android Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - google_play # Define these in Codemagic UI
+      node: 20
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Build web assets
+        script: |
+          npm run build
+      - name: Capacitor Sync
+        script: |
+          npx cap sync android
+      - name: Build Android Release
+        script: |
+          cd android
+          ./gradlew assembleRelease
+    artifacts:
+      - android/app/build/outputs/apk/**/*.apk
+      - android/app/build/outputs/bundle/**/*.aab
+
+  ios-workflow:
+    name: iOS Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - app_store_credentials # Define these in Codemagic UI
+      node: 20
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Build web assets
+        script: |
+          npm run build
+      - name: Capacitor Sync
+        script: |
+          npx cap sync ios
+      - name: Install CocoaPods
+        script: |
+          cd ios/App && pod install
+      - name: Build iOS
+        script: |
+          xcode-project build-ipa \
+            --workspace ios/App/App.xcworkspace \
+            --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com # Update this
