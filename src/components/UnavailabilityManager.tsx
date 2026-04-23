@@ -12,6 +12,7 @@ import { Trash2, Plus, Calendar, Ban, Loader2, AlertTriangle } from "lucide-reac
 import { format, parseISO } from "date-fns";
 import { showSuccess, showError } from "@/utils/toast";
 import DatePicker from "@/components/DatePicker";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const UnavailabilityManager = () => {
   const { user } = useSession();
