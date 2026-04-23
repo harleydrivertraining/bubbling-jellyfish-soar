@@ -46,6 +46,7 @@ const SignupSuccess = lazy(() => import("./pages/SignupSuccess"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const PublicInstructorPage = lazy(() => import("./pages/PublicInstructorPage"));
+const PublicProfileManagement = lazy(() => import("./pages/PublicProfileManagement"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -118,6 +119,7 @@ const AppContent = () => {
           <Route path="pending-requests" element={<PendingRequests />} />
           <Route path="messages" element={<InstructorMessages />} />
           <Route path="todo" element={<TodoList />} />
+          <Route path="public-profile" element={<PublicProfileManagement />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>

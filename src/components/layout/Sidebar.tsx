@@ -34,7 +34,8 @@ import {
   Inbox,
   MessageSquare,
   ListTodo,
-  CreditCard
+  CreditCard,
+  Globe
 } from "lucide-react";
 
 interface NavLinkProps {
@@ -96,6 +97,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: "mileage", to: "/mileage-tracker", icon: Gauge, label: "Mileage Tracker" },
   { id: "accounts", to: "/accounts", icon: PoundSterling, label: "Accounts" },
   { id: "topics", to: "/manage-topics", icon: ListChecks, label: "Manage Topics" },
+  { id: "public-profile", to: "/public-profile", icon: Globe, label: "Public Page" },
   { id: "subscription", to: "/subscription", icon: CreditCard, label: "Subscription" },
   { id: "support", to: "/support", icon: LifeBuoy, label: "Support" },
   { id: "settings", to: "/settings", icon: Settings, label: "Settings" },

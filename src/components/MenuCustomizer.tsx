@@ -26,7 +26,12 @@ import {
   ListChecks,
   LifeBuoy,
   Settings,
-  ListTodo
+  ListTodo,
+  Globe,
+  MessageSquare,
+  UserCircle,
+  Inbox,
+  CreditCard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +61,10 @@ const ICON_MAP: Record<string, any> = {
   topics: ListChecks,
   support: LifeBuoy,
   settings: Settings,
+  "public-profile": Globe,
+  messages: MessageSquare,
+  "self-assessments": UserCircle,
+  subscription: CreditCard
 };
 
 const DEFAULT_MENU: MenuItemConfig[] = [
@@ -76,6 +85,8 @@ const DEFAULT_MENU: MenuItemConfig[] = [
   { id: "mileage", label: "Mileage Tracker", visible: true, to: "/mileage-tracker" },
   { id: "accounts", label: "Accounts", visible: true, to: "/accounts" },
   { id: "topics", label: "Manage Topics", visible: true, to: "/manage-topics" },
+  { id: "public-profile", label: "Public Page", visible: true, to: "/public-profile" },
+  { id: "subscription", label: "Subscription", visible: true, to: "/subscription" },
   { id: "support", label: "Support", visible: true, to: "/support" },
   { id: "settings", label: "Settings", visible: true, to: "/settings" },
 ];

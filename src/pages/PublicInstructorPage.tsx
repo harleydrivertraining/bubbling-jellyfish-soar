@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { format, parseISO, isAfter, startOfDay, addWeeks, eachDayOfInterval } from "date-fns";
 import { 
   Car, 
@@ -17,7 +18,8 @@ import {
   Info,
   CheckCircle2,
   Ban,
-  MapPin
+  MapPin,
+  GraduationCap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -242,6 +244,3 @@ const PublicInstructorPage = () => {
       </div>
     </div>
   );
-};
-
-export default PublicInstructorPage;

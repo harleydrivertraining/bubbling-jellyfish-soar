@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, Lock, Mail, CreditCard, Globe, Ban } from "lucide-react";
+import { LogOut, LayoutList, UserCog, ShieldCheck, Bell, Lock, Mail, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import ProfileSettingsForm from "@/components/ProfileSettingsForm";
@@ -12,13 +12,11 @@ import ChangePasswordForm from "@/components/ChangePasswordForm";
 import ChangeEmailForm from "@/components/ChangeEmailForm";
 import MenuCustomizer from "@/components/MenuCustomizer";
 import BillingSettings from "@/components/BillingSettings";
-import PublicProfileSettings from "@/components/PublicProfileSettings";
-import UnavailabilityManager from "@/components/UnavailabilityManager";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 
-type SettingsTab = "profile" | "public" | "unavailability" | "notifications" | "menu" | "billing" | "account";
+type SettingsTab = "profile" | "notifications" | "menu" | "billing" | "account";
 
 const Settings: React.FC = () => {
   const { user, subscriptionStatus, userRole, isLoading: isSessionLoading } = useSession();
@@ -35,8 +33,6 @@ const Settings: React.FC = () => {
     
     if (!isRestricted && !isStudent) {
       items.push({ id: "profile", label: "Profile", icon: UserCog });
-      items.push({ id: "public", label: "Public Page", icon: Globe });
-      items.push({ id: "unavailability", label: "No-Test Dates", icon: Ban });
       items.push({ id: "notifications", label: "Alerts", icon: Bell });
       items.push({ id: "menu", label: "Menu", icon: LayoutList });
     }
@@ -124,24 +120,6 @@ const Settings: React.FC = () => {
             </Card>
           )}
 
-          {activeTab === "public" && !isRestricted && !isStudent && (
-            <Card className="border-none shadow-sm bg-card overflow-hidden">
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle>Public Profile</CardTitle>
-                <CardDescription>Manage your public-facing page for potential students.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
-                <PublicProfileSettings />
-              </CardContent>
-            </Card>
-          )}
-
-          {activeTab === "unavailability" && !isRestricted && !isStudent && (
-            <div className="max-w-2xl mx-auto">
-              <UnavailabilityManager />
-            </div>
-          )}
-
           {activeTab === "notifications" && !isRestricted && !isStudent && (
             <div className="space-y-6">
               <NotificationSettingsForm />
@@ -157,7 +135,6 @@ const Settings: React.FC = () => {
               <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                 <MenuCustomizer />
               </CardContent>
-            </Card>
           )}
 
           {activeTab === "billing" && !isStudent && (
