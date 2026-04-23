@@ -51,7 +51,7 @@ workflows:
       - name: Set up keychain and fetch signing files
         script: |
           keychain initialize
-          # Explicitly using the bundle ID from your capacitor.config.ts
+          # Fetch certificates and profiles for your specific bundle ID
           app-store-connect fetch-signing-files "com.hdt.app" --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles
@@ -60,11 +60,10 @@ workflows:
           cd ios/App && pod install
       - name: Build iOS
         script: |
-          # Added the bundle-id flag to help the builder map the profiles
+          # Removed the unrecognized --bundle-id flag
           xcode-project build-ipa \
             --workspace ios/App/App.xcworkspace \
-            --scheme App \
-            --bundle-id "com.hdt.app"
+            --scheme App
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
