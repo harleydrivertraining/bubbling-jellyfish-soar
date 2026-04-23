@@ -51,9 +51,8 @@ workflows:
       - name: Set up keychain and fetch signing files
         script: |
           keychain initialize
-          # This command fetches certificates and profiles. 
-          # Requires App Store Connect integration in Codemagic UI.
-          app-store-connect fetch-signing-files $(xcode-project detect-bundle-id --workspace ios/App/App.xcworkspace) --type IOS_APP_STORE --create
+          # Explicitly using the bundle ID from your capacitor.config.ts
+          app-store-connect fetch-signing-files "com.hdt.app" --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles
       - name: Install CocoaPods
@@ -61,9 +60,11 @@ workflows:
           cd ios/App && pod install
       - name: Build iOS
         script: |
+          # Added the bundle-id flag to help the builder map the profiles
           xcode-project build-ipa \
             --workspace ios/App/App.xcworkspace \
-            --scheme App
+            --scheme App \
+            --bundle-id "com.hdt.app"
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
