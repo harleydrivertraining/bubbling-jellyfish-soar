@@ -26,16 +26,32 @@ const PublicInstructorPage = () => {
   const { data: instructor, isLoading: isLoadingProfile } = useQuery({
     queryKey: ['public-instructor', identifier],
     queryFn: async () => {
-      // Try to find by slug first, then by ID
-      const { data, error } = await supabase
+      if (!identifier) return null;
+
+      // 1. Try finding by custom slug first
+      const { data: bySlug } = await supabase
         .from("profiles")
         .select("*")
-        .or(`public_slug.eq."${identifier}",id.eq."${identifier}"`)
+        .eq("public_slug", identifier)
         .eq("is_public", true)
         .maybeSingle();
       
-      if (error) throw error;
-      return data;
+      if (bySlug) return bySlug;
+
+      // 2. Fallback: Try finding by ID if the identifier looks like a UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(identifier)) {
+        const { data: byId } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", identifier)
+          .eq("is_public", true)
+          .maybeSingle();
+        
+        return byId;
+      }
+
+      return null;
     },
     enabled: !!identifier
   });
