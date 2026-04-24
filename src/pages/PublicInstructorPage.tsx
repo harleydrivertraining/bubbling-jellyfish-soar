@@ -26,16 +26,18 @@ const PublicInstructorPage = () => {
   const { data: instructor, isLoading: isLoadingProfile } = useQuery({
     queryKey: ['public-instructor', identifier],
     queryFn: async () => {
+      // Try to find by slug first, then by ID
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .or(`id.eq.${identifier},public_slug.eq.${identifier}`)
+        .or(`public_slug.eq."${identifier}",id.eq."${identifier}"`)
         .eq("is_public", true)
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
       return data;
-    }
+    },
+    enabled: !!identifier
   });
 
   const { data: availability = [] } = useQuery({
@@ -60,7 +62,6 @@ const PublicInstructorPage = () => {
         supabase.from("instructor_unavailability").select("*").eq("user_id", instructor!.id)
       ];
 
-      // Only fetch test dates if the instructor has enabled auto-hiding
       if (instructor?.auto_hide_test_dates !== false) {
         queries.push(
           supabase.from("bookings")
