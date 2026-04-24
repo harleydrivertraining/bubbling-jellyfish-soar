@@ -21,11 +21,12 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Globe, ExternalLink, Copy, Loader2, ShieldCheck } from "lucide-react";
+import { Globe, ExternalLink, Copy, Loader2, ShieldCheck, Car } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const formSchema = z.object({
   is_public: z.boolean().default(false),
+  auto_hide_test_dates: z.boolean().default(true),
   public_slug: z.string().min(3, "Slug must be at least 3 characters").regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed").optional().nullable().or(z.literal("")),
   public_bio: z.string().max(500, "Bio must be under 500 characters").optional().nullable().or(z.literal("")),
 });
@@ -39,6 +40,7 @@ const PublicProfileSettings = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       is_public: false,
+      auto_hide_test_dates: true,
       public_slug: "",
       public_bio: "",
     },
@@ -49,13 +51,14 @@ const PublicProfileSettings = () => {
       if (!user) return;
       const { data, error } = await supabase
         .from("profiles")
-        .select("is_public, public_slug, public_bio")
+        .select("is_public, public_slug, public_bio, auto_hide_test_dates")
         .eq("id", user.id)
         .single();
       
       if (data) {
         form.reset({
           is_public: data.is_public ?? false,
+          auto_hide_test_dates: data.auto_hide_test_dates ?? true,
           public_slug: data.public_slug || "",
           public_bio: data.public_bio || "",
         });
@@ -72,6 +75,7 @@ const PublicProfileSettings = () => {
         .from("profiles")
         .update({
           is_public: values.is_public,
+          auto_hide_test_dates: values.auto_hide_test_dates,
           public_slug: values.public_slug?.trim() || null,
           public_bio: values.public_bio?.trim() || null,
         })
@@ -97,7 +101,7 @@ const PublicProfileSettings = () => {
     showSuccess("URL copied to clipboard!");
   };
 
-  if (isLoading) return <Loader2 className="h-8 w-8 animate-spin mx-auto" />;
+  if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <Form {...form}>
@@ -116,6 +120,30 @@ const PublicProfileSettings = () => {
                     </FormLabel>
                     <FormDescription className="text-xs">
                       Allow anyone with the link to view your prices and availability.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="auto_hide_test_dates"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-4 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base font-bold flex items-center gap-2">
+                      <Car className="h-4 w-4 text-blue-600" />
+                      Auto-hide Test Dates
+                    </FormLabel>
+                    <FormDescription className="text-xs">
+                      Automatically show dates with existing test bookings as "No Test" dates.
                     </FormDescription>
                   </div>
                   <FormControl>

@@ -54,16 +54,28 @@ const PublicInstructorPage = () => {
   });
 
   const { data: unavailability = { manual: [], tests: [] } } = useQuery({
-    queryKey: ['public-unavailability', instructor?.id],
+    queryKey: ['public-unavailability', instructor?.id, instructor?.auto_hide_test_dates],
     queryFn: async () => {
-      const [manualRes, testsRes] = await Promise.all([
-        supabase.from("instructor_unavailability").select("*").eq("user_id", instructor!.id),
-        supabase.from("bookings").select("start_time").eq("user_id", instructor!.id).eq("lesson_type", "Driving Test").neq("status", "cancelled")
-      ]);
+      const queries = [
+        supabase.from("instructor_unavailability").select("*").eq("user_id", instructor!.id)
+      ];
+
+      // Only fetch test dates if the instructor has enabled auto-hiding
+      if (instructor?.auto_hide_test_dates !== false) {
+        queries.push(
+          supabase.from("bookings")
+            .select("start_time")
+            .eq("user_id", instructor!.id)
+            .eq("lesson_type", "Driving Test")
+            .neq("status", "cancelled")
+        );
+      }
+
+      const results = await Promise.all(queries);
       
       return {
-        manual: manualRes.data || [],
-        tests: testsRes.data || []
+        manual: results[0].data || [],
+        tests: results[1]?.data || []
       };
     },
     enabled: !!instructor?.id
