@@ -70,11 +70,11 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${carId}-${Date.now()}.${fileExt}`;
-    // Path MUST start with user.id for most RLS policies
+    // Path MUST start with user.id for the RLS policy in storage2
     const filePath = `${user.id}/cars/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('1')
+      .from('storage2')
       .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
@@ -85,7 +85,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from('1')
+      .from('storage2')
       .getPublicUrl(filePath);
     
     const newImageUrl = publicUrlData.publicUrl;
@@ -149,8 +149,9 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
     }
     if (!currentImageUrl) return;
 
-    if (currentImageUrl.includes('/storage/v1/object/public/1/')) {
-      const urlParts = currentImageUrl.split('/public/1/');
+    // If it's a file in our storage, delete it
+    if (currentImageUrl.includes('/storage/v1/object/public/storage2/')) {
+      const urlParts = currentImageUrl.split('/public/storage2/');
       if (urlParts.length < 2) {
         showError("Could not determine file path from URL.");
         return;
@@ -158,7 +159,7 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
       const filePath = urlParts[1];
 
       const { error: deleteError } = await supabase.storage
-        .from('1')
+        .from('storage2')
         .remove([filePath]);
 
       if (deleteError) {
@@ -187,10 +188,10 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
   };
 
   return (
-    <Card className="flex flex-col h-full">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center">
-          <ImageIcon className="mr-2 h-5 w-5 text-muted-foreground" />
+    <Card className="flex flex-col h-full border-none shadow-none bg-muted/30">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-bold uppercase text-muted-foreground flex items-center">
+          <ImageIcon className="mr-2 h-4 w-4" />
           Car Image
         </CardTitle>
       </CardHeader>
@@ -199,12 +200,12 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
           <AvatarImage src={previewUrl || undefined} alt={`${carMakeModel} image`} className="object-cover" />
           <AvatarFallback className="rounded-lg flex flex-col items-center justify-center text-muted-foreground text-center p-2">
             <Car className="h-10 w-10 mb-2" />
-            <span className="text-sm">No Image</span>
+            <span className="text-[10px] font-bold uppercase">No Image</span>
           </AvatarFallback>
         </Avatar>
 
-        <div className="w-full space-y-2">
-          <div className="space-y-1">
+        <div className="w-full space-y-3">
+          <div className="space-y-2">
             <Input
               id="car-image-url"
               type="url"
@@ -212,51 +213,56 @@ const CarImageUploadCard: React.FC<CarImageUploadCardProps> = ({
               value={urlInput}
               onChange={handleUrlInputChange}
               disabled={uploading}
+              className="h-9 text-xs"
             />
             <Button
               onClick={handleSetImageUrl}
-              disabled={!urlInput.trim() || uploading}
-              className="w-full"
+              disabled={!urlInput.trim() || uploading || urlInput === currentImageUrl}
+              className="w-full h-9 text-xs font-bold"
+              variant="secondary"
             >
-              <LinkIcon className="mr-2 h-4 w-4" />
-              Set Image from URL
+              <LinkIcon className="mr-2 h-3 w-3" />
+              Set from URL
             </Button>
           </div>
 
-          <div className="relative flex items-center py-2">
+          <div className="relative flex items-center py-1">
             <div className="flex-grow border-t border-muted-foreground/20"></div>
-            <span className="flex-shrink mx-4 text-muted-foreground text-sm">OR</span>
+            <span className="flex-shrink mx-4 text-muted-foreground text-[10px] font-bold uppercase">OR</span>
             <div className="flex-grow border-t border-muted-foreground/20"></div>
           </div>
 
-          <Input
-            id="car-image-upload"
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            disabled={uploading}
-          />
-          {uploading && file && <Progress value={uploadProgress} className="w-full" />}
-          <div className="flex gap-2">
-            <Button
-              onClick={handleUpload}
-              disabled={!file || uploading}
-              className="flex-1"
-            >
-              <UploadCloud className="mr-2 h-4 w-4" />
-              Upload File
-            </Button>
-            {currentImageUrl && (
+          <div className="space-y-2">
+            <Input
+              id="car-image-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              disabled={uploading}
+              className="h-9 text-xs"
+            />
+            {uploading && file && <Progress value={uploadProgress} className="w-full h-1" />}
+            <div className="flex gap-2">
               <Button
-                variant="outline"
-                onClick={handleRemoveImage}
-                disabled={uploading}
-                className="flex-1"
+                onClick={handleUpload}
+                disabled={!file || uploading}
+                className="flex-1 h-9 text-xs font-bold"
               >
-                <XCircle className="mr-2 h-4 w-4" />
-                Remove Image
+                <UploadCloud className="mr-2 h-3 w-3" />
+                Upload File
               </Button>
-            )}
+              {currentImageUrl && (
+                <Button
+                  variant="outline"
+                  onClick={handleRemoveImage}
+                  disabled={uploading}
+                  className="flex-1 h-9 text-xs font-bold text-destructive border-destructive/20 hover:bg-destructive/5"
+                >
+                  <XCircle className="mr-2 h-3 w-3" />
+                  Remove
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>
