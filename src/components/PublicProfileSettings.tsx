@@ -21,20 +21,23 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Globe, ExternalLink, Copy, Loader2, ShieldCheck, Car } from "lucide-react";
+import { Globe, ExternalLink, Copy, Loader2, ShieldCheck, Car, Upload, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const formSchema = z.object({
   is_public: z.boolean().default(false),
   auto_hide_test_dates: z.boolean().default(true),
   public_slug: z.string().min(3, "Slug must be at least 3 characters").regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed").optional().nullable().or(z.literal("")),
   public_bio: z.string().max(500, "Bio must be under 500 characters").optional().nullable().or(z.literal("")),
+  logo_url: z.string().optional().nullable().or(z.literal("")),
 });
 
 const PublicProfileSettings = () => {
   const { user } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -43,6 +46,7 @@ const PublicProfileSettings = () => {
       auto_hide_test_dates: true,
       public_slug: "",
       public_bio: "",
+      logo_url: "",
     },
   });
 
@@ -51,7 +55,7 @@ const PublicProfileSettings = () => {
       if (!user) return;
       const { data, error } = await supabase
         .from("profiles")
-        .select("is_public, public_slug, public_bio, auto_hide_test_dates")
+        .select("is_public, public_slug, public_bio, auto_hide_test_dates, logo_url")
         .eq("id", user.id)
         .single();
       
@@ -61,12 +65,52 @@ const PublicProfileSettings = () => {
           auto_hide_test_dates: data.auto_hide_test_dates ?? true,
           public_slug: data.public_slug || "",
           public_bio: data.public_bio || "",
+          logo_url: data.logo_url || "",
         });
       }
       setIsLoading(false);
     };
     fetchSettings();
   }, [user, form]);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showError("Please upload an image file.");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/logo-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError, data } = await supabase.storage
+        .from('storage2')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('storage2')
+        .getPublicUrl(fileName);
+
+      form.setValue("logo_url", publicUrl);
+      showSuccess("Logo uploaded! Remember to save your changes.");
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      showError("Failed to upload image: " + error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeLogo = () => {
+    form.setValue("logo_url", "");
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
@@ -78,6 +122,7 @@ const PublicProfileSettings = () => {
           auto_hide_test_dates: values.auto_hide_test_dates,
           public_slug: values.public_slug?.trim() || null,
           public_bio: values.public_bio?.trim() || null,
+          logo_url: values.logo_url || null,
         })
         .eq("id", user!.id);
 
@@ -107,7 +152,57 @@ const PublicProfileSettings = () => {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Card className="border-none shadow-none bg-muted/30">
-          <CardContent className="p-4 space-y-4">
+          <CardContent className="p-4 space-y-6">
+            {/* Logo Upload Section */}
+            <div className="space-y-4">
+              <Label className="text-sm font-bold uppercase text-muted-foreground">Profile Logo</Label>
+              <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-background rounded-lg border shadow-sm">
+                <Avatar className="h-24 w-24 border-2 border-muted">
+                  <AvatarImage src={form.watch("logo_url") || undefined} className="object-contain" />
+                  <AvatarFallback className="bg-muted">
+                    <Car className="h-10 w-10 text-muted-foreground/40" />
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="flex-1 space-y-3 w-full">
+                  <div className="flex flex-wrap gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      className="font-bold relative"
+                      disabled={isUploading}
+                    >
+                      {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                      {form.watch("logo_url") ? "Change Logo" : "Upload Logo"}
+                      <input 
+                        type="file" 
+                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        disabled={isUploading}
+                      />
+                    </Button>
+                    
+                    {form.watch("logo_url") && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-destructive font-bold"
+                        onClick={removeLogo}
+                      >
+                        <X className="h-4 w-4 mr-2" /> Remove
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Recommended: Square image, max 2MB. This logo will appear on your public page and student dashboard.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <FormField
               control={form.control}
               name="is_public"
@@ -212,7 +307,7 @@ const PublicProfileSettings = () => {
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full font-bold h-12" disabled={isSubmitting}>
+        <Button type="submit" className="w-full font-bold h-12" disabled={isSubmitting || isUploading}>
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
           Save Public Profile Settings
         </Button>
