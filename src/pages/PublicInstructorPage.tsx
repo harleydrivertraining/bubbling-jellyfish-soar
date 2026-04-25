@@ -124,24 +124,23 @@ const PublicInstructorPage = () => {
   }, [availability]);
 
   const groupedRestrictions = useMemo(() => {
-    const groups: Record<string, { manual: any[], tests: any[], sortDate: number }> = {};
-    
-    unavailability.manual.forEach(item => {
-      const date = parseISO(item.start_date);
-      const monthKey = format(date, 'MMMM yyyy');
-      if (!groups[monthKey]) {
-        groups[monthKey] = { manual: [], tests: [], sortDate: startOfMonth(date).getTime() };
-      }
-      groups[monthKey].manual.push(item);
-    });
+    // Combine all restriction types into a single list for chronological sorting
+    const allItems: any[] = [
+      ...unavailability.manual.map(m => ({ ...m, type: 'manual', date: parseISO(m.start_date) })),
+      ...unavailability.tests.map(t => ({ ...t, type: 'test', date: parseISO(t.start_time) }))
+    ];
 
-    unavailability.tests.forEach(test => {
-      const date = parseISO(test.start_time);
-      const monthKey = format(date, 'MMMM yyyy');
+    // Sort all items chronologically by date
+    allItems.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const groups: Record<string, { items: any[], sortDate: number }> = {};
+    
+    allItems.forEach(item => {
+      const monthKey = format(item.date, 'MMMM yyyy');
       if (!groups[monthKey]) {
-        groups[monthKey] = { manual: [], tests: [], sortDate: startOfMonth(date).getTime() };
+        groups[monthKey] = { items: [], sortDate: startOfMonth(item.date).getTime() };
       }
-      groups[monthKey].tests.push(test);
+      groups[monthKey].items.push(item);
     });
 
     return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
@@ -255,9 +254,9 @@ const PublicInstructorPage = () => {
                     {groupedAvailability.map(([month, data]) => (
                       <div key={month} className="space-y-4">
                         <div className="flex items-center gap-3">
-                          <Badge variant="secondary" className="bg-primary/10 text-primary font-black px-4 py-1 rounded-full uppercase text-[10px] tracking-widest border-none">
+                          <div className="bg-primary text-white font-black px-4 py-1.5 rounded-lg uppercase text-xs tracking-widest shadow-sm">
                             {month}
-                          </Badge>
+                          </div>
                           <div className="h-px flex-1 bg-muted" />
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -298,34 +297,39 @@ const PublicInstructorPage = () => {
                   </div>
                 ) : (
                   <div className="space-y-8">
-                    {groupedRestrictions.map(([month, items]) => (
+                    {groupedRestrictions.map(([month, data]) => (
                       <div key={month} className="space-y-4">
                         <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="font-black border-orange-200 text-orange-700 bg-orange-50 px-4 py-1 rounded-full uppercase text-[10px] tracking-widest">
+                          <div className="bg-orange-600 text-white font-black px-4 py-1.5 rounded-lg uppercase text-xs tracking-widest shadow-sm">
                             {month}
-                          </Badge>
+                          </div>
                           <div className="h-px flex-1 bg-muted" />
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
-                          {items.manual.map((item, i) => (
-                            <div key={`manual-${i}`} className="flex items-start gap-3 p-4 bg-muted/30 rounded-xl border border-muted">
-                              <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+                          {data.items.map((item: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3 p-4 bg-muted/30 rounded-xl border border-muted">
+                              {item.type === 'manual' ? (
+                                <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+                              ) : (
+                                <Car className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                              )}
                               <div>
                                 <p className="text-sm font-bold text-primary">
-                                  {format(parseISO(item.start_date), "do")} 
-                                  {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "do")}`}
+                                  {item.type === 'manual' ? (
+                                    <>
+                                      {format(item.date, "EEEE, do")} 
+                                      {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "do")}`}
+                                    </>
+                                  ) : (
+                                    format(item.date, "EEEE, do")
+                                  )}
                                 </p>
-                                {item.reason && <p className="text-xs text-muted-foreground mt-1 italic">"{item.reason}"</p>}
-                              </div>
-                            </div>
-                          ))}
-                          {items.tests.map((test, i) => (
-                            <div key={`test-${i}`} className="flex items-start gap-3 p-4 bg-muted/30 rounded-xl border border-muted">
-                              <Car className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-sm font-bold text-primary">
-                                  {format(parseISO(test.start_time), "EEEE, do")}
-                                </p>
+                                {item.type === 'manual' && item.reason && (
+                                  <p className="text-xs text-muted-foreground mt-1 italic">"{item.reason}"</p>
+                                )}
+                                {item.type === 'test' && (
+                                  <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Existing Test Booking</p>
+                                )}
                               </div>
                             </div>
                           ))}
