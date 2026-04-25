@@ -40,7 +40,7 @@ const PublicInstructorPage = () => {
       
       if (bySlug) return bySlug;
 
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(identifier)) {
         const { data: byId } = await supabase
           .from("profiles")
@@ -309,7 +309,7 @@ const PublicInstructorPage = () => {
                         </Badge>
                         <div className="h-px flex-1 bg-muted" />
                       </div>
-                      <div className="grid gap-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
                         {items.manual.map((item, i) => (
                           <div key={`manual-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-orange-100 shadow-sm">
                             <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
