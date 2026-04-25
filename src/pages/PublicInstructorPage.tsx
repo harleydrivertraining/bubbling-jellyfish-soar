@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   GraduationCap,
   ChevronRight
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const PublicInstructorPage = () => {
   const { identifier } = useParams<{ identifier: string }>();
@@ -287,9 +288,9 @@ const PublicInstructorPage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground mb-6 font-medium italic">
+                <CardDescription className="text-xs text-muted-foreground mb-6 font-medium italic">
                   Please avoid booking driving tests on these dates as the instructor is unavailable.
-                </p>
+                </CardDescription>
 
                 {groupedRestrictions.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground italic text-sm bg-muted/20 rounded-xl border border-dashed">
