@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfMonth } from "date-fns";
 import { 
   Car, 
   CalendarDays, 
@@ -17,8 +17,11 @@ import {
   AlertTriangle, 
   Info,
   Ban,
-  GraduationCap
+  GraduationCap,
+  ChevronRight,
+  Calendar
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const PublicInstructorPage = () => {
   const { identifier } = useParams<{ identifier: string }>();
@@ -28,7 +31,6 @@ const PublicInstructorPage = () => {
     queryFn: async () => {
       if (!identifier) return null;
 
-      // 1. Try finding by custom slug first
       const { data: bySlug } = await supabase
         .from("profiles")
         .select("*")
@@ -38,7 +40,6 @@ const PublicInstructorPage = () => {
       
       if (bySlug) return bySlug;
 
-      // 2. Fallback: Try finding by ID if the identifier looks like a UUID
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(identifier)) {
         const { data: byId } = await supabase
@@ -98,13 +99,42 @@ const PublicInstructorPage = () => {
     enabled: !!instructor?.id
   });
 
+  // Grouping logic
+  const groupedAvailability = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    availability.forEach(slot => {
+      const monthKey = format(parseISO(slot.start_time), 'MMMM yyyy');
+      if (!groups[monthKey]) groups[monthKey] = [];
+      groups[monthKey].push(slot);
+    });
+    return groups;
+  }, [availability]);
+
+  const groupedRestrictions = useMemo(() => {
+    const groups: Record<string, { manual: any[], tests: any[] }> = {};
+    
+    unavailability.manual.forEach(item => {
+      const monthKey = format(parseISO(item.start_date), 'MMMM yyyy');
+      if (!groups[monthKey]) groups[monthKey] = { manual: [], tests: [] };
+      groups[monthKey].manual.push(item);
+    });
+
+    unavailability.tests.forEach(test => {
+      const monthKey = format(parseISO(test.start_time), 'MMMM yyyy');
+      if (!groups[monthKey]) groups[monthKey] = { manual: [], tests: [] };
+      groups[monthKey].tests.push(test);
+    });
+
+    return groups;
+  }, [unavailability]);
+
   if (isLoadingProfile) {
     return (
       <div className="max-w-4xl mx-auto p-6 space-y-8">
-        <Skeleton className="h-40 w-full rounded-2xl" />
-        <div className="grid gap-6 md:grid-cols-2">
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-40 w-full rounded-3xl" />
+        <div className="grid gap-6 md:grid-cols-3">
+          <Skeleton className="h-64 w-full rounded-2xl" />
+          <Skeleton className="h-64 md:col-span-2 rounded-2xl" />
         </div>
       </div>
     );
@@ -125,11 +155,12 @@ const PublicInstructorPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
-      <div className="max-w-4xl mx-auto p-4 sm:p-8 space-y-8">
+      <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
+        {/* Header Section */}
         <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
           <div className="h-32 bg-primary/5 border-b" />
           <div className="px-6 pb-8 -mt-12 flex flex-col sm:flex-row items-center sm:items-end gap-6">
-            <div className="h-24 w-24 rounded-2xl bg-white border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
+            <div className="h-24 w-24 rounded-2xl bg-white border-4 border-white shadow-md flex items-center justify-center overflow-hidden shrink-0">
               {instructor.logo_url ? (
                 <img src={instructor.logo_url} alt="Logo" className="h-full w-full object-contain" />
               ) : (
@@ -139,33 +170,32 @@ const PublicInstructorPage = () => {
             <div className="flex-1 text-center sm:text-left space-y-1">
               <h1 className="text-3xl font-black tracking-tight">{instructor.first_name} {instructor.last_name}</h1>
               <p className="text-muted-foreground font-medium flex items-center justify-center sm:justify-start gap-2">
-                <GraduationCap className="h-4 w-4" /> Professional Driving Instructor
+                <GraduationCap className="h-4 w-4 text-primary/60" /> Professional Driving Instructor
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-3">
-          <div className="md:col-span-1 space-y-6">
-            <Card className="border-none shadow-sm">
-              <CardHeader>
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* Left Column: Rates & Bio */}
+          <div className="lg:col-span-1 space-y-6">
+            <Card className="border-none shadow-sm overflow-hidden">
+              <CardHeader className="bg-green-600 text-white pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <PoundSterling className="h-5 w-5 text-green-600" /> Lesson Rates
+                  <PoundSterling className="h-5 w-5" /> Lesson Rates
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                  <span className="text-sm font-bold">1 Hour</span>
-                  <span className="font-black text-lg">£{instructor.rate_1h || instructor.hourly_rate || '0.00'}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                  <span className="text-sm font-bold">1.5 Hours</span>
-                  <span className="font-black text-lg">£{instructor.rate_1_5h || ((instructor.hourly_rate || 0) * 1.5).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                  <span className="text-sm font-bold">2 Hours</span>
-                  <span className="font-black text-lg">£{instructor.rate_2h || ((instructor.hourly_rate || 0) * 2).toFixed(2)}</span>
-                </div>
+              <CardContent className="p-4 space-y-3">
+                {[
+                  { label: "1 Hour", value: instructor.rate_1h || instructor.hourly_rate },
+                  { label: "1.5 Hours", value: instructor.rate_1_5h || ((instructor.hourly_rate || 0) * 1.5) },
+                  { label: "2 Hours", value: instructor.rate_2h || ((instructor.hourly_rate || 0) * 2) }
+                ].map((rate, i) => (
+                  <div key={i} className="flex justify-between items-center p-3 bg-muted/30 rounded-xl border border-muted">
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-tight">{rate.label}</span>
+                    <span className="font-black text-lg text-primary">£{Number(rate.value).toFixed(2)}</span>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
@@ -177,89 +207,117 @@ const PublicInstructorPage = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {instructor.public_bio}
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap italic">
+                    "{instructor.public_bio}"
                   </p>
                 </CardContent>
               </Card>
             )}
           </div>
 
-          <div className="md:col-span-2 space-y-6">
-            <Card className="border-none shadow-sm overflow-hidden">
-              <CardHeader className="bg-primary text-primary-foreground">
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarDays className="h-5 w-5" /> Current Availability
-                </CardTitle>
-                <CardDescription className="text-primary-foreground/70">
-                  Upcoming slots available for booking.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                {availability.length === 0 ? (
-                  <div className="p-12 text-center text-muted-foreground italic">
+          {/* Right Column: Availability & Restrictions */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Availability Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-1">
+                <CalendarDays className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-black tracking-tight">Current Availability</h2>
+              </div>
+
+              {Object.keys(groupedAvailability).length === 0 ? (
+                <Card className="border-dashed bg-muted/20">
+                  <CardContent className="p-12 text-center text-muted-foreground italic">
                     No public slots available right now. Please contact the instructor directly.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {availability.slice(0, 10).map((slot: any, i: number) => (
-                      <div key={i} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                        <div className="space-y-1">
-                          <p className="font-bold">{format(parseISO(slot.start_time), "EEEE, MMMM do")}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-2">
-                            <Clock className="h-3 w-3" /> {format(parseISO(slot.start_time), "p")} — {format(parseISO(slot.end_time), "p")}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Available</Badge>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedAvailability).map(([month, slots]) => (
+                    <div key={month} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="bg-primary text-primary-foreground font-bold px-3 py-1 rounded-full">
+                          {month}
+                        </Badge>
+                        <div className="h-px flex-1 bg-muted" />
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-sm border-l-4 border-l-orange-500">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-600" /> Driving Test Restrictions
-                </CardTitle>
-                <CardDescription>
-                  Please do not book driving tests on these dates without prior approval.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {unavailability.manual?.map((item: any) => (
-                  <div key={item.id} className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
-                    <Ban className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-bold text-orange-900">
-                        {format(parseISO(item.start_date), "MMM do")} 
-                        {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "MMM do")}`}
-                      </p>
-                      {item.reason && <p className="text-xs text-orange-800/70 mt-0.5">{item.reason}</p>}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {slots.map((slot, i) => (
+                          <Card key={i} className="border-none shadow-sm hover:shadow-md transition-all border-l-4 border-l-blue-500">
+                            <CardContent className="p-4 flex items-center justify-between">
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm truncate">{format(parseISO(slot.start_time), "EEEE, do")}</p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                                  <Clock className="h-3 w-3" /> {format(parseISO(slot.start_time), "p")} — {format(parseISO(slot.end_time), "p")}
+                                </p>
+                              </div>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
 
-                {unavailability.tests?.map((test: any, i: number) => (
-                  <div key={i} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <Car className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-bold text-blue-900">
-                        {format(parseISO(test.start_time), "EEEE, MMMM do")}
-                      </p>
-                      <p className="text-xs text-blue-800/70 mt-0.5">Instructor already has a test booked on this day.</p>
-                    </div>
-                  </div>
-                ))}
+            {/* Restrictions Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-1">
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
+                <h2 className="text-xl font-black tracking-tight">Driving Test Restrictions</h2>
+              </div>
+              
+              <p className="text-xs text-muted-foreground px-1 font-medium">
+                Please avoid booking driving tests on these dates as the instructor is unavailable.
+              </p>
 
-                {unavailability.manual?.length === 0 && unavailability.tests?.length === 0 && (
-                  <p className="text-sm text-muted-foreground italic text-center py-4">
+              {Object.keys(groupedRestrictions).length === 0 ? (
+                <Card className="border-dashed bg-muted/20">
+                  <CardContent className="p-8 text-center text-muted-foreground italic text-sm">
                     No specific test restrictions currently listed.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedRestrictions).map(([month, items]) => (
+                    <div key={month} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-bold border-orange-200 text-orange-700 bg-orange-50">
+                          {month}
+                        </Badge>
+                        <div className="h-px flex-1 bg-muted" />
+                      </div>
+                      <div className="grid gap-3">
+                        {items.manual.map((item, i) => (
+                          <div key={`manual-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-orange-100 shadow-sm">
+                            <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-sm font-bold text-orange-900">
+                                {format(parseISO(item.start_date), "do")} 
+                                {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "do")}`}
+                              </p>
+                              {item.reason && <p className="text-xs text-orange-800/70 mt-1 italic">"{item.reason}"</p>}
+                            </div>
+                          </div>
+                        ))}
+                        {items.tests.map((test, i) => (
+                          <div key={`test-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
+                            <Car className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-sm font-bold text-blue-900">
+                                {format(parseISO(test.start_time), "EEEE, do")}
+                              </p>
+                              <p className="text-xs text-blue-800/70 mt-1">Instructor already has a test booked on this day.</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
