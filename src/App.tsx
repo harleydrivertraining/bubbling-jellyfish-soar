@@ -47,6 +47,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const PublicInstructorPage = lazy(() => import("./pages/PublicInstructorPage"));
 const PublicProfileManagement = lazy(() => import("./pages/PublicProfileManagement"));
+const EmbedRestrictions = lazy(() => import("./pages/EmbedRestrictions"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -89,6 +90,9 @@ const AppContent = () => {
         
         {/* Public Instructor Route */}
         <Route path="/instructor/:identifier" element={<PublicInstructorPage />} />
+        
+        {/* Embed Route */}
+        <Route path="/embed/restrictions/:identifier" element={<EmbedRestrictions />} />
 
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
