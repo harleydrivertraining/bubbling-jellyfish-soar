@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,7 @@ import {
   Info,
   Ban,
   GraduationCap,
-  ChevronRight,
-  Calendar as CalendarIcon
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +64,7 @@ const PublicInstructorPage = () => {
         .select("start_time, end_time, lesson_type")
         .eq("user_id", instructor!.id)
         .eq("status", "available")
-        .gte("start_time", new Date().toISOString()) // Only future slots
+        .gte("start_time", new Date().toISOString())
         .order("start_time", { ascending: true });
       return data || [];
     },
@@ -83,7 +82,7 @@ const PublicInstructorPage = () => {
           .from("instructor_unavailability")
           .select("*")
           .eq("user_id", instructor!.id)
-          .gte("end_date", today) // Only current or future restrictions
+          .gte("end_date", today)
       ];
 
       if (instructor?.auto_hide_test_dates !== false) {
@@ -93,7 +92,7 @@ const PublicInstructorPage = () => {
             .eq("user_id", instructor!.id)
             .eq("lesson_type", "Driving Test")
             .neq("status", "cancelled")
-            .gte("start_time", now) // Only future tests
+            .gte("start_time", now)
         );
       }
 
@@ -107,7 +106,6 @@ const PublicInstructorPage = () => {
     enabled: !!instructor?.id
   });
 
-  // Grouping logic with explicit chronological sorting
   const groupedAvailability = useMemo(() => {
     const groups: Record<string, { slots: any[], sortDate: number }> = {};
     
@@ -120,7 +118,6 @@ const PublicInstructorPage = () => {
       groups[monthKey].slots.push(slot);
     });
 
-    // Return as sorted array of [month, data]
     return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
   }, [availability]);
 
@@ -145,7 +142,6 @@ const PublicInstructorPage = () => {
       groups[monthKey].tests.push(test);
     });
 
-    // Return as sorted array of [month, data]
     return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
   }, [unavailability]);
 
@@ -177,7 +173,6 @@ const PublicInstructorPage = () => {
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
       <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
-        {/* Header Section */}
         <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
           <div className="h-32 bg-primary/5 border-b" />
           <div className="px-6 pb-8 -mt-12 flex flex-col sm:flex-row items-center sm:items-end gap-6">
@@ -198,7 +193,6 @@ const PublicInstructorPage = () => {
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
-          {/* Left Column: Rates & Bio */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-green-600 text-white pb-4">
@@ -238,9 +232,7 @@ const PublicInstructorPage = () => {
             )}
           </div>
 
-          {/* Right Column: Availability & Restrictions */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Availability Section */}
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-primary text-white pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -282,7 +274,6 @@ const PublicInstructorPage = () => {
               </CardContent>
             </Card>
 
-            {/* Restrictions Section */}
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-orange-600 text-white pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
