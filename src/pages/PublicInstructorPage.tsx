@@ -295,7 +295,7 @@ const PublicInstructorPage = () => {
                 {groupedRestrictions.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground italic text-sm bg-muted/20 rounded-xl border border-dashed">
                     No specific test restrictions currently listed.
-                  </p>
+                  </div>
                 ) : (
                   <div className="space-y-8">
                     {groupedRestrictions.map(([month, items]) => (
