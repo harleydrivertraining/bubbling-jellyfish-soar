@@ -329,7 +329,6 @@ const PublicInstructorPage = () => {
                               <p className="text-sm font-bold text-blue-900">
                                 {format(parseISO(test.start_time), "EEEE, do")}
                               </p>
-                              <p className="text-xs text-blue-800/70 mt-1">Instructor already has a test booked on this day.</p>
                             </div>
                           </div>
                         ))}
