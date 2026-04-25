@@ -221,16 +221,18 @@ const PublicInstructorPage = () => {
             </Card>
 
             {instructor.public_bio && (
-              <Card className="border-none shadow-sm">
-                <CardHeader>
+              <Card className="border-none shadow-sm overflow-hidden">
+                <CardHeader className="bg-blue-600 text-white pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Info className="h-5 w-5 text-blue-600" /> About Me
+                    <Info className="h-5 w-5" /> About Me
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap italic">
-                    "{instructor.public_bio}"
-                  </p>
+                <CardContent className="p-4">
+                  <div className="p-4 bg-muted/30 rounded-xl border border-muted">
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap italic">
+                      "{instructor.public_bio}"
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -239,105 +241,103 @@ const PublicInstructorPage = () => {
           {/* Right Column: Availability & Restrictions */}
           <div className="lg:col-span-2 space-y-8">
             {/* Availability Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 px-1">
-                <CalendarDays className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-black tracking-tight">Current Availability</h2>
-              </div>
-
-              {groupedAvailability.length === 0 ? (
-                <Card className="border-dashed bg-muted/20">
-                  <CardContent className="p-12 text-center text-muted-foreground italic">
+            <Card className="border-none shadow-sm overflow-hidden">
+              <CardHeader className="bg-primary text-white pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5" /> Current Availability
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {groupedAvailability.length === 0 ? (
+                  <div className="p-12 text-center text-muted-foreground italic bg-muted/20 rounded-xl border border-dashed">
                     No public slots available right now. Please contact the instructor directly.
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-6">
-                  {groupedAvailability.map(([month, data]) => (
-                    <div key={month} className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-primary text-primary-foreground font-bold px-3 py-1 rounded-full">
-                          {month}
-                        </Badge>
-                        <div className="h-px flex-1 bg-muted" />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {data.slots.map((slot, i) => (
-                          <Card key={i} className="border-none shadow-sm hover:shadow-md transition-all border-l-4 border-l-blue-500">
-                            <CardContent className="p-4 flex items-center justify-between">
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {groupedAvailability.map(([month, data]) => (
+                      <div key={month} className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="secondary" className="bg-primary/10 text-primary font-black px-4 py-1 rounded-full uppercase text-[10px] tracking-widest border-none">
+                            {month}
+                          </Badge>
+                          <div className="h-px flex-1 bg-muted" />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {data.slots.map((slot, i) => (
+                            <div key={i} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-muted hover:bg-muted/50 transition-colors group">
                               <div className="min-w-0">
-                                <p className="font-bold text-sm truncate">{format(parseISO(slot.start_time), "EEEE, do")}</p>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                                <p className="font-bold text-sm text-primary">{format(parseISO(slot.start_time), "EEEE, do")}</p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 font-medium">
                                   <Clock className="h-3 w-3" /> {format(parseISO(slot.start_time), "p")} — {format(parseISO(slot.end_time), "p")}
                                 </p>
                               </div>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                            </CardContent>
-                          </Card>
-                        ))}
+                              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Restrictions Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 px-1">
-                <AlertTriangle className="h-5 w-5 text-orange-600" />
-                <h2 className="text-xl font-black tracking-tight">Driving Test Restrictions</h2>
-              </div>
-              
-              <p className="text-xs text-muted-foreground px-1 font-medium">
-                Please avoid booking driving tests on these dates as the instructor is unavailable.
-              </p>
+            <Card className="border-none shadow-sm overflow-hidden">
+              <CardHeader className="bg-orange-600 text-white pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" /> Driving Test Restrictions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground mb-6 font-medium italic">
+                  Please avoid booking driving tests on these dates as the instructor is unavailable.
+                </p>
 
-              {groupedRestrictions.length === 0 ? (
-                <Card className="border-dashed bg-muted/20">
-                  <CardContent className="p-8 text-center text-muted-foreground italic text-sm">
+                {groupedRestrictions.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground italic text-sm bg-muted/20 rounded-xl border border-dashed">
                     No specific test restrictions currently listed.
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-6">
-                  {groupedRestrictions.map(([month, items]) => (
-                    <div key={month} className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-bold border-orange-200 text-orange-700 bg-orange-50">
-                          {month}
-                        </Badge>
-                        <div className="h-px flex-1 bg-muted" />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {items.manual.map((item, i) => (
-                          <div key={`manual-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-orange-100 shadow-sm">
-                            <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
-                            <div>
-                              <p className="text-sm font-bold text-orange-900">
-                                {format(parseISO(item.start_date), "do")} 
-                                {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "do")}`}
-                              </p>
-                              {item.reason && <p className="text-xs text-orange-800/70 mt-1 italic">"{item.reason}"</p>}
+                  </p>
+                ) : (
+                  <div className="space-y-8">
+                    {groupedRestrictions.map(([month, items]) => (
+                      <div key={month} className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="font-black border-orange-200 text-orange-700 bg-orange-50 px-4 py-1 rounded-full uppercase text-[10px] tracking-widest">
+                            {month}
+                          </Badge>
+                          <div className="h-px flex-1 bg-muted" />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {items.manual.map((item, i) => (
+                            <div key={`manual-${i}`} className="flex items-start gap-3 p-4 bg-muted/30 rounded-xl border border-muted">
+                              <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-sm font-bold text-primary">
+                                  {format(parseISO(item.start_date), "do")} 
+                                  {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "do")}`}
+                                </p>
+                                {item.reason && <p className="text-xs text-muted-foreground mt-1 italic">"{item.reason}"</p>}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                        {items.tests.map((test, i) => (
-                          <div key={`test-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
-                            <Car className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
-                            <div>
-                              <p className="text-sm font-bold text-blue-900">
-                                {format(parseISO(test.start_time), "EEEE, do")}
-                              </p>
+                          ))}
+                          {items.tests.map((test, i) => (
+                            <div key={`test-${i}`} className="flex items-start gap-3 p-4 bg-muted/30 rounded-xl border border-muted">
+                              <Car className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-sm font-bold text-primary">
+                                  {format(parseISO(test.start_time), "EEEE, do")}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
