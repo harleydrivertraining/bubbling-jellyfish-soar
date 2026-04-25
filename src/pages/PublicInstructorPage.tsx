@@ -327,9 +327,6 @@ const PublicInstructorPage = () => {
                                 {item.type === 'manual' && item.reason && (
                                   <p className="text-xs text-muted-foreground mt-1 italic">"{item.reason}"</p>
                                 )}
-                                {item.type === 'test' && (
-                                  <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Existing Test Booking</p>
-                                )}
                               </div>
                             </div>
                           ))}
