@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfMonth } from "date-fns";
 import { 
   Car, 
   CalendarDays, 
@@ -107,33 +107,46 @@ const PublicInstructorPage = () => {
     enabled: !!instructor?.id
   });
 
-  // Grouping logic
+  // Grouping logic with explicit chronological sorting
   const groupedAvailability = useMemo(() => {
-    const groups: Record<string, any[]> = {};
+    const groups: Record<string, { slots: any[], sortDate: number }> = {};
+    
     availability.forEach(slot => {
-      const monthKey = format(parseISO(slot.start_time), 'MMMM yyyy');
-      if (!groups[monthKey]) groups[monthKey] = [];
-      groups[monthKey].push(slot);
+      const date = parseISO(slot.start_time);
+      const monthKey = format(date, 'MMMM yyyy');
+      if (!groups[monthKey]) {
+        groups[monthKey] = { slots: [], sortDate: startOfMonth(date).getTime() };
+      }
+      groups[monthKey].slots.push(slot);
     });
-    return groups;
+
+    // Return as sorted array of [month, data]
+    return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
   }, [availability]);
 
   const groupedRestrictions = useMemo(() => {
-    const groups: Record<string, { manual: any[], tests: any[] }> = {};
+    const groups: Record<string, { manual: any[], tests: any[], sortDate: number }> = {};
     
     unavailability.manual.forEach(item => {
-      const monthKey = format(parseISO(item.start_date), 'MMMM yyyy');
-      if (!groups[monthKey]) groups[monthKey] = { manual: [], tests: [] };
+      const date = parseISO(item.start_date);
+      const monthKey = format(date, 'MMMM yyyy');
+      if (!groups[monthKey]) {
+        groups[monthKey] = { manual: [], tests: [], sortDate: startOfMonth(date).getTime() };
+      }
       groups[monthKey].manual.push(item);
     });
 
     unavailability.tests.forEach(test => {
-      const monthKey = format(parseISO(test.start_time), 'MMMM yyyy');
-      if (!groups[monthKey]) groups[monthKey] = { manual: [], tests: [] };
+      const date = parseISO(test.start_time);
+      const monthKey = format(date, 'MMMM yyyy');
+      if (!groups[monthKey]) {
+        groups[monthKey] = { manual: [], tests: [], sortDate: startOfMonth(date).getTime() };
+      }
       groups[monthKey].tests.push(test);
     });
 
-    return groups;
+    // Return as sorted array of [month, data]
+    return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
   }, [unavailability]);
 
   if (isLoadingProfile) {
@@ -232,7 +245,7 @@ const PublicInstructorPage = () => {
                 <h2 className="text-xl font-black tracking-tight">Current Availability</h2>
               </div>
 
-              {Object.keys(groupedAvailability).length === 0 ? (
+              {groupedAvailability.length === 0 ? (
                 <Card className="border-dashed bg-muted/20">
                   <CardContent className="p-12 text-center text-muted-foreground italic">
                     No public slots available right now. Please contact the instructor directly.
@@ -240,7 +253,7 @@ const PublicInstructorPage = () => {
                 </Card>
               ) : (
                 <div className="space-y-6">
-                  {Object.entries(groupedAvailability).map(([month, slots]) => (
+                  {groupedAvailability.map(([month, data]) => (
                     <div key={month} className="space-y-3">
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="bg-primary text-primary-foreground font-bold px-3 py-1 rounded-full">
@@ -249,7 +262,7 @@ const PublicInstructorPage = () => {
                         <div className="h-px flex-1 bg-muted" />
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        {slots.map((slot, i) => (
+                        {data.slots.map((slot, i) => (
                           <Card key={i} className="border-none shadow-sm hover:shadow-md transition-all border-l-4 border-l-blue-500">
                             <CardContent className="p-4 flex items-center justify-between">
                               <div className="min-w-0">
@@ -280,7 +293,7 @@ const PublicInstructorPage = () => {
                 Please avoid booking driving tests on these dates as the instructor is unavailable.
               </p>
 
-              {Object.keys(groupedRestrictions).length === 0 ? (
+              {groupedRestrictions.length === 0 ? (
                 <Card className="border-dashed bg-muted/20">
                   <CardContent className="p-8 text-center text-muted-foreground italic text-sm">
                     No specific test restrictions currently listed.
@@ -288,7 +301,7 @@ const PublicInstructorPage = () => {
                 </Card>
               ) : (
                 <div className="space-y-6">
-                  {Object.entries(groupedRestrictions).map(([month, items]) => (
+                  {groupedRestrictions.map(([month, items]) => (
                     <div key={month} className="space-y-3">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="font-bold border-orange-200 text-orange-700 bg-orange-50">
