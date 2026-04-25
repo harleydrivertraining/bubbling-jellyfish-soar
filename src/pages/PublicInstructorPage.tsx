@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { format, parseISO, startOfDay } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { 
   Car, 
   CalendarDays, 
@@ -19,7 +19,7 @@ import {
   Ban,
   GraduationCap,
   ChevronRight,
-  Calendar
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -285,45 +285,46 @@ const PublicInstructorPage = () => {
                   <CardContent className="p-8 text-center text-muted-foreground italic text-sm">
                     No specific test restrictions currently listed.
                   </CardContent>
-                ) : (
-                  <div className="space-y-6">
-                    {Object.entries(groupedRestrictions).map(([month, items]) => (
-                      <div key={month} className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="font-bold border-orange-200 text-orange-700 bg-orange-50">
-                            {month}
-                          </Badge>
-                          <div className="h-px flex-1 bg-muted" />
-                        </div>
-                        <div className="grid gap-3">
-                          {items.manual.map((item, i) => (
-                            <div key={`manual-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-orange-100 shadow-sm">
-                              <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-sm font-bold text-orange-900">
-                                  {format(parseISO(item.start_date), "do")} 
-                                  {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "do")}`}
-                                </p>
-                                {item.reason && <p className="text-xs text-orange-800/70 mt-1 italic">"{item.reason}"</p>}
-                              </div>
-                            </div>
-                          ))}
-                          {items.tests.map((test, i) => (
-                            <div key={`test-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
-                              <Car className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-sm font-bold text-blue-900">
-                                  {format(parseISO(test.start_time), "EEEE, do")}
-                                </p>
-                                <p className="text-xs text-blue-800/70 mt-1">Instructor already has a test booked on this day.</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedRestrictions).map(([month, items]) => (
+                    <div key={month} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-bold border-orange-200 text-orange-700 bg-orange-50">
+                          {month}
+                        </Badge>
+                        <div className="h-px flex-1 bg-muted" />
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <div className="grid gap-3">
+                        {items.manual.map((item, i) => (
+                          <div key={`manual-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-orange-100 shadow-sm">
+                            <Ban className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-sm font-bold text-orange-900">
+                                {format(parseISO(item.start_date), "do")} 
+                                {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "do")}`}
+                              </p>
+                              {item.reason && <p className="text-xs text-orange-800/70 mt-1 italic">"{item.reason}"</p>}
+                            </div>
+                          </div>
+                        ))}
+                        {items.tests.map((test, i) => (
+                          <div key={`test-${i}`} className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
+                            <Car className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-sm font-bold text-blue-900">
+                                {format(parseISO(test.start_time), "EEEE, do")}
+                              </p>
+                              <p className="text-xs text-blue-800/70 mt-1">Instructor already has a test booked on this day.</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
