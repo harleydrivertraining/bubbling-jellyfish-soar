@@ -17,8 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const UnavailabilityManager = () => {
   const { user } = useSession();
   const queryClient = useQueryClient();
-  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [reason, setReason] = useState("");
 
   const { data: items = [], isLoading } = useQuery({
@@ -37,13 +36,15 @@ const UnavailabilityManager = () => {
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      if (!startDate || !endDate) return;
+      if (!selectedDate) return;
+      const formattedDate = format(selectedDate, "yyyy-MM-dd");
+      
       const { error } = await supabase
         .from("instructor_unavailability")
         .insert({
           user_id: user!.id,
-          start_date: format(startDate, "yyyy-MM-dd"),
-          end_date: format(endDate, "yyyy-MM-dd"),
+          start_date: formattedDate,
+          end_date: formattedDate, // Set both to the same day for individual selection
           reason: reason.trim() || null
         });
       if (error) throw error;
@@ -52,7 +53,7 @@ const UnavailabilityManager = () => {
       queryClient.invalidateQueries({ queryKey: ['instructor-unavailability'] });
       queryClient.invalidateQueries({ queryKey: ['public-unavailability'] });
       setReason("");
-      showSuccess("Unavailability added.");
+      showSuccess("Restriction added for the selected day.");
     },
     onError: (err: any) => showError(err.message)
   });
@@ -68,7 +69,7 @@ const UnavailabilityManager = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instructor-unavailability'] });
       queryClient.invalidateQueries({ queryKey: ['public-unavailability'] });
-      showSuccess("Removed.");
+      showSuccess("Restriction removed.");
     }
   });
 
@@ -78,23 +79,18 @@ const UnavailabilityManager = () => {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-600" />
-            Add "No Test" Date
+            Add "No Test" Day
           </CardTitle>
           <CardDescription>
-            Mark dates where you are busy or don't want students to book driving tests.
+            Pick a specific day where you don't want students to book driving tests.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase">Start Date</Label>
-              <DatePicker date={startDate} setDate={setStartDate} />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase">End Date</Label>
-              <DatePicker date={endDate} setDate={setEndDate} />
-            </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase">Select Date</Label>
+            <DatePicker date={selectedDate} setDate={setSelectedDate} />
           </div>
+          
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase">Reason (Optional)</Label>
             <Input 
@@ -103,10 +99,11 @@ const UnavailabilityManager = () => {
               onChange={(e) => setReason(e.target.value)}
             />
           </div>
+          
           <Button 
             className="w-full font-bold" 
             onClick={() => addMutation.mutate()}
-            disabled={addMutation.isPending || !startDate || !endDate}
+            disabled={addMutation.isPending || !selectedDate}
           >
             {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="mr-2 h-4 w-4" /> Add Restriction</>}
           </Button>
@@ -129,8 +126,7 @@ const UnavailabilityManager = () => {
               <div key={item.id} className="flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm group">
                 <div className="min-w-0">
                   <p className="font-bold text-sm">
-                    {format(parseISO(item.start_date), "MMM do")} 
-                    {item.start_date !== item.end_date && ` — ${format(parseISO(item.end_date), "MMM do")}`}
+                    {format(parseISO(item.start_date), "EEEE, MMM do, yyyy")}
                   </p>
                   {item.reason && <p className="text-xs text-muted-foreground truncate">{item.reason}</p>}
                 </div>
