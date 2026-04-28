@@ -55,9 +55,11 @@ const PublicProfileSettings = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       if (!user) return;
+      
+      // Using a safer select to avoid crashing if columns are missing
       const { data, error } = await supabase
         .from("profiles")
-        .select("is_public, show_availability_publicly, public_slug, public_bio, auto_hide_test_dates, logo_url")
+        .select("*")
         .eq("id", user.id)
         .single();
       
@@ -131,6 +133,7 @@ const PublicProfileSettings = () => {
 
       if (error) {
         if (error.code === '23505') throw new Error("This URL slug is already taken. Please try another.");
+        if (error.message.includes("column")) throw new Error("Database update required. Please run the SQL migration provided in the chat.");
         throw error;
       }
 
