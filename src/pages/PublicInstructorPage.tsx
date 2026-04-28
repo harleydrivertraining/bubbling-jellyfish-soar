@@ -8,7 +8,17 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { format, parseISO, startOfMonth } from "date-fns";
+import { 
+  format, 
+  parseISO, 
+  startOfMonth, 
+  addHours, 
+  addWeeks, 
+  startOfDay, 
+  setHours, 
+  setMinutes, 
+  differenceInMinutes 
+} from "date-fns";
 import { 
   Car, 
   CalendarDays, 
@@ -57,22 +67,101 @@ const PublicInstructorPage = () => {
     enabled: !!identifier
   });
 
-  const { data: availability = [] } = useQuery({
-    queryKey: ['public-availability', instructor?.id],
+  // Fetch all bookings to calculate gaps if in Open mode
+  const { data: allBookings = [] } = useQuery({
+    queryKey: ['public-all-bookings', instructor?.id],
     queryFn: async () => {
-      if (!instructor?.show_availability_publicly) return [];
-      
+      const start = new Date().toISOString();
+      const end = addWeeks(new Date(), 2).toISOString();
       const { data } = await supabase
         .from("bookings")
-        .select("start_time, end_time, lesson_type")
+        .select("id, start_time, end_time, status")
         .eq("user_id", instructor!.id)
-        .eq("status", "available")
-        .gte("start_time", new Date().toISOString())
-        .order("start_time", { ascending: true });
+        .gte("start_time", start)
+        .lte("end_time", end)
+        .neq("status", "cancelled");
       return data || [];
     },
-    enabled: !!instructor?.id
+    enabled: !!instructor?.id && !!instructor?.show_availability_publicly
   });
+
+  const calculatedAvailability = useMemo(() => {
+    if (!instructor || !instructor.show_availability_publicly) return [];
+
+    const mode = instructor.booking_mode || "gaps";
+    const now = new Date();
+    const noticeHours = instructor.min_booking_notice_hours ?? 48;
+    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
+    const minStartTimeMs = addHours(now, noticeHours).getTime();
+    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
+    const durationMs = 60 * 60000; // Default to 1 hour for public preview
+    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
+    const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
+
+    const busyPeriods = allBookings
+      .filter(b => b.status !== 'available')
+      .map(b => ({
+        start: parseISO(b.start_time).getTime() - bufferMs,
+        end: parseISO(b.end_time).getTime() + bufferMs
+      }));
+
+    const slots: any[] = [];
+    const daysToSearch = 14; // Show next 2 weeks
+
+    for (let i = 0; i < daysToSearch; i++) {
+      const day = addHours(startOfDay(now), i * 24);
+      const dateKey = format(day, 'yyyy-MM-dd');
+      
+      if (mode === "gaps") {
+        const manualGaps = allBookings.filter(b => b.status === 'available' && b.start_time.startsWith(dateKey));
+        manualGaps.forEach(gap => {
+          const gapStartMs = parseISO(gap.start_time).getTime();
+          const gapEndMs = parseISO(gap.end_time).getTime();
+          let currentPointerMs = gapStartMs;
+          while (currentPointerMs + durationMs <= gapEndMs && slots.length < 15) {
+            const endPointerMs = currentPointerMs + durationMs;
+            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+              slots.push({ 
+                start_time: new Date(currentPointerMs).toISOString(), 
+                end_time: new Date(endPointerMs).toISOString() 
+              });
+            }
+            currentPointerMs += intervalMs;
+          }
+        });
+      } else {
+        const dayOfWeek = day.getDay().toString();
+        const dayConfig = instructor.working_hours?.[dayOfWeek];
+        if (dayConfig?.active) {
+          const parseTime = (t: any) => {
+            if (typeof t === 'number') return [t, 0];
+            const parts = (t || "09:00").split(':').map(Number);
+            return parts.length === 2 ? parts : [9, 0];
+          };
+          const [startH, startM] = parseTime(dayConfig.start);
+          const [endH, endM] = parseTime(dayConfig.end);
+          const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
+          const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
+
+          let currentPointerMs = dayStartMs;
+          while (currentPointerMs + durationMs <= dayEndMs && slots.length < 15) {
+            const endPointerMs = currentPointerMs + durationMs;
+            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+              slots.push({ 
+                start_time: new Date(currentPointerMs).toISOString(), 
+                end_time: new Date(endPointerMs).toISOString() 
+              });
+            }
+            currentPointerMs += intervalMs;
+          }
+        }
+      }
+      if (slots.length >= 15) break;
+    }
+    return slots;
+  }, [instructor, allBookings]);
 
   const { data: unavailability = { manual: [], tests: [] } } = useQuery({
     queryKey: ['public-unavailability', instructor?.id, instructor?.auto_hide_test_dates],
@@ -112,7 +201,7 @@ const PublicInstructorPage = () => {
   const groupedAvailability = useMemo(() => {
     const groups: Record<string, { slots: any[], sortDate: number }> = {};
     
-    availability.forEach(slot => {
+    calculatedAvailability.forEach(slot => {
       const date = parseISO(slot.start_time);
       const monthKey = format(date, 'MMMM yyyy');
       if (!groups[monthKey]) {
@@ -122,7 +211,7 @@ const PublicInstructorPage = () => {
     });
 
     return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
-  }, [availability]);
+  }, [calculatedAvailability]);
 
   const groupedRestrictions = useMemo(() => {
     const allItems: any[] = [
@@ -233,7 +322,6 @@ const PublicInstructorPage = () => {
           </div>
 
           <div className="lg:col-span-2 space-y-8">
-            {/* Availability Section - Respecting the toggle */}
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-primary text-white pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
