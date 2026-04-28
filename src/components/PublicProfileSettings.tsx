@@ -21,12 +21,13 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { Globe, ExternalLink, Copy, Loader2, ShieldCheck, Car, Upload, X } from "lucide-react";
+import { Globe, ExternalLink, Copy, Loader2, ShieldCheck, Car, Upload, X, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const formSchema = z.object({
   is_public: z.boolean().default(false),
+  show_availability_publicly: z.boolean().default(false),
   auto_hide_test_dates: z.boolean().default(true),
   public_slug: z.string().min(3, "Slug must be at least 3 characters").regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed").optional().nullable().or(z.literal("")),
   public_bio: z.string().max(500, "Bio must be under 500 characters").optional().nullable().or(z.literal("")),
@@ -43,6 +44,7 @@ const PublicProfileSettings = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       is_public: false,
+      show_availability_publicly: false,
       auto_hide_test_dates: true,
       public_slug: "",
       public_bio: "",
@@ -55,13 +57,14 @@ const PublicProfileSettings = () => {
       if (!user) return;
       const { data, error } = await supabase
         .from("profiles")
-        .select("is_public, public_slug, public_bio, auto_hide_test_dates, logo_url")
+        .select("is_public, show_availability_publicly, public_slug, public_bio, auto_hide_test_dates, logo_url")
         .eq("id", user.id)
         .single();
       
       if (data) {
         form.reset({
           is_public: data.is_public ?? false,
+          show_availability_publicly: data.show_availability_publicly ?? false,
           auto_hide_test_dates: data.auto_hide_test_dates ?? true,
           public_slug: data.public_slug || "",
           public_bio: data.public_bio || "",
@@ -77,7 +80,6 @@ const PublicProfileSettings = () => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       showError("Please upload an image file.");
       return;
@@ -88,7 +90,7 @@ const PublicProfileSettings = () => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/logo-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('storage2')
         .upload(fileName, file, { upsert: true });
 
@@ -119,6 +121,7 @@ const PublicProfileSettings = () => {
         .from("profiles")
         .update({
           is_public: values.is_public,
+          show_availability_publicly: values.show_availability_publicly,
           auto_hide_test_dates: values.auto_hide_test_dates,
           public_slug: values.public_slug?.trim() || null,
           public_bio: values.public_bio?.trim() || null,
@@ -153,7 +156,6 @@ const PublicProfileSettings = () => {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Card className="border-none shadow-none bg-muted/30">
           <CardContent className="p-4 space-y-6">
-            {/* Logo Upload Section */}
             <div className="space-y-4">
               <Label className="text-sm font-bold uppercase text-muted-foreground">Profile Logo</Label>
               <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-background rounded-lg border shadow-sm">
@@ -214,7 +216,31 @@ const PublicProfileSettings = () => {
                       Enable Public Profile
                     </FormLabel>
                     <FormDescription className="text-xs">
-                      Allow anyone with the link to view your prices and availability.
+                      Allow anyone with the link to view your prices and bio.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="show_availability_publicly"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-4 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base font-bold flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-green-600" />
+                      Show Availability Publicly
+                    </FormLabel>
+                    <FormDescription className="text-xs">
+                      Display your "Available" lesson slots on your public page.
                     </FormDescription>
                   </div>
                   <FormControl>
