@@ -17,7 +17,8 @@ import {
   startOfDay, 
   setHours, 
   setMinutes, 
-  differenceInMinutes 
+  differenceInMinutes,
+  isSameDay
 } from "date-fns";
 import { 
   Car, 
@@ -67,102 +68,26 @@ const PublicInstructorPage = () => {
     enabled: !!identifier
   });
 
-  // Fetch all bookings to calculate gaps if in Open mode
+  // Fetch all bookings to calculate gaps
   const { data: allBookings = [] } = useQuery({
     queryKey: ['public-all-bookings', instructor?.id],
     queryFn: async () => {
-      const start = new Date().toISOString();
-      const end = addWeeks(new Date(), 2).toISOString();
+      // Fetch from start of today to catch any overlapping multi-day events
+      const start = startOfDay(new Date()).toISOString();
+      const end = addWeeks(new Date(), 4).toISOString(); // Look ahead 4 weeks
       const { data } = await supabase
         .from("bookings")
         .select("id, start_time, end_time, status")
         .eq("user_id", instructor!.id)
-        .gte("start_time", start)
-        .lte("end_time", end)
+        .gte("end_time", start)
+        .lte("start_time", end)
         .neq("status", "cancelled");
       return data || [];
     },
     enabled: !!instructor?.id && !!instructor?.show_availability_publicly
   });
 
-  const calculatedAvailability = useMemo(() => {
-    if (!instructor || !instructor.show_availability_publicly) return [];
-
-    const mode = instructor.booking_mode || "gaps";
-    const now = new Date();
-    const noticeHours = instructor.min_booking_notice_hours ?? 48;
-    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
-    const minStartTimeMs = addHours(now, noticeHours).getTime();
-    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
-    const durationMs = 60 * 60000; // Default to 1 hour for public preview
-    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
-    const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
-
-    const busyPeriods = allBookings
-      .filter(b => b.status !== 'available')
-      .map(b => ({
-        start: parseISO(b.start_time).getTime() - bufferMs,
-        end: parseISO(b.end_time).getTime() + bufferMs
-      }));
-
-    const slots: any[] = [];
-    const daysToSearch = 14; // Show next 2 weeks
-
-    for (let i = 0; i < daysToSearch; i++) {
-      const day = addHours(startOfDay(now), i * 24);
-      const dateKey = format(day, 'yyyy-MM-dd');
-      
-      if (mode === "gaps") {
-        const manualGaps = allBookings.filter(b => b.status === 'available' && b.start_time.startsWith(dateKey));
-        manualGaps.forEach(gap => {
-          const gapStartMs = parseISO(gap.start_time).getTime();
-          const gapEndMs = parseISO(gap.end_time).getTime();
-          let currentPointerMs = gapStartMs;
-          while (currentPointerMs + durationMs <= gapEndMs && slots.length < 15) {
-            const endPointerMs = currentPointerMs + durationMs;
-            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
-            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
-              slots.push({ 
-                start_time: new Date(currentPointerMs).toISOString(), 
-                end_time: new Date(endPointerMs).toISOString() 
-              });
-            }
-            currentPointerMs += intervalMs;
-          }
-        });
-      } else {
-        const dayOfWeek = day.getDay().toString();
-        const dayConfig = instructor.working_hours?.[dayOfWeek];
-        if (dayConfig?.active) {
-          const parseTime = (t: any) => {
-            if (typeof t === 'number') return [t, 0];
-            const parts = (t || "09:00").split(':').map(Number);
-            return parts.length === 2 ? parts : [9, 0];
-          };
-          const [startH, startM] = parseTime(dayConfig.start);
-          const [endH, endM] = parseTime(dayConfig.end);
-          const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
-          const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
-
-          let currentPointerMs = dayStartMs;
-          while (currentPointerMs + durationMs <= dayEndMs && slots.length < 15) {
-            const endPointerMs = currentPointerMs + durationMs;
-            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
-            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
-              slots.push({ 
-                start_time: new Date(currentPointerMs).toISOString(), 
-                end_time: new Date(endPointerMs).toISOString() 
-              });
-            }
-            currentPointerMs += intervalMs;
-          }
-        }
-      }
-      if (slots.length >= 15) break;
-    }
-    return slots;
-  }, [instructor, allBookings]);
-
+  // Fetch manual restrictions
   const { data: unavailability = { manual: [], tests: [] } } = useQuery({
     queryKey: ['public-unavailability', instructor?.id, instructor?.auto_hide_test_dates],
     queryFn: async () => {
@@ -197,6 +122,98 @@ const PublicInstructorPage = () => {
     },
     enabled: !!instructor?.id
   });
+
+  const calculatedAvailability = useMemo(() => {
+    if (!instructor || !instructor.show_availability_publicly) return [];
+
+    const mode = instructor.booking_mode || "gaps";
+    const now = new Date();
+    const noticeHours = instructor.min_booking_notice_hours ?? 48;
+    const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
+    const minStartTimeMs = addHours(now, noticeHours).getTime();
+    const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
+    const durationMs = 60 * 60000; // Default to 1 hour for public preview
+    const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
+    const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
+
+    // Busy periods are anything that ISN'T an available slot
+    const busyPeriods = allBookings
+      .filter(b => b.status !== 'available')
+      .map(b => ({
+        start: parseISO(b.start_time).getTime() - bufferMs,
+        end: parseISO(b.end_time).getTime() + bufferMs
+      }));
+
+    const slots: any[] = [];
+    const daysToSearch = 14; // Show next 2 weeks
+
+    for (let i = 0; i < daysToSearch; i++) {
+      const day = addHours(startOfDay(now), i * 24);
+      const dateKey = format(day, 'yyyy-MM-dd');
+      
+      // Check if this day has a manual restriction
+      const isRestricted = unavailability.manual.some(m => 
+        isSameDay(parseISO(m.start_date), day) || 
+        (day >= parseISO(m.start_date) && day <= parseISO(m.end_date))
+      );
+
+      if (isRestricted) continue;
+
+      if (mode === "gaps") {
+        const manualGaps = allBookings.filter(b => b.status === 'available' && b.start_time.startsWith(dateKey));
+        manualGaps.forEach(gap => {
+          const gapStartMs = parseISO(gap.start_time).getTime();
+          const gapEndMs = parseISO(gap.end_time).getTime();
+          let currentPointerMs = gapStartMs;
+          
+          while (currentPointerMs + durationMs <= gapEndMs && slots.length < 20) {
+            const endPointerMs = currentPointerMs + durationMs;
+            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+            
+            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+              slots.push({ 
+                start_time: new Date(currentPointerMs).toISOString(), 
+                end_time: new Date(endPointerMs).toISOString() 
+              });
+            }
+            currentPointerMs += intervalMs;
+          }
+        });
+      } else {
+        const dayOfWeek = day.getDay().toString();
+        const dayConfig = instructor.working_hours?.[dayOfWeek];
+        
+        if (dayConfig?.active) {
+          const parseTime = (t: any) => {
+            if (typeof t === 'number') return [t, 0];
+            const parts = (t || "09:00").split(':').map(Number);
+            return parts.length === 2 ? parts : [9, 0];
+          };
+          
+          const [startH, startM] = parseTime(dayConfig.start);
+          const [endH, endM] = parseTime(dayConfig.end);
+          const dayStartMs = setMinutes(setHours(startOfDay(day), startH), startM).getTime();
+          const dayEndMs = setMinutes(setHours(startOfDay(day), endH), endM).getTime();
+
+          let currentPointerMs = dayStartMs;
+          while (currentPointerMs + durationMs <= dayEndMs && slots.length < 20) {
+            const endPointerMs = currentPointerMs + durationMs;
+            const isClashing = busyPeriods.some(busy => currentPointerMs < busy.end && endPointerMs > busy.start);
+            
+            if (currentPointerMs >= minStartTimeMs && currentPointerMs <= maxStartTimeMs && !isClashing) {
+              slots.push({ 
+                start_time: new Date(currentPointerMs).toISOString(), 
+                end_time: new Date(endPointerMs).toISOString() 
+              });
+            }
+            currentPointerMs += intervalMs;
+          }
+        }
+      }
+      if (slots.length >= 20) break;
+    }
+    return slots;
+  }, [instructor, allBookings, unavailability.manual]);
 
   const groupedAvailability = useMemo(() => {
     const groups: Record<string, { slots: any[], sortDate: number }> = {};
