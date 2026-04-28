@@ -132,7 +132,6 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
   }
 
   let finalTime = targetDate;
-  // Updated regex to support both : and . for minutes
   const timeMatch = input.match(/(?:at\s+)(\d+)(?:[:.](\d+))?\s*(am|pm)?/i) || 
                     input.match(/(\d+)(?:[:.](\d+))?\s*(am|pm)/i) ||
                     input.match(/(\d+)[:.](\d+)/i);
@@ -162,7 +161,6 @@ const parseDateTime = (input: string): { date: Date; timeProvided: boolean } => 
  * Helper to extract multiple times from a string
  */
 const extractMultipleTimes = (input: string, baseDate: Date): Date[] => {
-  // Updated regex to support both : and . for minutes
   const timeRegex = /(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?/gi;
   const results: Date[] = [];
   let match;
@@ -224,17 +222,31 @@ export const processAICommand = async (text: string, userId: string, context?: a
 
       if (step === 'dob') {
         const { date } = parseDateTime(input);
-        const formattedDob = format(date, "yyyy-MM-dd");
+        data.dob = format(date, "yyyy-MM-dd");
+        data.step = 'address';
+        return { success: true, message: `Understood. What is their home address? (Type 'skip' to leave blank)`, newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'address') {
+        data.address = input === 'skip' ? null : text.trim();
+        data.step = 'license';
+        return { success: true, message: `And finally, what is their driving license number? (Type 'skip' to leave blank)`, newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'license') {
+        data.license = input === 'skip' ? null : text.trim();
         
         const { error } = await supabase.from("students").insert({
           user_id: userId,
           name: data.name,
-          date_of_birth: formattedDob,
+          date_of_birth: data.dob,
+          full_address: data.address,
+          driving_license_number: data.license,
           status: "Beginner"
         });
 
         if (error) return { success: false, message: "Failed to add student: " + error.message };
-        return { success: true, message: `Success! I've added **${data.name}** to your student list.`, actionTaken: "add_student", newContext: null };
+        return { success: true, message: `Success! I've added **${data.name}** to your student list with all the details provided.`, actionTaken: "add_student", newContext: null };
       }
     }
 
@@ -373,25 +385,17 @@ export const processAICommand = async (text: string, userId: string, context?: a
     // --- TO DO LIST PATTERNS ---
     const isTodoKeyword = input.includes("task") || input.includes("todo") || input.includes("to-do") || input.includes("reminder") || input.includes("remind") || input.includes("forget");
     
-    // Add Todo
     if ((input.includes("add") || input.includes("remind") || input.includes("forget") || input.includes("put") || input.includes("new")) && isTodoKeyword) {
       let task = null;
-      
       const remindMatch = text.match(/(?:remind me to|don't forget to|do not forget to|remind me|reminder to)\s+(.+)/i);
       const addMatch = text.match(/(?:add|put|create)(?:\s+a)?(?:\s+new)?(?:\s+task|\s+todo|\s+to-do|\s+reminder)?(?:\s+called|\s+named|:)?\s+(.+?)(?:\s+to my|\s+on my|\s+in my|$)/i);
-      
       if (remindMatch) task = remindMatch[1].trim();
       else if (addMatch) task = addMatch[1].trim();
-
       if (task) {
         task = task.replace(/(?:to|on|in)\s+(?:my\s+)?(?:todo|to-do|task|list|reminders?)$/i, "").trim();
-        
         const keywords = ["task", "todo", "to-do", "reminder", "reminders"];
-        if (keywords.includes(task.toLowerCase())) {
-          task = null;
-        }
+        if (keywords.includes(task.toLowerCase())) task = null;
       }
-
       if (task) {
         const { error } = await supabase.from("instructor_todos").insert({ user_id: userId, task });
         if (error) return { success: false, message: "Failed to add task: " + error.message };
@@ -401,7 +405,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // Complete Todo
     if ((input.includes("complete") || input.includes("finish") || input.includes("mark") || input.includes("set")) && isTodoKeyword) {
       const searchArea = input.replace(/complete|finish|mark|set|task|todo|to-do|reminder|as|done|completed|finished/g, "").trim();
       if (searchArea) {
@@ -414,14 +417,12 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // Delete Todo
     if ((input.includes("delete") || input.includes("remove")) && isTodoKeyword) {
       if (input.includes("all") || input.includes("everything") || input.includes("list")) {
         const { error } = await supabase.from("instructor_todos").delete().eq("user_id", userId);
         if (error) return { success: false, message: "Failed to clear your list." };
         return { success: true, message: "I've cleared all tasks from your to do list.", actionTaken: "clear_todos" };
       }
-
       const searchArea = input.replace(/delete|remove|task|todo|to-do|reminder/g, "").trim();
       if (searchArea) {
         const matchedTodo = todos.find(t => t.task.toLowerCase().includes(searchArea));
@@ -433,7 +434,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       }
     }
 
-    // List Todos
     if ((input.includes("what") || input.includes("show") || input.includes("list")) && (input.includes("tasks") || input.includes("todo") || input.includes("to-do") || input.includes("reminders"))) {
       const active = todos.filter(t => !t.completed);
       if (active.length === 0) return { success: true, message: "Your to do list is empty! You're all caught up." };
@@ -448,7 +448,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
     if (isTestKeyword || isOutcomeKeyword) {
       const { student, ambiguous, options } = resolveStudentFromInput(input, students);
       const { date } = parseDateTime(input);
-      
       if (ambiguous) {
         return { 
           success: true, 
@@ -456,13 +455,10 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: { pendingTestResult: { step: 'student', date: format(date, "yyyy-MM-dd") } } 
         };
       }
-
       const passed = input.includes("passed") || input.includes("pass");
       const failed = input.includes("failed") || input.includes("fail");
-      
       const drivingMatch = input.match(/(\d+)\s*(?:driving|minor)/i);
       const seriousMatch = input.match(/(\d+)\s*(?:serious|major)/i);
-
       if (!student) {
         return { 
           success: true, 
@@ -470,7 +466,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: { pendingTestResult: { step: 'student', date: format(date, "yyyy-MM-dd"), passed: passed || (failed ? false : undefined) } } 
         };
       }
-
       if (!passed && !failed) {
         return { 
           success: true, 
@@ -478,12 +473,8 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: { pendingTestResult: { step: 'outcome', student_id: student.id, student_name: student.name, date: format(date, "yyyy-MM-dd") } } 
         };
       }
-
-      // If we have student and outcome, we can try to save or ask for faults
       const drivingFaults = drivingMatch ? parseInt(drivingMatch[1]) : 0;
       const seriousFaults = passed ? 0 : (seriousMatch ? parseInt(seriousMatch[1]) : 0);
-
-      // If faults aren't mentioned, we should probably ask
       if (!drivingMatch && (!passed && !seriousMatch)) {
         if (passed) {
           return { 
@@ -499,8 +490,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
           };
         }
       }
-
-      // Final creation
       const { error } = await supabase.from("driving_tests").insert({
         user_id: userId,
         student_id: student.id,
@@ -511,7 +500,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
         examiner_action: input.includes("examiner action") || input.includes("intervention"),
         notes: `Added via AI Assistant`
       });
-
       if (error) return { success: false, message: "Failed to record test result: " + error.message };
       return { success: true, message: `Success! I've recorded the **${passed ? 'pass' : 'fail'}** for **${student.name}** with ${drivingFaults} driving faults${passed ? '' : ' and ' + seriousFaults + ' serious faults'}.`, actionTaken: "test_result" };
     }
@@ -525,7 +513,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
       const isAvailability = isGapKeyword;
       const { student, ambiguous, options } = resolveStudentFromInput(input, students);
       const { date: baseDate, timeProvided } = parseDateTime(input);
-
       if (ambiguous) {
         return { 
           success: true, 
@@ -533,8 +520,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: { pendingBooking: { step: 'student', date: format(baseDate, "yyyy-MM-dd"), start_time: baseDate.toISOString(), lesson_type: isAvailability ? "Availability" : "Driving lesson" } } 
         };
       }
-
-      // If it's a gap and we don't have time/date
       if (isAvailability && !timeProvided) {
         return { 
           success: true, 
@@ -542,8 +527,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: { pendingBooking: { step: 'date', lesson_type: "Availability" } } 
         };
       }
-
-      // If it's a lesson and we don't have a student
       if (!isAvailability && !student) {
         return { 
           success: true, 
@@ -551,8 +534,6 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: { pendingBooking: { step: 'student', date: format(baseDate, "yyyy-MM-dd"), start_time: baseDate.toISOString() } } 
         };
       }
-
-      // Handle multiple times for gaps
       let durationMins = 60;
       const durationMatch = input.match(/(\d+(?:\.\d+)?)\s*(hour|hr|min|minute)s?/i);
       if (durationMatch) { 
@@ -560,17 +541,14 @@ export const processAICommand = async (text: string, userId: string, context?: a
         const unit = durationMatch[2].toLowerCase(); 
         durationMins = (unit.startsWith('h')) ? val * 60 : val; 
       }
-
       let lessonType = isAvailability ? "Availability" : "Driving lesson";
       let status = isAvailability ? "available" : "scheduled";
-      
       if (input.includes("test")) { 
         lessonType = "Driving Test"; 
         if (!durationMatch) durationMins = 120; 
       } else if (input.includes("personal")) {
         lessonType = "Personal";
       }
-
       if (!timeProvided) {
         return { 
           success: true, 
@@ -578,10 +556,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
           newContext: { pendingBooking: { step: 'date', student_id: student?.id, student_name: student?.name, lesson_type: lessonType, duration_mins: durationMins } } 
         };
       }
-
-      // Check for multiple times in the input
       const allTimes = extractMultipleTimes(input, baseDate);
-      
       if (allTimes.length > 1 && isAvailability) {
         const bookingsToInsert = allTimes.map(startTime => ({
           user_id: userId,
@@ -592,10 +567,8 @@ export const processAICommand = async (text: string, userId: string, context?: a
           end_time: addMinutes(startTime, durationMins).toISOString(),
           status: "available"
         }));
-
         const { error } = await supabase.from("bookings").insert(bookingsToInsert);
         if (error) return { success: false, message: "Failed to create gaps: " + error.message };
-
         const timeList = allTimes.map(t => format(t, "p")).join(", ");
         return { 
           success: true, 
@@ -603,10 +576,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
           actionTaken: "multiple_bookings" 
         };
       }
-
-      // Final creation for single booking
       const title = isAvailability ? "Available Slot" : (student ? `${student.name} - ${lessonType}` : lessonType);
-      
       const { error } = await supabase.from("bookings").insert({ 
         user_id: userId, 
         student_id: isAvailability ? null : (student?.id || null), 
@@ -616,9 +586,7 @@ export const processAICommand = async (text: string, userId: string, context?: a
         end_time: addMinutes(baseDate, durationMins).toISOString(), 
         status: status 
       });
-
       if (error) return { success: false, message: "Failed to create booking: " + error.message };
-
       return { 
         success: true, 
         message: `Added a ${durationMins >= 60 ? (durationMins/60) + ' hour' : durationMins + ' min'} ${isAvailability ? 'lesson gap' : lessonType.toLowerCase()} at ${format(baseDate, "p")} on ${format(baseDate, "MMM do")}.`, 
