@@ -212,6 +212,32 @@ export const processAICommand = async (text: string, userId: string, context?: a
       return { success: true, message: `Added "**${task}**" to your to do list.`, actionTaken: "add_todo", newContext: null };
     }
 
+    if (context?.pendingStudent) {
+      const data = { ...context.pendingStudent };
+      const step = data.step;
+
+      if (step === 'name') {
+        data.name = text.trim();
+        data.step = 'dob';
+        return { success: true, message: `Got it, adding **${data.name}**. What is their date of birth? (e.g. 15/01/2000)`, newContext: { pendingStudent: data } };
+      }
+
+      if (step === 'dob') {
+        const { date } = parseDateTime(input);
+        const formattedDob = format(date, "yyyy-MM-dd");
+        
+        const { error } = await supabase.from("students").insert({
+          user_id: userId,
+          name: data.name,
+          date_of_birth: formattedDob,
+          status: "Beginner"
+        });
+
+        if (error) return { success: false, message: "Failed to add student: " + error.message };
+        return { success: true, message: `Success! I've added **${data.name}** to your student list.`, actionTaken: "add_student", newContext: null };
+      }
+    }
+
     if (context?.pendingBooking) {
       const data = { ...context.pendingBooking };
       const step = data.step;
