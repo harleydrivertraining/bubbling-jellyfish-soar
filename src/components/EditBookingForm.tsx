@@ -104,6 +104,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
   const selectedStartTime = form.watch("start_time");
   const selectedLessonType = form.watch("lesson_type");
   const selectedStudentId = form.watch("student_id");
+  const currentEndTime = form.watch("end_time");
 
   const fetchPreviousTargets = useCallback(async (studentId: string, startTime: Date) => {
     if (!studentId) { setPreviousTargets(null); return; }
@@ -138,7 +139,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         showError("Failed to load students: " + studentError.message);
         setStudents([]);
       } else {
-        setStudents(data || []);
+        setStudents(studentData || []);
       }
       setIsLoadingStudents(false);
 
@@ -193,8 +194,6 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
     if (error) { console.error("Error deleting booking:", error); showError("Failed to delete booking: " + error.message); }
     else { showSuccess("Booking deleted successfully!"); onBookingDeleted(); }
   };
-
-  const currentEndTime = form.watch("end_time");
 
   if (isLoadingBooking || isLoadingStudents) {
     return <div className="space-y-4 p-4"><Skeleton className="h-8 w-3/4" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-10 w-full" /></div>;
