@@ -1203,7 +1203,7 @@ const StudentProfile: React.FC = () => {
       </Dialog>
 
       <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[425px] md:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Booking for {student.name}</DialogTitle>
           </DialogHeader>

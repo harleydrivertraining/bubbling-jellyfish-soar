@@ -251,7 +251,7 @@ const Schedule: React.FC = () => {
       </div>
 
       <Dialog open={isAddBookingDialogOpen} onOpenChange={setIsAddBookingDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[425px] md:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add New Booking</DialogTitle></DialogHeader>
           {selectedSlot && (
             <AddBookingForm
