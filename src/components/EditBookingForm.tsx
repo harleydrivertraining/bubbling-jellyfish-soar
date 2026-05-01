@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -138,7 +138,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         showError("Failed to load students: " + studentError.message);
         setStudents([]);
       } else {
-        setStudents(studentData || []);
+        setStudents(data || []);
       }
       setIsLoadingStudents(false);
 
@@ -194,11 +194,11 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
     else { showSuccess("Booking deleted successfully!"); onBookingDeleted(); }
   };
 
+  const currentEndTime = form.watch("end_time");
+
   if (isLoadingBooking || isLoadingStudents) {
     return <div className="space-y-4 p-4"><Skeleton className="h-8 w-3/4" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-10 w-full" /></div>;
   }
-
-  const currentEndTime = form.getValues("end_time");
 
   return (
     <Form {...form}>
@@ -322,7 +322,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Booking Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="scheduled">Scheduled</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></Select><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Booking Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="scheduled">Scheduled</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></Select></FormControl><FormMessage /></FormItem>)} />
           <FormField control={form.control} name="is_paid" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Paid</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
         </div>
 
