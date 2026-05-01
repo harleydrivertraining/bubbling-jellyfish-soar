@@ -145,7 +145,13 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     const fetchStudents = async () => {
       if (!user) return;
       setIsLoadingStudents(true);
-      const { data, error } = await supabase.from("students").select("id, name").eq("user_id", user.id).eq("is_past_student", false).order("name", { ascending: true });
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .eq("is_past_student", false)
+        .order("name", { ascending: true });
+      
       if (error) {
         console.error("Error fetching students:", error);
         showError("Failed to load students: " + error.message);
@@ -186,7 +192,17 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
         currentStartTime = addWeeks(values.start_time, i * interval);
         currentEndTime = addMinutes(currentStartTime, parseInt(values.lesson_length, 10) || 0);
       }
-      bookingsToInsert.push({ user_id: user.id, student_id: values.student_id || null, title: generatedTitle, description: values.description, lesson_type: values.lesson_type, targets_for_next_session: values.targets_for_next_session, start_time: currentStartTime.toISOString(), end_time: currentEndTime.toISOString(), status: status });
+      bookingsToInsert.push({ 
+        user_id: user.id, 
+        student_id: values.student_id || null, 
+        title: generatedTitle, 
+        description: values.description, 
+        lesson_type: values.lesson_type, 
+        targets_for_next_session: values.targets_for_next_session, 
+        start_time: currentStartTime.toISOString(), 
+        end_time: currentEndTime.toISOString(), 
+        status: status 
+      });
     }
 
     const { error } = await supabase.from("bookings").insert(bookingsToInsert).select();
@@ -211,12 +227,20 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             <FormItem>
               <FormLabel>Lesson Type</FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                </FormControl>
                 <SelectContent>
                   <SelectItem value="Driving lesson">Driving lesson</SelectItem>
                   <SelectItem value="Driving Test">Driving Test</SelectItem>
                   <SelectItem value="Personal">Personal</SelectItem>
-                  <SelectItem value="Availability" className="text-blue-600 font-bold"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Availability Slot</div></SelectItem>
+                  <SelectItem value="Availability" className="text-blue-600 font-bold">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" /> Availability Slot
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -233,7 +257,15 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Student {selectedLessonType === "Personal" && "(Opt)"}</FormLabel>
-                    <FormControl><StudentSearch value={field.value} onChange={field.onChange} students={students} isLoading={isLoadingStudents} placeholder={selectedLessonType === "Personal" ? "Optional student" : "Select student"} /></FormControl>
+                    <FormControl>
+                      <StudentSearch 
+                        value={field.value} 
+                        onChange={field.onChange} 
+                        students={students} 
+                        isLoading={isLoadingStudents} 
+                        placeholder={selectedLessonType === "Personal" ? "Optional student" : "Select student"} 
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -301,7 +333,11 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                         }} 
                         value={isCustomLength ? "custom" : field.value}
                       >
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
                         <SelectContent>
                           <SelectItem value="60">1 hr</SelectItem>
                           <SelectItem value="90">1.5 hrs</SelectItem>
@@ -349,7 +385,9 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Notes (Optional)</FormLabel>
-              <FormControl><Textarea placeholder="e.g., dentist appointment" {...field} /></FormControl>
+              <FormControl>
+                <Textarea placeholder="e.g., dentist appointment" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -362,7 +400,9 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Targets for Next Session (Optional)</FormLabel>
-                <FormControl><Textarea placeholder="e.g., practice parallel parking" {...field} /></FormControl>
+                <FormControl>
+                  <Textarea placeholder="e.g., practice parallel parking" {...field} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -375,12 +415,44 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             name="repeat_booking"
             render={({ field }) => (
               <FormItem className="space-y-3">
-                <FormLabel className="flex items-center gap-2"><Repeat className="h-4 w-4 text-primary" /> Repeat Booking</FormLabel>
+                <FormLabel className="flex items-center gap-2">
+                  <Repeat className="h-4 w-4 text-primary" /> Repeat Booking
+                </FormLabel>
                 <FormControl>
                   <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-3 gap-2">
-                    <FormItem><FormControl><RadioGroupItem value="none" className="sr-only" /></FormControl><FormLabel className={cn("flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", field.value === "none" && "border-primary bg-primary/5")}>None</FormLabel></FormItem>
-                    <FormItem><FormControl><RadioGroupItem value="weekly" className="sr-only" /></FormControl><FormLabel className={cn("flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", field.value === "weekly" && "border-primary bg-primary/5")}>Weekly</FormLabel></FormItem>
-                    <FormItem><FormControl><RadioGroupItem value="fortnightly" className="sr-only" /></FormControl><FormLabel className={cn("flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", field.value === "fortnightly" && "border-primary bg-primary/5")}>Fortnightly</FormLabel></FormItem>
+                    <FormItem>
+                      <FormControl>
+                        <RadioGroupItem value="none" className="sr-only" />
+                      </FormControl>
+                      <FormLabel className={cn(
+                        "flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", 
+                        field.value === "none" && "border-primary bg-primary/5"
+                      )}>
+                        None
+                      </FormLabel>
+                    </FormItem>
+                    <FormItem>
+                      <FormControl>
+                        <RadioGroupItem value="weekly" className="sr-only" />
+                      </FormControl>
+                      <FormLabel className={cn(
+                        "flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", 
+                        field.value === "weekly" && "border-primary bg-primary/5"
+                      )}>
+                        Weekly
+                      </FormLabel>
+                    </FormItem>
+                    <FormItem>
+                      <FormControl>
+                        <RadioGroupItem value="fortnightly" className="sr-only" />
+                      </FormControl>
+                      <FormLabel className={cn(
+                        "flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", 
+                        field.value === "fortnightly" && "border-primary bg-primary/5"
+                      )}>
+                        Fortnightly
+                      </FormLabel>
+                    </FormItem>
                   </RadioGroup>
                 </FormControl>
                 <FormMessage />
@@ -396,9 +468,27 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                   <FormLabel>Number of Repeats</FormLabel>
                   <FormControl>
                     <div className="flex items-center gap-3 h-10">
-                      <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => field.onChange(Math.max(1, (field.value || 1) - 1))} disabled={(field.value || 1) <= 1}><Minus className="h-4 w-4" /></Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-8 w-8 shrink-0" 
+                        onClick={() => field.onChange(Math.max(1, (field.value || 1) - 1))} 
+                        disabled={(field.value || 1) <= 1}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
                       <span className="w-8 text-center font-bold text-lg">{field.value || 1}</span>
-                      <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => field.onChange(Math.min(12, (field.value || 1) + 1))} disabled={(field.value || 1) >= 12}><Plus className="h-4 w-4" /></Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-8 w-8 shrink-0" 
+                        onClick={() => field.onChange(Math.min(12, (field.value || 1) + 1))} 
+                        disabled={(field.value || 1) >= 12}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -407,7 +497,9 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             />
           )}
         </div>
-        <Button type="submit" className="w-full font-black h-12 text-lg">{selectedLessonType === "Availability" ? "Create Availability Slot" : "Add Booking"}</Button>
+        <Button type="submit" className="w-full font-black h-12 text-lg">
+          {selectedLessonType === "Availability" ? "Create Availability Slot" : "Add Booking"}
+        </Button>
       </form>
     </Form>
   );
