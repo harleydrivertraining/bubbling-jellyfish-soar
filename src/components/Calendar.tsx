@@ -17,7 +17,7 @@ import {
   endOfMonth, 
   addMonths 
 } from 'date-fns';
-import { enUS } from 'date-fns/locale/en-US';
+import { enUS } from 'date-fns/locale';
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
