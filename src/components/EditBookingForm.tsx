@@ -139,7 +139,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         showError("Failed to load students: " + studentError.message);
         setStudents([]);
       } else {
-        setStudents(data || []);
+        setStudents(studentData || []);
       }
       setIsLoadingStudents(false);
 
