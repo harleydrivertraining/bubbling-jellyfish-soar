@@ -8,7 +8,6 @@ import startOfWeek from 'date-fns/startOfWeek';
 import endOfWeek from 'date-fns/endOfWeek';
 import getDay from 'date-fns/getDay';
 import enUS from 'date-fns/locale/en-US';
-import Toolbar from 'react-big-calendar/lib/Toolbar';
 import { isWithinInterval, getHours, getMinutes, startOfDay, endOfDay, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
@@ -100,6 +99,8 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   defaultEndHour = 18,
 }) => {
   const { user } = useSession();
+  const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   const { min: minTime, max: maxTime } = useMemo(() => {
     return calculateDynamicTimeRange(currentDate, events, currentView, defaultStartHour, defaultEndHour);
@@ -112,9 +113,6 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     setSelectedBookingId(event.id as string);
     setIsEditBookingDialogOpen(true);
   }, []);
-
-  const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   const handleBookingUpdated = () => {
     const start = startOfMonth(currentDate);
@@ -171,7 +169,6 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
           view={currentView}
           onView={handleView}
           components={{
-            toolbar: Toolbar,
             event: (props) => (
               <CalendarEventWrapper
                 {...props}
