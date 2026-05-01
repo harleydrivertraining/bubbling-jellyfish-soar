@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { 
   format, 
   parseISO, 
@@ -30,12 +32,18 @@ import {
   Ban,
   GraduationCap,
   ChevronRight,
-  EyeOff
+  EyeOff,
+  Timer
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PublicInstructorPage = () => {
   const { identifier } = useParams<{ identifier: string }>();
+  const [filterDuration, setFilterDuration] = useState<number>(60);
+  const [isCustomDuration, setIsCustomDuration] = useState(false);
+  const [customMinutes, setCustomMinutes] = useState("45");
+
+  const effectiveDuration = isCustomDuration ? (parseInt(customMinutes) || 60) : filterDuration;
 
   const { data: instructor, isLoading: isLoadingProfile } = useQuery({
     queryKey: ['public-instructor', identifier],
@@ -68,13 +76,11 @@ const PublicInstructorPage = () => {
     enabled: !!identifier
   });
 
-  // Fetch all bookings to calculate gaps
   const { data: allBookings = [] } = useQuery({
     queryKey: ['public-all-bookings', instructor?.id],
     queryFn: async () => {
-      // Fetch from start of today to catch any overlapping multi-day events
       const start = startOfDay(new Date()).toISOString();
-      const end = addWeeks(new Date(), 4).toISOString(); // Look ahead 4 weeks
+      const end = addWeeks(new Date(), 4).toISOString();
       const { data } = await supabase
         .from("bookings")
         .select("id, start_time, end_time, status")
@@ -87,7 +93,6 @@ const PublicInstructorPage = () => {
     enabled: !!instructor?.id && !!instructor?.show_availability_publicly
   });
 
-  // Fetch manual restrictions
   const { data: unavailability = { manual: [], tests: [] } } = useQuery({
     queryKey: ['public-unavailability', instructor?.id, instructor?.auto_hide_test_dates],
     queryFn: async () => {
@@ -114,7 +119,6 @@ const PublicInstructorPage = () => {
       }
 
       const results = await Promise.all(queries);
-      
       return {
         manual: results[0].data || [],
         tests: results[1]?.data || []
@@ -132,11 +136,10 @@ const PublicInstructorPage = () => {
     const advanceWeeks = instructor.max_booking_advance_weeks ?? 12;
     const minStartTimeMs = addHours(now, noticeHours).getTime();
     const maxStartTimeMs = addWeeks(now, advanceWeeks).getTime();
-    const durationMs = 60 * 60000; // Default to 1 hour for public preview
+    const durationMs = effectiveDuration * 60000;
     const intervalMs = Math.max(15, instructor.booking_interval_mins || 30) * 60000;
     const bufferMs = (instructor.booking_buffer_mins || 0) * 60000;
 
-    // Busy periods are anything that ISN'T an available slot
     const busyPeriods = allBookings
       .filter(b => b.status !== 'available')
       .map(b => ({
@@ -145,13 +148,12 @@ const PublicInstructorPage = () => {
       }));
 
     const slots: any[] = [];
-    const daysToSearch = 14; // Show next 2 weeks
+    const daysToSearch = 14;
 
     for (let i = 0; i < daysToSearch; i++) {
       const day = addHours(startOfDay(now), i * 24);
       const dateKey = format(day, 'yyyy-MM-dd');
       
-      // Check if this day has a manual restriction
       const isRestricted = unavailability.manual.some(m => 
         isSameDay(parseISO(m.start_date), day) || 
         (day >= parseISO(m.start_date) && day <= parseISO(m.end_date))
@@ -213,11 +215,19 @@ const PublicInstructorPage = () => {
       if (slots.length >= 20) break;
     }
     return slots;
-  }, [instructor, allBookings, unavailability.manual]);
+  }, [instructor, allBookings, unavailability.manual, effectiveDuration]);
+
+  const calculatePrice = (durationMins: number) => {
+    if (!instructor) return 0;
+    const hours = durationMins / 60;
+    if (hours === 1 && instructor.rate_1h) return instructor.rate_1h;
+    if (hours === 1.5 && instructor.rate_1_5h) return instructor.rate_1_5h;
+    if (hours === 2 && instructor.rate_2h) return instructor.rate_2h;
+    return hours * (instructor.hourly_rate || 0);
+  };
 
   const groupedAvailability = useMemo(() => {
     const groups: Record<string, { slots: any[], sortDate: number }> = {};
-    
     calculatedAvailability.forEach(slot => {
       const date = parseISO(slot.start_time);
       const monthKey = format(date, 'MMMM yyyy');
@@ -226,7 +236,6 @@ const PublicInstructorPage = () => {
       }
       groups[monthKey].slots.push(slot);
     });
-
     return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
   }, [calculatedAvailability]);
 
@@ -235,11 +244,8 @@ const PublicInstructorPage = () => {
       ...unavailability.manual.map(m => ({ ...m, type: 'manual', date: parseISO(m.start_date) })),
       ...unavailability.tests.map(t => ({ ...t, type: 'test', date: parseISO(t.start_time) }))
     ];
-
     allItems.sort((a, b) => a.date.getTime() - b.date.getTime());
-
     const groups: Record<string, { items: any[], sortDate: number }> = {};
-    
     allItems.forEach(item => {
       const monthKey = format(item.date, 'MMMM yyyy');
       if (!groups[monthKey]) {
@@ -247,7 +253,6 @@ const PublicInstructorPage = () => {
       }
       groups[monthKey].items.push(item);
     });
-
     return Object.entries(groups).sort((a, b) => a[1].sortDate - b[1].sortDate);
   }, [unavailability]);
 
@@ -276,6 +281,8 @@ const PublicInstructorPage = () => {
     );
   }
 
+  const showPrices = instructor?.show_prices_on_booking ?? true;
+
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
       <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
@@ -296,6 +303,72 @@ const PublicInstructorPage = () => {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Timer className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Select Lesson Length</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl">
+            {[60, 90, 120].map((mins) => (
+              <button
+                key={mins}
+                onClick={() => { setFilterDuration(mins); setIsCustomDuration(false); }}
+                className={cn(
+                  "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all",
+                  (!isCustomDuration && filterDuration === mins)
+                    ? "border-primary bg-primary/5 shadow-sm" 
+                    : "border-muted bg-card hover:border-muted-foreground/30"
+                )}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-tight opacity-70">
+                  {mins === 60 ? "1 Hour" : mins === 90 ? "1.5 Hours" : "2 Hours"}
+                </span>
+                {showPrices && (
+                  <span className="text-xl font-black text-primary">
+                    £{calculatePrice(mins).toFixed(2)}
+                  </span>
+                )}
+              </button>
+            ))}
+            <button
+              onClick={() => setIsCustomDuration(true)}
+              className={cn(
+                "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all",
+                isCustomDuration
+                  ? "border-primary bg-primary/5 shadow-sm" 
+                  : "border-muted bg-card hover:border-muted-foreground/30"
+              )}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-tight opacity-70">Custom</span>
+              <span className="text-xl font-black text-primary">
+                {isCustomDuration ? `${customMinutes}m` : "..."}
+              </span>
+            </button>
+          </div>
+
+          {isCustomDuration && (
+            <div className="mt-4 flex items-center gap-3 p-4 bg-white border rounded-2xl max-w-xs animate-in slide-in-from-top-2 duration-200">
+              <div className="space-y-1 flex-1">
+                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Minutes</Label>
+                <Input 
+                  type="number" 
+                  value={customMinutes} 
+                  onChange={(e) => setCustomMinutes(e.target.value)}
+                  className="h-10 font-bold"
+                  min="15"
+                  max="300"
+                />
+              </div>
+              {showPrices && (
+                <div className="text-right pt-5">
+                  <p className="text-xs font-bold text-muted-foreground">Price</p>
+                  <p className="text-lg font-black text-primary">£{calculatePrice(parseInt(customMinutes) || 0).toFixed(2)}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
@@ -354,7 +427,7 @@ const PublicInstructorPage = () => {
                   </div>
                 ) : groupedAvailability.length === 0 ? (
                   <div className="p-12 text-center text-muted-foreground italic bg-muted/20 rounded-xl border border-dashed">
-                    No public slots available right now. Please contact the instructor directly.
+                    No public slots available right now for a {effectiveDuration}m lesson.
                   </div>
                 ) : (
                   <div className="space-y-8">

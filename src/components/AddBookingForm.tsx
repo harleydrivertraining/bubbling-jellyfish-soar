@@ -29,7 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { format, addMinutes, addWeeks, differenceInMinutes } from "date-fns";
-import { Plus, Minus, Sparkles, Repeat } from "lucide-react";
+import { Plus, Minus, Sparkles, Repeat, Timer } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 import StudentSearch from "@/components/StudentSearch";
@@ -46,9 +46,7 @@ const formSchema = z.object({
   lesson_type: z.enum(["Driving lesson", "Driving Test", "Personal", "Availability"], {
     message: "Please select a valid lesson type.",
   }),
-  lesson_length: z.enum(["60", "90", "120"], {
-    message: "Please select a valid lesson length.",
-  }),
+  lesson_length: z.string().min(1, "Length is required"),
   targets_for_next_session: z.string().optional().nullable(),
   repeat_booking: z.enum(["none", "weekly", "fortnightly"]),
   repeat_count: z.number().min(1).max(12).optional(),
@@ -81,12 +79,11 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   const { user } = useSession();
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+  const [isCustomLength, setIsCustomLength] = useState(false);
 
   const initialDuration = useMemo(() => {
     const diff = differenceInMinutes(initialEndTime, initialStartTime);
-    if (diff >= 120) return "120";
-    if (diff >= 90) return "90";
-    return "60";
+    return diff.toString();
   }, [initialStartTime, initialEndTime]);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -95,7 +92,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       student_id: "",
       description: "",
       lesson_type: "Driving lesson",
-      lesson_length: initialDuration as "60" | "90" | "120",
+      lesson_length: initialDuration,
       targets_for_next_session: "",
       repeat_booking: "none",
       repeat_count: 1,
@@ -114,24 +111,17 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
 
       if (!error && data?.default_lesson_duration) {
         if (form.getValues("lesson_type") !== "Driving Test" && !defaultValues?.lesson_length) {
-          form.setValue("lesson_length", data.default_lesson_duration as "60" | "90" | "120");
+          form.setValue("lesson_length", data.default_lesson_duration);
         }
       }
     };
-
     fetchDefaultDuration();
   }, [user, form, defaultValues]);
 
   useEffect(() => {
-    if (defaultValues?.lesson_type) {
-      form.setValue("lesson_type", defaultValues.lesson_type);
-    }
-    if (defaultValues?.lesson_length) {
-      form.setValue("lesson_length", defaultValues.lesson_length);
-    }
-    if (defaultValues?.student_id) {
-      form.setValue("student_id", defaultValues.student_id);
-    }
+    if (defaultValues?.lesson_type) form.setValue("lesson_type", defaultValues.lesson_type);
+    if (defaultValues?.lesson_length) form.setValue("lesson_length", defaultValues.lesson_length);
+    if (defaultValues?.student_id) form.setValue("student_id", defaultValues.student_id);
   }, [defaultValues, form]);
 
   const selectedLessonLength = form.watch("lesson_length");
@@ -142,25 +132,20 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   useEffect(() => {
     if (selectedLessonType === "Driving Test") {
       form.setValue("lesson_length", "120");
+      setIsCustomLength(false);
     }
   }, [selectedLessonType, form]);
 
   const calculatedEndTime = useMemo(() => {
     if (!selectedStartTime || !selectedLessonLength) return initialEndTime;
-    return addMinutes(selectedStartTime, parseInt(selectedLessonLength, 10));
+    return addMinutes(selectedStartTime, parseInt(selectedLessonLength, 10) || 0);
   }, [selectedStartTime, selectedLessonLength, initialEndTime]);
 
   useEffect(() => {
     const fetchStudents = async () => {
       if (!user) return;
       setIsLoadingStudents(true);
-      const { data, error } = await supabase
-        .from("students")
-        .select("id, name")
-        .eq("user_id", user.id)
-        .eq("is_past_student", false)
-        .order("name", { ascending: true });
-
+      const { data, error } = await supabase.from("students").select("id, name").eq("user_id", user.id).eq("is_past_student", false).order("name", { ascending: true });
       if (error) {
         console.error("Error fetching students:", error);
         showError("Failed to load students: " + error.message);
@@ -170,7 +155,6 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
       }
       setIsLoadingStudents(false);
     };
-
     fetchStudents();
   }, [user]);
 
@@ -198,31 +182,14 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
     for (let i = 0; i < numRepeats; i++) {
       let currentStartTime = values.start_time;
       let currentEndTime = calculatedEndTime;
-
       if (i > 0 && values.repeat_booking !== "none") {
         currentStartTime = addWeeks(values.start_time, i * interval);
-        const lengthInMinutes = parseInt(values.lesson_length, 10);
-        currentEndTime = addMinutes(currentStartTime, lengthInMinutes);
+        currentEndTime = addMinutes(currentStartTime, parseInt(values.lesson_length, 10) || 0);
       }
-
-      bookingsToInsert.push({
-        user_id: user.id,
-        student_id: values.student_id || null,
-        title: generatedTitle,
-        description: values.description,
-        lesson_type: values.lesson_type,
-        targets_for_next_session: values.targets_for_next_session,
-        start_time: currentStartTime.toISOString(),
-        end_time: currentEndTime.toISOString(),
-        status: status,
-      });
+      bookingsToInsert.push({ user_id: user.id, student_id: values.student_id || null, title: generatedTitle, description: values.description, lesson_type: values.lesson_type, targets_for_next_session: values.targets_for_next_session, start_time: currentStartTime.toISOString(), end_time: currentEndTime.toISOString(), status: status });
     }
 
-    const { error } = await supabase
-      .from("bookings")
-      .insert(bookingsToInsert)
-      .select();
-
+    const { error } = await supabase.from("bookings").insert(bookingsToInsert).select();
     if (error) {
       console.error("Error adding booking(s):", error);
       showError("Failed to add booking(s): " + error.message);
@@ -244,20 +211,12 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             <FormItem>
               <FormLabel>Lesson Type</FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                </FormControl>
+                <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="Driving lesson">Driving lesson</SelectItem>
                   <SelectItem value="Driving Test">Driving Test</SelectItem>
                   <SelectItem value="Personal">Personal</SelectItem>
-                  <SelectItem value="Availability" className="text-blue-600 font-bold">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4" /> Availability Slot
-                    </div>
-                  </SelectItem>
+                  <SelectItem value="Availability" className="text-blue-600 font-bold"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Availability Slot</div></SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -274,40 +233,56 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Student {selectedLessonType === "Personal" && "(Opt)"}</FormLabel>
-                    <FormControl>
-                      <StudentSearch
-                        value={field.value}
-                        onChange={field.onChange}
-                        students={students}
-                        isLoading={isLoadingStudents}
-                        placeholder={selectedLessonType === "Personal" ? "Optional student" : "Select student"}
-                      />
-                    </FormControl>
+                    <FormControl><StudentSearch value={field.value} onChange={field.onChange} students={students} isLoading={isLoadingStudents} placeholder={selectedLessonType === "Personal" ? "Optional student" : "Select student"} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            <div className="w-full sm:w-[120px]">
+            <div className="w-full sm:w-[140px]">
               <FormField
                 control={form.control}
                 name="lesson_length"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Length</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="60">1 hr</SelectItem>
-                        <SelectItem value="90">1.5 hrs</SelectItem>
-                        <SelectItem value="120">2 hrs</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {isCustomLength ? (
+                      <div className="flex gap-1">
+                        <Input 
+                          type="number" 
+                          {...field} 
+                          className="h-10 font-bold" 
+                          placeholder="Mins"
+                          autoFocus
+                        />
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => setIsCustomLength(false)}
+                          className="h-10 w-10 shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Select 
+                        onValueChange={(val) => {
+                          if (val === "custom") setIsCustomLength(true);
+                          else field.onChange(val);
+                        }} 
+                        value={field.value}
+                      >
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="60">1 hr</SelectItem>
+                          <SelectItem value="90">1.5 hrs</SelectItem>
+                          <SelectItem value="120">2 hrs</SelectItem>
+                          <SelectItem value="custom" className="font-bold text-primary">Custom...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -323,16 +298,8 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             <FormItem className="flex flex-col">
               <FormLabel>Start Time</FormLabel>
               <div className="flex gap-2">
-                <DatePicker
-                  date={field.value}
-                  setDate={field.onChange}
-                  placeholder="Select date"
-                />
-                <TimePicker
-                  date={field.value}
-                  onChange={field.onChange}
-                  label="Start Time"
-                />
+                <DatePicker date={field.value} setDate={field.onChange} placeholder="Select date" />
+                <TimePicker date={field.value} onChange={field.onChange} label="Start Time" />
               </div>
               <FormMessage />
             </FormItem>
@@ -341,12 +308,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
 
         <FormItem className="flex flex-col">
           <FormLabel>End Time</FormLabel>
-          <Input
-            type="text"
-            value={format(calculatedEndTime, "PPP p")}
-            readOnly
-            className="bg-muted"
-          />
+          <Input type="text" value={format(calculatedEndTime, "PPP p")} readOnly className="bg-muted" />
         </FormItem>
 
         <FormField
@@ -355,9 +317,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Notes (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., dentist appointment" {...field} />
-              </FormControl>
+              <FormControl><Textarea placeholder="e.g., dentist appointment" {...field} /></FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -370,9 +330,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Targets for Next Session (Optional)</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="e.g., practice parallel parking" {...field} />
-                </FormControl>
+                <FormControl><Textarea placeholder="e.g., practice parallel parking" {...field} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -385,55 +343,18 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             name="repeat_booking"
             render={({ field }) => (
               <FormItem className="space-y-3">
-                <FormLabel className="flex items-center gap-2">
-                  <Repeat className="h-4 w-4 text-primary" /> Repeat Booking
-                </FormLabel>
+                <FormLabel className="flex items-center gap-2"><Repeat className="h-4 w-4 text-primary" /> Repeat Booking</FormLabel>
                 <FormControl>
-                  <RadioGroup
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    className="grid grid-cols-3 gap-2"
-                  >
-                    <FormItem>
-                      <FormControl>
-                        <RadioGroupItem value="none" className="sr-only" />
-                      </FormControl>
-                      <FormLabel className={cn(
-                        "flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all",
-                        field.value === "none" && "border-primary bg-primary/5"
-                      )}>
-                        None
-                      </FormLabel>
-                    </FormItem>
-                    <FormItem>
-                      <FormControl>
-                        <RadioGroupItem value="weekly" className="sr-only" />
-                      </FormControl>
-                      <FormLabel className={cn(
-                        "flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all",
-                        field.value === "weekly" && "border-primary bg-primary/5"
-                      )}>
-                        Weekly
-                      </FormLabel>
-                    </FormItem>
-                    <FormItem>
-                      <FormControl>
-                        <RadioGroupItem value="fortnightly" className="sr-only" />
-                      </FormControl>
-                      <FormLabel className={cn(
-                        "flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all",
-                        field.value === "fortnightly" && "border-primary bg-primary/5"
-                      )}>
-                        Fortnightly
-                      </FormLabel>
-                    </FormItem>
+                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-3 gap-2">
+                    <FormItem><FormControl><RadioGroupItem value="none" className="sr-only" /></FormControl><FormLabel className={cn("flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", field.value === "none" && "border-primary bg-primary/5")}>None</FormLabel></FormItem>
+                    <FormItem><FormControl><RadioGroupItem value="weekly" className="sr-only" /></FormControl><FormLabel className={cn("flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", field.value === "weekly" && "border-primary bg-primary/5")}>Weekly</FormLabel></FormItem>
+                    <FormItem><FormControl><RadioGroupItem value="fortnightly" className="sr-only" /></FormControl><FormLabel className={cn("flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent cursor-pointer text-xs font-bold transition-all", field.value === "fortnightly" && "border-primary bg-primary/5")}>Fortnightly</FormLabel></FormItem>
                   </RadioGroup>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-
           {selectedRepeatBooking !== "none" && (
             <FormField
               control={form.control}
@@ -443,27 +364,9 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                   <FormLabel>Number of Repeats</FormLabel>
                   <FormControl>
                     <div className="flex items-center gap-3 h-10">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        onClick={() => field.onChange(Math.max(1, (field.value || 1) - 1))}
-                        disabled={(field.value || 1) <= 1}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
+                      <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => field.onChange(Math.max(1, (field.value || 1) - 1))} disabled={(field.value || 1) <= 1}><Minus className="h-4 w-4" /></Button>
                       <span className="w-8 text-center font-bold text-lg">{field.value || 1}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        onClick={() => field.onChange(Math.min(12, (field.value || 1) + 1))}
-                        disabled={(field.value || 1) >= 12}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                      <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => field.onChange(Math.min(12, (field.value || 1) + 1))} disabled={(field.value || 1) >= 12}><Plus className="h-4 w-4" /></Button>
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -472,10 +375,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             />
           )}
         </div>
-
-        <Button type="submit" className="w-full font-bold h-12 text-lg">
-          {selectedLessonType === "Availability" ? "Create Availability Slot" : "Add Booking"}
-        </Button>
+        <Button type="submit" className="w-full font-black h-12 text-lg">{selectedLessonType === "Availability" ? "Create Availability Slot" : "Add Booking"}</Button>
       </form>
     </Form>
   );
