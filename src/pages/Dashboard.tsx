@@ -278,9 +278,9 @@ const Dashboard: React.FC = () => {
     queryKey: ['service-info', user?.id],
     queryFn: async () => {
       const { data: cars } = await supabase
-        .from("cars")
+        .from("profiles")
         .select("id, make, model, year, initial_mileage, service_interval_miles, acquisition_date")
-        .eq("user_id", user!.id);
+        .eq("id", user!.id);
 
       if (!cars || cars.length === 0) return null;
 
@@ -543,7 +543,9 @@ const Dashboard: React.FC = () => {
                           </div>
                           <div className="flex-1 min-w-0 flex flex-col gap-1">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-bold text-lg truncate text-foreground">{booking.students?.name || "Unknown Student"}</h4>
+                              <h4 className="font-bold text-lg truncate text-foreground">
+                                {booking.lesson_type === "Personal" ? "Personal Time" : (booking.students?.name || "Unknown Student")}
+                              </h4>
                               {isLessonToday && <Badge variant="default" className="bg-blue-600 text-[10px] font-bold h-5 px-2 shrink-0">TODAY</Badge>}
                             </div>
                             <div className="flex items-center text-sm text-muted-foreground"><Clock className="mr-2 h-4 w-4 text-primary/60 shrink-0" /><span className="font-medium">{format(startTime, "p")} - {format(new Date(booking.end_time), "p")}</span></div>
