@@ -28,8 +28,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { format, addMinutes, addWeeks, differenceInMinutes } from "date-fns";
-import { Plus, Minus, Sparkles, Repeat, Timer } from "lucide-react";
+import { format, addMinutes, addWeeks, differenceInMinutes, isValid } from "date-fns";
+import { Plus, Minus, Sparkles, Repeat, X } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 import StudentSearch from "@/components/StudentSearch";
@@ -137,9 +137,10 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
   }, [selectedLessonType, form]);
 
   const calculatedEndTime = useMemo(() => {
-    if (!selectedStartTime || !selectedLessonLength) return initialEndTime;
-    return addMinutes(selectedStartTime, parseInt(selectedLessonLength, 10) || 0);
-  }, [selectedStartTime, selectedLessonLength, initialEndTime]);
+    const length = parseInt(selectedLessonLength, 10);
+    if (!selectedStartTime || isNaN(length)) return selectedStartTime || new Date();
+    return addMinutes(selectedStartTime, length);
+  }, [selectedStartTime, selectedLessonLength]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -251,7 +252,8 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                       <div className="flex gap-1">
                         <Input 
                           type="number" 
-                          {...field} 
+                          value={field.value}
+                          onChange={(e) => field.onChange(e.target.value)}
                           className="h-10 font-bold" 
                           placeholder="Mins"
                           autoFocus
@@ -270,9 +272,12 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                       <Select 
                         onValueChange={(val) => {
                           if (val === "custom") setIsCustomLength(true);
-                          else field.onChange(val);
+                          else {
+                            setIsCustomLength(false);
+                            field.onChange(val);
+                          }
                         }} 
-                        value={field.value}
+                        value={isCustomLength ? "custom" : field.value}
                       >
                         <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
@@ -308,7 +313,12 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
 
         <FormItem className="flex flex-col">
           <FormLabel>End Time</FormLabel>
-          <Input type="text" value={format(calculatedEndTime, "PPP p")} readOnly className="bg-muted" />
+          <Input 
+            type="text" 
+            value={isValid(calculatedEndTime) ? format(calculatedEndTime, "PPP p") : "Invalid time"} 
+            readOnly 
+            className="bg-muted" 
+          />
         </FormItem>
 
         <FormField

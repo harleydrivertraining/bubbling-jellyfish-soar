@@ -43,7 +43,10 @@ const PublicInstructorPage = () => {
   const [isCustomDuration, setIsCustomDuration] = useState(false);
   const [customMinutes, setCustomMinutes] = useState("45");
 
-  const effectiveDuration = isCustomDuration ? (parseInt(customMinutes) || 60) : filterDuration;
+  const effectiveDuration = useMemo(() => {
+    const parsed = parseInt(customMinutes, 10);
+    return isCustomDuration ? (isNaN(parsed) ? 60 : parsed) : filterDuration;
+  }, [isCustomDuration, customMinutes, filterDuration]);
 
   const { data: instructor, isLoading: isLoadingProfile } = useQuery({
     queryKey: ['public-instructor', identifier],
@@ -59,7 +62,7 @@ const PublicInstructorPage = () => {
       
       if (bySlug) return bySlug;
 
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(identifier)) {
         const { data: byId } = await supabase
           .from("profiles")

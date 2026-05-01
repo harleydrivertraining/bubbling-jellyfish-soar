@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
-import { format, addMinutes } from "date-fns";
+import { format, addMinutes, isValid } from "date-fns";
 import { Target, X } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -120,9 +120,11 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
 
   useEffect(() => {
     if (selectedStartTime && selectedLessonLength) {
-      const lengthInMinutes = parseInt(selectedLessonLength, 10) || 0;
-      const newEndTime = addMinutes(selectedStartTime, lengthInMinutes);
-      form.setValue("end_time", newEndTime);
+      const lengthInMinutes = parseInt(selectedLessonLength, 10);
+      if (!isNaN(lengthInMinutes)) {
+        const newEndTime = addMinutes(selectedStartTime, lengthInMinutes);
+        form.setValue("end_time", newEndTime);
+      }
     }
   }, [selectedStartTime, selectedLessonLength, form]);
 
@@ -196,6 +198,8 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
     return <div className="space-y-4 p-4"><Skeleton className="h-8 w-3/4" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-10 w-full" /></div>;
   }
 
+  const currentEndTime = form.getValues("end_time");
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
@@ -242,11 +246,27 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
                   <FormLabel>Length</FormLabel>
                   {isCustomLength ? (
                     <div className="flex gap-1">
-                      <Input type="number" {...field} className="h-10 font-bold" placeholder="Mins" autoFocus />
+                      <Input 
+                        type="number" 
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        className="h-10 font-bold" 
+                        placeholder="Mins" 
+                        autoFocus 
+                      />
                       <Button type="button" variant="ghost" size="icon" onClick={() => setIsCustomLength(false)} className="h-10 w-10 shrink-0"><X className="h-4 w-4" /></Button>
                     </div>
                   ) : (
-                    <Select onValueChange={(val) => { if (val === "custom") setIsCustomLength(true); else field.onChange(val); }} value={field.value}>
+                    <Select 
+                      onValueChange={(val) => { 
+                        if (val === "custom") setIsCustomLength(true); 
+                        else {
+                          setIsCustomLength(false);
+                          field.onChange(val); 
+                        }
+                      }} 
+                      value={isCustomLength ? "custom" : field.value}
+                    >
                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="60">1 hr</SelectItem>
@@ -278,7 +298,15 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
           )}
         />
 
-        <FormItem><FormLabel>End Time</FormLabel><Input type="text" value={format(form.getValues("end_time"), "PPP p")} readOnly className="bg-muted" /></FormItem>
+        <FormItem>
+          <FormLabel>End Time</FormLabel>
+          <Input 
+            type="text" 
+            value={isValid(currentEndTime) ? format(currentEndTime, "PPP p") : "Invalid time"} 
+            readOnly 
+            className="bg-muted" 
+          />
+        </FormItem>
 
         {selectedLessonType !== "Personal" && selectedStudentId && (
           <div className="space-y-2 p-3 bg-primary/5 border border-primary/10 rounded-lg">
@@ -294,7 +322,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Booking Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="scheduled">Scheduled</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Booking Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="scheduled">Scheduled</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></Select><FormMessage /></FormItem>)} />
           <FormField control={form.control} name="is_paid" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Paid</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
         </div>
 
