@@ -241,7 +241,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
               />
             </div>
 
-            <div className="w-full sm:w-[140px]">
+            <div className="w-full sm:w-[180px]">
               <FormField
                 control={form.control}
                 name="lesson_length"
@@ -249,21 +249,44 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                   <FormItem className="flex flex-col">
                     <FormLabel>Length</FormLabel>
                     {isCustomLength ? (
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-10 w-10 shrink-0"
+                          onClick={() => {
+                            const current = parseInt(field.value, 10) || 0;
+                            field.onChange(Math.max(15, current - 30).toString());
+                          }}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
                         <Input 
                           type="number" 
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.value)}
-                          className="h-10 font-bold" 
+                          className="h-10 font-bold text-center" 
                           placeholder="Mins"
-                          autoFocus
                         />
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-10 w-10 shrink-0"
+                          onClick={() => {
+                            const current = parseInt(field.value, 10) || 0;
+                            field.onChange((current + 30).toString());
+                          }}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
                         <Button 
                           type="button" 
                           variant="ghost" 
                           size="icon" 
                           onClick={() => setIsCustomLength(false)}
-                          className="h-10 w-10 shrink-0"
+                          className="h-10 w-10 shrink-0 ml-1"
                         >
                           <X className="h-4 w-4" />
                         </Button>
