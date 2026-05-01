@@ -250,7 +250,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
 
         {selectedLessonType !== "Availability" && (
           <div className="flex flex-col sm:flex-row gap-3 items-start">
-            <div className="flex-1 w-full">
+            <div className="w-full sm:w-[240px]">
               <FormField
                 control={form.control}
                 name="student_id"
@@ -272,7 +272,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
               />
             </div>
 
-            <div className="w-full sm:w-[180px]">
+            <div className="flex-1 w-full">
               <FormField
                 control={form.control}
                 name="lesson_length"
@@ -297,7 +297,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                           type="number" 
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.value)}
-                          className="h-10 font-bold text-center flex-1 min-w-[60px]" 
+                          className="h-10 font-bold text-center flex-1" 
                           placeholder="Mins"
                         />
                         <Button 

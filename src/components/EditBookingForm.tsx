@@ -302,7 +302,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
         />
 
         <div className="flex flex-col sm:flex-row gap-3 items-start">
-          <div className="flex-1 w-full">
+          <div className="w-full sm:w-[240px]">
             <FormField
               control={form.control}
               name="student_id"
@@ -324,13 +324,13 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
             />
           </div>
 
-          <div className="w-full sm:w-[180px]">
+          <div className="flex-1 w-full">
             <FormField
               control={form.control}
               name="lesson_length"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Length (Mins)</FormLabel>
+                  <FormLabel>Length</FormLabel>
                   {isCustomLength ? (
                     <div className="flex items-center gap-1">
                       <Button 
@@ -349,7 +349,7 @@ const EditBookingForm: React.FC<EditBookingFormProps> = ({
                         type="number" 
                         value={field.value}
                         onChange={(e) => field.onChange(e.target.value)}
-                        className="h-10 font-bold text-center flex-1 min-w-[60px]" 
+                        className="h-10 font-bold text-center flex-1" 
                         placeholder="Mins" 
                         autoFocus 
                       />
