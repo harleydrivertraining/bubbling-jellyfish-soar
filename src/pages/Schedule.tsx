@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, RefreshCcw, ClipboardCheck, Settings2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddBookingForm from "@/components/AddBookingForm";
+import EditBookingForm from "@/components/EditBookingForm";
 import BookingSettingsForm from "@/components/BookingSettingsForm";
 import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceInMinutes, parseISO, isValid } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
