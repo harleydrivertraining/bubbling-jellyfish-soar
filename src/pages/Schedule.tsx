@@ -27,19 +27,15 @@ const Schedule: React.FC = () => {
   const [pendingCount, setPendingCount] = useState(0);
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
-  const [currentCalendarView, _setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
+  const [currentCalendarView, setCurrentCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
   
   const isMobile = useIsMobile();
 
-  const handleSetCurrentCalendarView = useCallback((view: 'month' | 'week' | 'day' | 'agenda') => {
-    _setCurrentCalendarView(view);
-  }, []);
-
   useEffect(() => {
     if (isMobile !== undefined) {
-      handleSetCurrentCalendarView(isMobile ? 'day' : 'week');
+      setCurrentCalendarView(isMobile ? 'day' : 'week');
     }
-  }, [isMobile, handleSetCurrentCalendarView]);
+  }, [isMobile]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -231,7 +227,7 @@ const Schedule: React.FC = () => {
           currentDate={currentCalendarDate}
           setCurrentDate={setCurrentCalendarDate}
           currentView={currentCalendarView}
-          setCurrentView={handleSetCurrentCalendarView}
+          setCurrentView={setCurrentCalendarView}
           onMarkAsPaid={handleMarkAsPaid}
           defaultStartHour={calendarHours.start}
           defaultEndHour={calendarHours.end}
