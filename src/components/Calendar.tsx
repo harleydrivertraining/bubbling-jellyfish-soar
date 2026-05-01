@@ -2,13 +2,22 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer, Event as BigCalendarEvent } from 'react-big-calendar';
-import format from 'date-fns/format';
-import parse from 'date-fns/parse';
-import startOfWeek from 'date-fns/startOfWeek';
-import endOfWeek from 'date-fns/endOfWeek';
-import getDay from 'date-fns/getDay';
-import enUS from 'date-fns/locale/en-US';
-import { isWithinInterval, getHours, getMinutes, startOfDay, endOfDay, startOfMonth, endOfMonth, addMonths } from 'date-fns';
+import { 
+  format, 
+  parse, 
+  startOfWeek, 
+  endOfWeek, 
+  getDay, 
+  isWithinInterval, 
+  getHours, 
+  getMinutes, 
+  startOfDay, 
+  endOfDay, 
+  startOfMonth, 
+  endOfMonth, 
+  addMonths 
+} from 'date-fns';
+import { enUS } from 'date-fns/locale';
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
@@ -25,7 +34,7 @@ const locales = {
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 1, locale: locales['en-US'] }),
+  startOfWeek: (date: Date) => startOfWeek(date, { weekStartsOn: 1 }),
   getDay,
   locales,
 });
