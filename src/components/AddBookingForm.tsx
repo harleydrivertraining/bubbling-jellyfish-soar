@@ -278,7 +278,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                 name="lesson_length"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Length</FormLabel>
+                    <FormLabel>Length (Mins)</FormLabel>
                     {isCustomLength ? (
                       <div className="flex items-center gap-1">
                         <Button 
@@ -297,7 +297,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                           type="number" 
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.value)}
-                          className="h-10 font-bold text-center" 
+                          className="h-10 font-bold text-center flex-1 min-w-[60px]" 
                           placeholder="Mins"
                         />
                         <Button 
@@ -375,7 +375,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
             type="text" 
             value={isValid(calculatedEndTime) ? format(calculatedEndTime, "PPP p") : "Invalid time"} 
             readOnly 
-            className="bg-muted" 
+            className="bg-muted font-medium" 
           />
         </FormItem>
 
@@ -478,7 +478,7 @@ const AddBookingForm: React.FC<AddBookingFormProps> = ({
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
-                      <span className="w-8 text-center font-bold text-lg">{field.value || 1}</span>
+                      <span className="w-12 text-center font-black text-xl text-primary">{field.value || 1}</span>
                       <Button 
                         type="button" 
                         variant="outline" 
