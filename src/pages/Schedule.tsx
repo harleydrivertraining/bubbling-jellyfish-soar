@@ -11,7 +11,6 @@ import { addMinutes, startOfMonth, endOfMonth, addMonths, subMonths, differenceI
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showError, showSuccess } from "@/utils/toast";
-import { Event as BigCalendarEvent } from 'react-big-calendar';
 import { useIsMobile } from "@/hooks/use-mobile";
 import CalendarLegend from "@/components/CalendarLegend";
 import { Link } from "react-router-dom";
