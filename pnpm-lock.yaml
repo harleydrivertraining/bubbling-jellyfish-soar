@@ -12,8 +12,8 @@ importers:
         specifier: ^7.4.3
         version: 7.4.3(@capacitor/core@7.4.3)
       '@capacitor/browser':
-        specifier: ^8.0.3
-        version: 8.0.3(@capacitor/core@7.4.3)
+        specifier: ^7.0.0
+        version: 7.0.5(@capacitor/core@7.4.3)
       '@capacitor/cli':
         specifier: ^7.4.3
         version: 7.4.3
@@ -24,11 +24,11 @@ importers:
         specifier: ^7.4.3
         version: 7.4.3(@capacitor/core@7.4.3)
       '@capacitor/local-notifications':
-        specifier: ^8.0.2
-        version: 8.0.2(@capacitor/core@7.4.3)
+        specifier: ^7.0.0
+        version: 7.0.6(@capacitor/core@7.4.3)
       '@capacitor/push-notifications':
-        specifier: ^8.0.2
-        version: 8.0.2(@capacitor/core@7.4.3)
+        specifier: ^7.0.0
+        version: 7.0.6(@capacitor/core@7.4.3)
       '@hookform/resolvers':
         specifier: ^3.9.0
         version: 3.10.0(react-hook-form@7.55.0(react@18.3.1))
@@ -276,10 +276,10 @@ packages:
     peerDependencies:
       '@capacitor/core': ^7.4.0
 
-  '@capacitor/browser@8.0.3':
-    resolution: {integrity: sha512-WJWPHEPbweiFoHYmVlCbZf5yrqJ2Rchx2Xvbmd+3Lf+Zkpq3nXBThThY2CF69lYEg1NINGF9BcHThIOEU1gZlQ==}
+  '@capacitor/browser@7.0.5':
+    resolution: {integrity: sha512-YF/kC1m1e6c81X/agtAnYItVlqiQ/nXLG+Q3QXNDuiMoRynqa3Guu8ZaV9kWvqQcHoE2w18xz7WGpPOuh+R1fA==}
     peerDependencies:
-      '@capacitor/core': '>=8.0.0'
+      '@capacitor/core': '>=7.0.0'
 
   '@capacitor/cli@7.4.3':
     resolution: {integrity: sha512-SWozpdDgrbQ/ry1nIapugDFvE9z+l22BmU/+fpgL2Zv5487hGdXvCX5+1SluuFBP3IPpx6b4LjsKnBigyJoUWg==}
@@ -294,15 +294,15 @@ packages:
     peerDependencies:
       '@capacitor/core': ^7.4.0
 
-  '@capacitor/local-notifications@8.0.2':
-    resolution: {integrity: sha512-X7KE/I4ZutMTGVHNUyTjIugYcQEcHJRLks+TsPnOriuS+lo0geSTuaRln6zAZlJSSXSoVMSSzHexdSbIjR/8iw==}
+  '@capacitor/local-notifications@7.0.6':
+    resolution: {integrity: sha512-RuZQ9P5aAlw6VU2i0i6g4i1XYZbbeDE9oaBg87gggHaUUscX7b1lltTlC1t11/JCPoyjECnZ/N8xfDNZ26hKhw==}
     peerDependencies:
-      '@capacitor/core': '>=8.0.0'
+      '@capacitor/core': '>=7.0.0'
 
-  '@capacitor/push-notifications@8.0.2':
-    resolution: {integrity: sha512-mej8Eh4EU4JXbaeyMX2l+4NNK6IdY5iRsEXpBOTHLD29fuCACBP7kOJTiJv6piw134zdlbFH0rR+sDKHIiFOFg==}
+  '@capacitor/push-notifications@7.0.6':
+    resolution: {integrity: sha512-zAhbHpdbc15ImuVGgoFwUZsKI+jjGxy/oO5mgfYKUx8Xl2OskndzhL79PYsCPjyGLbqUR9NRUZJthV9auVT3nw==}
     peerDependencies:
-      '@capacitor/core': '>=8.0.0'
+      '@capacitor/core': '>=7.0.0'
 
   '@dyad-sh/react-vite-component-tagger@0.8.0':
     resolution: {integrity: sha512-97DrCLm4+kpy5fp90cLfuhjhLlhi5/p0nzCU9/pU4V9/aIpQCb+RQ/E3BJdzpMOcoieR81zPZTEiLTW5CYKgSQ==}
@@ -2974,7 +2974,7 @@ snapshots:
     dependencies:
       '@capacitor/core': 7.4.3
 
-  '@capacitor/browser@8.0.3(@capacitor/core@7.4.3)':
+  '@capacitor/browser@7.0.5(@capacitor/core@7.4.3)':
     dependencies:
       '@capacitor/core': 7.4.3
 
@@ -3008,11 +3008,11 @@ snapshots:
     dependencies:
       '@capacitor/core': 7.4.3
 
-  '@capacitor/local-notifications@8.0.2(@capacitor/core@7.4.3)':
+  '@capacitor/local-notifications@7.0.6(@capacitor/core@7.4.3)':
     dependencies:
       '@capacitor/core': 7.4.3
 
-  '@capacitor/push-notifications@8.0.2(@capacitor/core@7.4.3)':
+  '@capacitor/push-notifications@7.0.6(@capacitor/core@7.4.3)':
     dependencies:
       '@capacitor/core': 7.4.3
 
