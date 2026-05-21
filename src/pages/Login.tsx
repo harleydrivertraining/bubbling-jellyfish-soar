@@ -257,7 +257,7 @@ const Login: React.FC = () => {
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input id="password" type="password" placeholder="••••••••" className="pl-10" value={studentPassword} onChange={(e) => setPassword(e.target.value)} />
+                    <Input id="password" type="password" placeholder="••••••••" className="pl-10" value={studentPassword} onChange={(e) => setStudentPassword(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
