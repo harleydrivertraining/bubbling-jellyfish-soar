@@ -582,6 +582,11 @@ const StudentProfile: React.FC = () => {
                 </Badge>
               )}
             </div>
+            {student.auth_user_id && (
+              <p className="text-xs text-muted-foreground">
+                Student login URL: <span className="font-bold underline">/24</span>
+              </p>
+            )}
             
             {/* Enable Login Button - Moved here for better mobile layout */}
             {!student.auth_user_id && (

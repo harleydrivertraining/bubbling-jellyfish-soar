@@ -41,6 +41,7 @@ const TodoList = lazy(() => import("./pages/TodoList"));
 const Subscription = lazy(() => import("./pages/Subscription"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Login = lazy(() => import("./pages/Login"));
+const Login24 = lazy(() => import("./pages/Login24"));
 const Signup = lazy(() => import("./pages/Signup"));
 const SignupSuccess = lazy(() => import("./pages/SignupSuccess"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -83,6 +84,7 @@ const AppContent = () => {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/24" element={<Login24 />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/74985" element={<Signup />} />

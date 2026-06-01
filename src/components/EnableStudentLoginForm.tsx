@@ -122,6 +122,9 @@ const EnableStudentLoginForm: React.FC<EnableStudentLoginFormProps> = ({
           <div className="text-xs text-blue-700 space-y-1">
             <p><strong>Username (Phone):</strong> {studentPhone}</p>
             <p><strong>Virtual Email:</strong> {studentPhone.replace(/\s+/g, '')}@student.hdt.app</p>
+            <p className="mt-2 pt-2 border-t border-blue-200/60 text-blue-800 font-medium">
+              Students can log in directly at: <span className="font-bold underline">/24</span>
+            </p>
           </div>
         </div>
 
