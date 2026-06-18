@@ -65,7 +65,6 @@ interface Booking {
   students: {
     name: string;
     hourly_rate?: number | null;
-    selected_rate_index?: number;
   };
 }
 
@@ -159,7 +158,7 @@ const Dashboard: React.FC = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("id, title, description, start_time, end_time, status, lesson_type, students(name, hourly_rate, selected_rate_index)")
+        .select("id, title, description, start_time, end_time, status, lesson_type, students(name, hourly_rate)")
         .eq("user_id", user!.id)
         .eq("status", "scheduled")
         .gte("start_time", new Date().toISOString())
@@ -169,27 +168,18 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  const calculateLessonValue = useCallback((durationHours: number, profile: any, studentRate?: number | null, rateIndex: number = 1) => {
+  const calculateLessonValue = useCallback((durationHours: number, profile: any, studentRate?: number | null) => {
     if (!profile) return 0;
 
-    // 1. Manual absolute override
+    // Use student custom rate if provided
     if (studentRate !== undefined && studentRate !== null && studentRate > 0) {
       return durationHours * studentRate;
     }
 
-    // 2. Multi-Rate Logic
-    let baseRate = profile.hourly_rate || 0;
-    if (rateIndex === 2) baseRate = profile.hourly_rate_2 || baseRate;
-    else if (rateIndex === 3) baseRate = profile.hourly_rate_3 || baseRate;
-
-    // 3. Global Duration Modifiers (Only apply if Rate Index is 1)
-    if (rateIndex === 1) {
-      if (durationHours === 1 && profile.rate_1h) return profile.rate_1h;
-      if (durationHours === 1.5 && profile.rate_1_5h) return profile.rate_1_5h;
-      if (durationHours === 2 && profile.rate_2h) return profile.rate_2h;
-    }
-
-    return durationHours * baseRate;
+    if (durationHours === 1 && profile.rate_1h) return profile.rate_1h;
+    if (durationHours === 1.5 && profile.rate_1_5h) return profile.rate_1_5h;
+    if (durationHours === 2 && profile.rate_2h) return profile.rate_2h;
+    return durationHours * (profile.hourly_rate || 0);
   }, []);
 
   const { data: revenue } = useQuery({
@@ -203,7 +193,7 @@ const Dashboard: React.FC = () => {
 
       const { data } = await supabase
         .from("bookings")
-        .select("start_time, end_time, students(hourly_rate, selected_rate_index)")
+        .select("start_time, end_time, students(hourly_rate)")
         .eq("user_id", user!.id)
         .eq("status", "completed")
         .neq("lesson_type", "Personal")
@@ -214,8 +204,7 @@ const Dashboard: React.FC = () => {
       data?.forEach(b => {
         const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
         const studentRate = (b.students as any)?.hourly_rate;
-        const rateIndex = (b.students as any)?.selected_rate_index || 1;
-        totalValue += calculateLessonValue(duration, instructorSettings, studentRate, rateIndex);
+        totalValue += calculateLessonValue(duration, instructorSettings, studentRate);
       });
       return totalValue;
     },
@@ -226,7 +215,7 @@ const Dashboard: React.FC = () => {
     queryKey: ['pending-income-dashboard', user?.id, instructorSettings],
     queryFn: async () => {
       const [lessonsRes, creditTxRes] = await Promise.all([
-        supabase.from("bookings").select("id, start_time, end_time, is_paid, students(hourly_rate, selected_rate_index)").eq("user_id", user!.id).eq("status", "completed").eq("is_paid", false).neq("lesson_type", "Personal"),
+        supabase.from("bookings").select("id, start_time, end_time, is_paid, students(hourly_rate)").eq("user_id", user!.id).eq("status", "completed").eq("is_paid", false).neq("lesson_type", "Personal"),
         supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user!.id)
       ]);
 
@@ -237,8 +226,7 @@ const Dashboard: React.FC = () => {
         if (!creditPaidIds.has(lesson.id)) {
           const duration = differenceInMinutes(new Date(lesson.end_time), new Date(lesson.start_time)) / 60;
           const studentRate = (lesson.students as any)?.hourly_rate;
-          const rateIndex = (lesson.students as any)?.selected_rate_index || 1;
-          total += calculateLessonValue(duration, instructorSettings, studentRate, rateIndex);
+          total += calculateLessonValue(duration, instructorSettings, studentRate);
         }
       });
       
@@ -508,6 +496,7 @@ const Dashboard: React.FC = () => {
               <CardContent className="p-3 pt-0">
                 <div className="text-3xl sm:text-4xl font-black">{(bookedHours ?? 0).toFixed(1)} <span className="text-xs sm:text-sm font-bold text-muted-foreground uppercase">hrs</span></div>
               </CardContent>
+            </Card>
             <Card className="border-l-4 border-l-green-500 shadow-sm">
               <CardHeader className="flex flex-col items-start space-y-2 pb-1 p-3">
                 <div className="flex items-center justify-between w-full">

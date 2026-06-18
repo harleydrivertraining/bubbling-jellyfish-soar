@@ -63,14 +63,6 @@ const formSchema = z.object({
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0).nullable().optional()
   ),
-  hourly_rate_2: z.preprocess(
-    (val) => (val === "" ? null : Number(val)),
-    z.number().min(0).nullable().optional()
-  ),
-  hourly_rate_3: z.preprocess(
-    (val) => (val === "" ? null : Number(val)),
-    z.number().min(0).nullable().optional()
-  ),
   rate_1h: z.preprocess((val) => (val === "" ? null : Number(val)), z.number().min(0).nullable().optional()),
   rate_1_5h: z.preprocess((val) => (val === "" ? null : Number(val)), z.number().min(0).nullable().optional()),
   rate_2h: z.preprocess((val) => (val === "" ? null : Number(val)), z.number().min(0).nullable().optional()),
@@ -109,8 +101,6 @@ const ProfileSettingsForm: React.FC = () => {
       first_name: "",
       last_name: "",
       hourly_rate: null,
-      hourly_rate_2: null,
-      hourly_rate_3: null,
       rate_1h: null,
       rate_1_5h: null,
       rate_2h: null,
@@ -165,8 +155,6 @@ const ProfileSettingsForm: React.FC = () => {
           first_name: data.first_name || "",
           last_name: data.last_name || "",
           hourly_rate: data.hourly_rate,
-          hourly_rate_2: data.hourly_rate_2,
-          hourly_rate_3: data.hourly_rate_3,
           rate_1h: data.rate_1h,
           rate_1_5h: data.rate_1_5h,
           rate_2h: data.rate_2h,
@@ -201,8 +189,6 @@ const ProfileSettingsForm: React.FC = () => {
         first_name: values.first_name,
         last_name: values.last_name,
         hourly_rate: values.hourly_rate,
-        hourly_rate_2: values.hourly_rate_2,
-        hourly_rate_3: values.hourly_rate_3,
         rate_1h: values.rate_1h,
         rate_1_5h: values.rate_1_5h,
         rate_2h: values.rate_2h,
@@ -301,124 +287,83 @@ const ProfileSettingsForm: React.FC = () => {
           />
         </div>
 
-        <div className="p-4 border rounded-xl bg-muted/30 space-y-6">
+        <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
           <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2">
-            <PoundSterling className="h-4 w-4" /> Lesson Price Points
+            <PoundSterling className="h-4 w-4" /> Lesson Rates
           </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="hourly_rate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-bold text-primary">Price Point 1 (Default)</FormLabel>
+                  <FormLabel>Base Hourly Rate (£)</FormLabel>
                   <FormControl>
-                    <div className="relative">
-                      <PoundSterling className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input type="number" step="0.01" className="pl-8 h-10 font-bold" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
-                    </div>
+                    <Input type="number" step="0.01" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
                   </FormControl>
+                  <FormDescription className="text-[10px]">Used as fallback for other durations.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <FormField
               control={form.control}
-              name="hourly_rate_2"
+              name="default_lesson_duration"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-bold">Price Point 2</FormLabel>
+                  <FormLabel>Default Duration</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="60">1 hour</SelectItem>
+                      <SelectItem value="90">1.5 hours</SelectItem>
+                      <SelectItem value="120">2 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 pt-2">
+            <FormField
+              control={form.control}
+              name="rate_1h"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-bold uppercase">1 Hour (£)</FormLabel>
                   <FormControl>
-                    <div className="relative">
-                      <PoundSterling className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input type="number" step="0.01" className="pl-8 h-10 font-bold" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
-                    </div>
+                    <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
             <FormField
               control={form.control}
-              name="hourly_rate_3"
+              name="rate_1_5h"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-bold">Price Point 3</FormLabel>
+                  <FormLabel className="text-[10px] font-bold uppercase">1.5 Hour (£)</FormLabel>
                   <FormControl>
-                    <div className="relative">
-                      <PoundSterling className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input type="number" step="0.01" className="pl-8 h-10 font-bold" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
-                    </div>
+                    <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
                   </FormControl>
-                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="rate_2h"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-bold uppercase">2 Hour (£)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
+                  </FormControl>
                 </FormItem>
               )}
             />
           </div>
-
-          <div className="pt-4 border-t space-y-4">
-            <h4 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Global Rate Modifiers</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="default_lesson_duration"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Default Duration</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value || "60"}>
-                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="60">1 hour</SelectItem>
-                        <SelectItem value="90">1.5 hours</SelectItem>
-                        <SelectItem value="120">2 hours</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <FormField
-                control={form.control}
-                name="rate_1h"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase">1 Hour (£)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="rate_1_5h"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase">1.5 Hour (£)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="rate_2h"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase">2 Hour (£)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="Auto" {...field} value={field.value === null ? "" : field.value} onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground italic">Note: Global modifiers apply only to students assigned to **Price Point 1**.</p>
-          </div>
+          <p className="text-[10px] text-muted-foreground italic">Leave custom rates blank to use the base hourly rate calculation.</p>
         </div>
 
         <div className="p-4 border rounded-xl bg-muted/30 space-y-6">

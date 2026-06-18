@@ -27,8 +27,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
 import { PoundSterling } from "lucide-react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
@@ -77,7 +75,6 @@ const formSchema = z.object({
   status: z.enum(["Beginner", "Intermediate", "Advanced"], {
     message: "Please select a valid status.",
   }),
-  selected_rate_index: z.preprocess((val) => Number(val), z.number().min(1).max(3)),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0).nullable().optional()
@@ -101,7 +98,6 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       full_address: "",
       notes: "",
       status: "Beginner",
-      selected_rate_index: 1,
       hourly_rate: null,
     },
   });
@@ -127,7 +123,6 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
         full_address: values.full_address,
         notes: values.notes,
         status: values.status,
-        selected_rate_index: values.selected_rate_index,
         hourly_rate: values.hourly_rate,
       });
 
@@ -182,65 +177,31 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
           </FormItem>
         </div>
 
-        <div className="p-4 border rounded-xl bg-primary/5 space-y-4">
-          <FormField
-            control={form.control}
-            name="selected_rate_index"
-            render={({ field }) => (
-              <FormItem className="space-y-3">
-                <FormLabel className="text-xs font-bold uppercase text-primary">Assign Price Point</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    onValueChange={(val) => field.onChange(parseInt(val))}
-                    defaultValue={field.value.toString()}
-                    className="grid grid-cols-3 gap-2"
-                  >
-                    {[1, 2, 3].map((idx) => (
-                      <FormItem key={idx}>
-                        <FormControl>
-                          <RadioGroupItem value={idx.toString()} className="sr-only" />
-                        </FormControl>
-                        <FormLabel className={cn(
-                          "flex items-center justify-center p-2 rounded-lg border-2 cursor-pointer transition-all text-xs font-bold",
-                          field.value === idx ? "border-primary bg-primary text-white" : "border-muted bg-white hover:border-primary/50"
-                        )}>
-                          Rate {idx}
-                        </FormLabel>
-                      </FormItem>
-                    ))}
-                  </RadioGroup>
-                </FormControl>
-                <FormDescription className="text-[10px]">Uses rates defined in your settings.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="hourly_rate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Manual Override (£)</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      type="number" 
-                      step="0.01" 
-                      placeholder="Ignores price points" 
-                      className="pl-10 h-9 text-xs"
-                      {...field} 
-                      value={field.value === null ? "" : field.value}
-                      onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name="hourly_rate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Custom Hourly Rate (£)</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    placeholder="Leave blank for global rate" 
+                    className="pl-10"
+                    {...field} 
+                    value={field.value === null ? "" : field.value}
+                    onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                  />
+                </div>
+              </FormControl>
+              <FormDescription className="text-[10px]">Overwrites your base hourly rate for this specific student.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
