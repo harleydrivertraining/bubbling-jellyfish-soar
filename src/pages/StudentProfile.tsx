@@ -462,6 +462,10 @@ const StudentProfile: React.FC = () => {
     }));
   };
 
+  const toggleExpand = (topicId: string) => {
+    setExpandedTopicId(expandedTopicId === topicId ? null : topicId);
+  };
+
   const lessonStats = useMemo(() => {
     const now = new Date();
     let delivered = 0;
