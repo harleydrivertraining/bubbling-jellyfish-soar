@@ -29,7 +29,6 @@ import { showSuccess, showError } from "@/utils/toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { PoundSterling } from "lucide-react";
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
@@ -79,10 +78,6 @@ const formSchema = z.object({
     message: "Please select a valid status.",
   }),
   is_past_student: z.boolean().optional(),
-  hourly_rate: z.preprocess(
-    (val) => (val === "" ? null : Number(val)),
-    z.number().min(0).nullable().optional()
-  ),
 });
 
 interface EditStudentFormProps {
@@ -107,7 +102,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       notes: "",
       status: "Beginner",
       is_past_student: false,
-      hourly_rate: null,
     },
   });
 
@@ -117,7 +111,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       setIsLoadingStudent(true);
       const { data, error } = await supabase
         .from("students")
-        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student, hourly_rate")
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student")
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -145,7 +139,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           notes: data.notes || "",
           status: studentStatus,
           is_past_student: data.is_past_student,
-          hourly_rate: data.hourly_rate,
         });
       }
       setIsLoadingStudent(false);
@@ -175,7 +168,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         notes: values.notes,
         status: values.status,
         is_past_student: values.is_past_student,
-        hourly_rate: values.hourly_rate,
       })
       .eq("id", studentId)
       .eq("user_id", user.id);
@@ -241,33 +233,6 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="hourly_rate"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Custom Hourly Rate (£)</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    type="number" 
-                    step="0.01" 
-                    placeholder="Using global rate" 
-                    className="pl-10"
-                    {...field} 
-                    value={field.value === null ? "" : field.value}
-                    onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
-                  />
-                </div>
-              </FormControl>
-              <FormDescription className="text-[10px]">Overwrites your base hourly rate for this specific student.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -375,8 +340,8 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
               <div className="space-y-0.5">
                 <FormLabel>Mark as Past Student</FormLabel>
-                <FormDescription className="text-[10px]">
-                  Past students can be hidden from the main list.
+                <FormDescription>
+                  Toggle to mark this student as a past student. Past students can be hidden from the main list.
                 </FormDescription>
               </div>
               <FormControl>
@@ -390,22 +355,22 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         />
 
         <div className="flex gap-2">
-          <Button type="submit" className="flex-1 font-bold h-11">Update Student</Button>
+          <Button type="submit" className="flex-1">Update Student</Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button type="button" variant="destructive" className="flex-1 font-bold h-11">Delete</Button>
+              <Button type="button" variant="destructive" className="flex-1">Delete Student</Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete this student and all associated data.
+                  This action cannot be undone. This will permanently delete this student and all associated data (lessons, progress, pre-paid hours, driving tests).
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold">
-                  Delete Student
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Delete
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

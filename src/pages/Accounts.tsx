@@ -124,14 +124,9 @@ const Accounts: React.FC = () => {
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
   const [baseDate, setBaseDate] = useState<Date>(new Date());
 
-  const calculateLessonValue = useCallback((durationHours: number, profileData: any, studentRate?: number | null) => {
+  const calculateLessonValue = useCallback((durationHours: number, profileData: any) => {
     if (!profileData) return 0;
     
-    // If the student has a specific custom hourly rate, use that instead of global rules
-    if (studentRate !== undefined && studentRate !== null && studentRate > 0) {
-      return durationHours * studentRate;
-    }
-
     if (durationHours === 1 && profileData.rate_1h) return profileData.rate_1h;
     if (durationHours === 1.5 && profileData.rate_1_5h) return profileData.rate_1_5h;
     if (durationHours === 2 && profileData.rate_2h) return profileData.rate_2h;
@@ -246,15 +241,11 @@ const Accounts: React.FC = () => {
             hours_deducted, 
             transaction_date, 
             booking_id,
-            bookings(id, title, start_time, status, students(name, hourly_rate)),
+            bookings(id, title, start_time, status, students(name)),
             pre_paid_hours(id, amount_paid, package_hours)
           `)
           .eq("user_id", user.id),
-        supabase.from("bookings")
-          .select("id, title, start_time, end_time, is_paid, status, students(name, hourly_rate)")
-          .eq("user_id", user.id)
-          .eq("status", "completed")
-          .order("start_time", { ascending: false }),
+        supabase.from("bookings").select("id, title, start_time, end_time, is_paid, status, students(name)").eq("user_id", user.id).eq("status", "completed").order("start_time", { ascending: false }),
         supabase.from("additional_income").select("*").eq("user_id", user.id),
         supabase.from("expenditures").select("*").eq("user_id", user.id)
       ]);
@@ -273,18 +264,11 @@ const Accounts: React.FC = () => {
         }
 
         if (booking?.status === 'completed') {
-          // Logic: If package has price history, use that. 
-          // If not, but student has a custom hourly rate, use that.
-          // Fallback to global instructor rate.
-          
-          let earnedAmount = 0;
-          if (pkg?.amount_paid && pkg?.package_hours) {
-            const effectiveRate = pkg.amount_paid / pkg.package_hours;
-            earnedAmount = tx.hours_deducted * effectiveRate;
-          } else {
-            const studentRate = booking.students?.hourly_rate;
-            earnedAmount = calculateLessonValue(tx.hours_deducted, profileData, studentRate);
-          }
+          const effectiveRate = (pkg?.amount_paid && pkg?.package_hours) 
+            ? (pkg.amount_paid / pkg.package_hours) 
+            : (profileData?.hourly_rate || 0);
+            
+          const earnedAmount = tx.hours_deducted * effectiveRate;
           
           income.push({
             id: tx.id,
@@ -304,8 +288,7 @@ const Accounts: React.FC = () => {
       lessonsRes.data?.forEach(lesson => {
         const isCredit = creditPaidBookingIds.has(lesson.id);
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
-        const studentRate = (lesson.students as any)?.hourly_rate;
-        const value = calculateLessonValue(duration, profileData, studentRate);
+        const value = calculateLessonValue(duration, profileData);
 
         if (isCredit) return;
 
