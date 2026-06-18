@@ -64,6 +64,7 @@ interface Booking {
   student_id?: string;
   students: {
     name: string;
+    hourly_rate?: number | null;
   };
 }
 
@@ -157,7 +158,7 @@ const Dashboard: React.FC = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("id, title, description, start_time, end_time, status, lesson_type, students(name)")
+        .select("id, title, description, start_time, end_time, status, lesson_type, students(name, hourly_rate)")
         .eq("user_id", user!.id)
         .eq("status", "scheduled")
         .gte("start_time", new Date().toISOString())
@@ -167,8 +168,14 @@ const Dashboard: React.FC = () => {
     enabled: !!user && isInstructor,
   });
 
-  const calculateLessonValue = useCallback((durationHours: number, profile: any) => {
+  const calculateLessonValue = useCallback((durationHours: number, profile: any, studentRate?: number | null) => {
     if (!profile) return 0;
+
+    // Use student custom rate if provided
+    if (studentRate !== undefined && studentRate !== null && studentRate > 0) {
+      return durationHours * studentRate;
+    }
+
     if (durationHours === 1 && profile.rate_1h) return profile.rate_1h;
     if (durationHours === 1.5 && profile.rate_1_5h) return profile.rate_1_5h;
     if (durationHours === 2 && profile.rate_2h) return profile.rate_2h;
@@ -186,7 +193,7 @@ const Dashboard: React.FC = () => {
 
       const { data } = await supabase
         .from("bookings")
-        .select("start_time, end_time")
+        .select("start_time, end_time, students(hourly_rate)")
         .eq("user_id", user!.id)
         .eq("status", "completed")
         .neq("lesson_type", "Personal")
@@ -196,7 +203,8 @@ const Dashboard: React.FC = () => {
       let totalValue = 0;
       data?.forEach(b => {
         const duration = differenceInMinutes(new Date(b.end_time), new Date(b.start_time)) / 60;
-        totalValue += calculateLessonValue(duration, instructorSettings);
+        const studentRate = (b.students as any)?.hourly_rate;
+        totalValue += calculateLessonValue(duration, instructorSettings, studentRate);
       });
       return totalValue;
     },
@@ -207,7 +215,7 @@ const Dashboard: React.FC = () => {
     queryKey: ['pending-income-dashboard', user?.id, instructorSettings],
     queryFn: async () => {
       const [lessonsRes, creditTxRes] = await Promise.all([
-        supabase.from("bookings").select("id, start_time, end_time, is_paid").eq("user_id", user!.id).eq("status", "completed").eq("is_paid", false).neq("lesson_type", "Personal"),
+        supabase.from("bookings").select("id, start_time, end_time, is_paid, students(hourly_rate)").eq("user_id", user!.id).eq("status", "completed").eq("is_paid", false).neq("lesson_type", "Personal"),
         supabase.from("pre_paid_hours_transactions").select("booking_id").eq("user_id", user!.id)
       ]);
 
@@ -217,7 +225,8 @@ const Dashboard: React.FC = () => {
       lessonsRes.data?.forEach(lesson => {
         if (!creditPaidIds.has(lesson.id)) {
           const duration = differenceInMinutes(new Date(lesson.end_time), new Date(lesson.start_time)) / 60;
-          total += calculateLessonValue(duration, instructorSettings);
+          const studentRate = (lesson.students as any)?.hourly_rate;
+          total += calculateLessonValue(duration, instructorSettings, studentRate);
         }
       });
       

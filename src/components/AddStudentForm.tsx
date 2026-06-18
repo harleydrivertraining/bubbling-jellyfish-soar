@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
 import { showSuccess, showError } from "@/utils/toast";
+import { PoundSterling } from "lucide-react";
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
@@ -73,6 +75,10 @@ const formSchema = z.object({
   status: z.enum(["Beginner", "Intermediate", "Advanced"], {
     message: "Please select a valid status.",
   }),
+  hourly_rate: z.preprocess(
+    (val) => (val === "" ? null : Number(val)),
+    z.number().min(0).nullable().optional()
+  ),
 });
 
 interface AddStudentFormProps {
@@ -92,6 +98,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       full_address: "",
       notes: "",
       status: "Beginner",
+      hourly_rate: null,
     },
   });
 
@@ -116,6 +123,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
         full_address: values.full_address,
         notes: values.notes,
         status: values.status,
+        hourly_rate: values.hourly_rate,
       });
 
     if (error) {
@@ -168,6 +176,33 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
             </div>
           </FormItem>
         </div>
+
+        <FormField
+          control={form.control}
+          name="hourly_rate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Custom Hourly Rate (£)</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    placeholder="Leave blank for global rate" 
+                    className="pl-10"
+                    {...field} 
+                    value={field.value === null ? "" : field.value}
+                    onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                  />
+                </div>
+              </FormControl>
+              <FormDescription className="text-[10px]">Overwrites your base hourly rate for this specific student.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -244,7 +279,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full">Add Student</Button>
+        <Button type="submit" className="w-full font-bold h-11">Add Student</Button>
       </form>
     </Form>
   );
