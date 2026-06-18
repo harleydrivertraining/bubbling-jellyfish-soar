@@ -30,6 +30,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { PoundSterling } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
@@ -79,6 +81,7 @@ const formSchema = z.object({
     message: "Please select a valid status.",
   }),
   is_past_student: z.boolean().optional(),
+  selected_rate_index: z.preprocess((val) => Number(val), z.number().min(1).max(3)),
   hourly_rate: z.preprocess(
     (val) => (val === "" ? null : Number(val)),
     z.number().min(0).nullable().optional()
@@ -107,6 +110,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       notes: "",
       status: "Beginner",
       is_past_student: false,
+      selected_rate_index: 1,
       hourly_rate: null,
     },
   });
@@ -117,7 +121,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       setIsLoadingStudent(true);
       const { data, error } = await supabase
         .from("students")
-        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student, hourly_rate")
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student, hourly_rate, selected_rate_index")
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -145,6 +149,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           notes: data.notes || "",
           status: studentStatus,
           is_past_student: data.is_past_student,
+          selected_rate_index: data.selected_rate_index || 1,
           hourly_rate: data.hourly_rate,
         });
       }
@@ -175,6 +180,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         notes: values.notes,
         status: values.status,
         is_past_student: values.is_past_student,
+        selected_rate_index: values.selected_rate_index,
         hourly_rate: values.hourly_rate,
       })
       .eq("id", studentId)
@@ -242,31 +248,65 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="hourly_rate"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Custom Hourly Rate (£)</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    type="number" 
-                    step="0.01" 
-                    placeholder="Using global rate" 
-                    className="pl-10"
-                    {...field} 
-                    value={field.value === null ? "" : field.value}
-                    onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
-                  />
-                </div>
-              </FormControl>
-              <FormDescription className="text-[10px]">Overwrites your base hourly rate for this specific student.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="p-4 border rounded-xl bg-primary/5 space-y-4">
+          <FormField
+            control={form.control}
+            name="selected_rate_index"
+            render={({ field }) => (
+              <FormItem className="space-y-3">
+                <FormLabel className="text-xs font-bold uppercase text-primary">Assigned Price Point</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    onValueChange={(val) => field.onChange(parseInt(val))}
+                    defaultValue={field.value.toString()}
+                    className="grid grid-cols-3 gap-2"
+                  >
+                    {[1, 2, 3].map((idx) => (
+                      <FormItem key={idx}>
+                        <FormControl>
+                          <RadioGroupItem value={idx.toString()} className="sr-only" />
+                        </FormControl>
+                        <FormLabel className={cn(
+                          "flex items-center justify-center p-2 rounded-lg border-2 cursor-pointer transition-all text-xs font-bold",
+                          field.value === idx ? "border-primary bg-primary text-white" : "border-muted bg-white hover:border-primary/50"
+                        )}>
+                          Rate {idx}
+                        </FormLabel>
+                      </FormItem>
+                    ))}
+                  </RadioGroup>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="hourly_rate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Manual Override (£)</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="Ignores price points" 
+                      className="pl-10 h-9 text-xs"
+                      {...field} 
+                      value={field.value === null ? "" : field.value}
+                      onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                    />
+                  </div>
+                </FormControl>
+                <FormDescription className="text-[10px]">Only use if you want a price not in your settings.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <FormField

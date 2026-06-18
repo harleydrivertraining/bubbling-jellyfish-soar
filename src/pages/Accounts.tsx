@@ -124,19 +124,27 @@ const Accounts: React.FC = () => {
   const [selectedTaxYearStart, setSelectedTaxYearStart] = useState<number>(getTaxYearStartForDate(new Date()));
   const [baseDate, setBaseDate] = useState<Date>(new Date());
 
-  const calculateLessonValue = useCallback((durationHours: number, profileData: any, studentRate?: number | null) => {
+  const calculateLessonValue = useCallback((durationHours: number, profileData: any, studentRate?: number | null, rateIndex: number = 1) => {
     if (!profileData) return 0;
     
-    // If the student has a specific custom hourly rate, use that instead of global rules
+    // 1. Manual absolute override
     if (studentRate !== undefined && studentRate !== null && studentRate > 0) {
       return durationHours * studentRate;
     }
 
-    if (durationHours === 1 && profileData.rate_1h) return profileData.rate_1h;
-    if (durationHours === 1.5 && profileData.rate_1_5h) return profileData.rate_1_5h;
-    if (durationHours === 2 && profileData.rate_2h) return profileData.rate_2h;
+    // 2. Multi-Rate Logic
+    let baseRate = profileData.hourly_rate || 0;
+    if (rateIndex === 2) baseRate = profileData.hourly_rate_2 || baseRate;
+    else if (rateIndex === 3) baseRate = profileData.hourly_rate_3 || baseRate;
+
+    // 3. Global Duration Modifiers (Only apply if Rate Index is 1)
+    if (rateIndex === 1) {
+      if (durationHours === 1 && profileData.rate_1h) return profileData.rate_1h;
+      if (durationHours === 1.5 && profileData.rate_1_5h) return profileData.rate_1_5h;
+      if (durationHours === 2 && profileData.rate_2h) return profileData.rate_2h;
+    }
     
-    return durationHours * (profileData.hourly_rate || 0);
+    return durationHours * baseRate;
   }, []);
 
   const processRecurringExpenditures = useCallback(async () => {
@@ -246,12 +254,12 @@ const Accounts: React.FC = () => {
             hours_deducted, 
             transaction_date, 
             booking_id,
-            bookings(id, title, start_time, status, students(name, hourly_rate)),
+            bookings(id, title, start_time, status, students(name, hourly_rate, selected_rate_index)),
             pre_paid_hours(id, amount_paid, package_hours)
           `)
           .eq("user_id", user.id),
         supabase.from("bookings")
-          .select("id, title, start_time, end_time, is_paid, status, students(name, hourly_rate)")
+          .select("id, title, start_time, end_time, is_paid, status, students(name, hourly_rate, selected_rate_index)")
           .eq("user_id", user.id)
           .eq("status", "completed")
           .order("start_time", { ascending: false }),
@@ -273,17 +281,14 @@ const Accounts: React.FC = () => {
         }
 
         if (booking?.status === 'completed') {
-          // Logic: If package has price history, use that. 
-          // If not, but student has a custom hourly rate, use that.
-          // Fallback to global instructor rate.
-          
           let earnedAmount = 0;
           if (pkg?.amount_paid && pkg?.package_hours) {
             const effectiveRate = pkg.amount_paid / pkg.package_hours;
             earnedAmount = tx.hours_deducted * effectiveRate;
           } else {
             const studentRate = booking.students?.hourly_rate;
-            earnedAmount = calculateLessonValue(tx.hours_deducted, profileData, studentRate);
+            const rateIndex = booking.students?.selected_rate_index || 1;
+            earnedAmount = calculateLessonValue(tx.hours_deducted, profileData, studentRate, rateIndex);
           }
           
           income.push({
@@ -305,7 +310,8 @@ const Accounts: React.FC = () => {
         const isCredit = creditPaidBookingIds.has(lesson.id);
         const duration = (new Date(lesson.end_time).getTime() - new Date(lesson.start_time).getTime()) / 3600000;
         const studentRate = (lesson.students as any)?.hourly_rate;
-        const value = calculateLessonValue(duration, profileData, studentRate);
+        const rateIndex = (lesson.students as any)?.selected_rate_index || 1;
+        const value = calculateLessonValue(duration, profileData, studentRate, rateIndex);
 
         if (isCredit) return;
 
@@ -361,18 +367,15 @@ const Accounts: React.FC = () => {
         const { error } = await supabase.from("additional_income").delete().eq("id", item.id);
         if (error) throw error;
       } else if (item.type === 'lesson') {
-        // Mark as unpaid instead of deleting the booking
         const { error } = await supabase.from("bookings").update({ is_paid: false }).eq("id", item.id);
         if (error) throw error;
       } else if (item.type === 'package') {
-        // 1. Return hours to package
         if (item.package_id && item.hours_deducted) {
           const { data: pkg } = await supabase.from("pre_paid_hours").select("remaining_hours").eq("id", item.package_id).single();
           if (pkg) {
             await supabase.from("pre_paid_hours").update({ remaining_hours: pkg.remaining_hours + item.hours_deducted }).eq("id", item.package_id);
           }
         }
-        // 2. Delete transaction record
         const { error } = await supabase.from("pre_paid_hours_transactions").delete().eq("id", item.id);
         if (error) throw error;
       }
