@@ -15,13 +15,24 @@ const Signup: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !password || !confirmPassword || !firstName || !lastName) {
       showError("Please fill in all fields.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      showError("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      showError("Password must be at least 6 characters.");
       return;
     }
 
@@ -140,22 +151,39 @@ const Signup: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    placeholder="••••••••" 
-                    className="pl-10" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      className="pl-10" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Must be at least 6 characters.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="confirmPassword" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      className="pl-10" 
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
               </div>
+              <p className="text-[10px] text-muted-foreground">Must be at least 6 characters.</p>
 
               <Button type="submit" className="w-full font-bold h-11" disabled={isLoading}>
                 {isLoading ? (
