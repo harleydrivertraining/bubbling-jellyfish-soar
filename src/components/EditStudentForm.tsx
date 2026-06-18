@@ -29,6 +29,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { PoundSterling } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 
@@ -113,11 +114,9 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
     const fetchStudentDetails = async () => {
       if (!user || !studentId) return;
       setIsLoadingStudent(true);
-      
-      // Use select(*) to handle cases where columns might be missing during transition
       const { data, error } = await supabase
         .from("students")
-        .select("*")
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student, selected_rate_index")
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -144,7 +143,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           full_address: data.full_address || "",
           notes: data.notes || "",
           status: studentStatus,
-          is_past_student: !!data.is_past_student,
+          is_past_student: data.is_past_student,
           selected_rate_index: data.selected_rate_index || 1,
         });
       }
