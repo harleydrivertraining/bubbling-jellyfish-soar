@@ -82,6 +82,10 @@ const formSchema = z.object({
   }),
   is_past_student: z.boolean().optional(),
   selected_rate_index: z.preprocess((val) => Number(val), z.number().min(1).max(3)),
+  hourly_rate: z.preprocess(
+    (val) => (val === "" ? null : Number(val)),
+    z.number().min(0).nullable().optional()
+  ),
 });
 
 interface EditStudentFormProps {
@@ -107,6 +111,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       status: "Beginner",
       is_past_student: false,
       selected_rate_index: 1,
+      hourly_rate: null,
     },
   });
 
@@ -116,7 +121,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       setIsLoadingStudent(true);
       const { data, error } = await supabase
         .from("students")
-        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student, selected_rate_index")
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student, hourly_rate, selected_rate_index")
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -145,6 +150,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           status: studentStatus,
           is_past_student: data.is_past_student,
           selected_rate_index: data.selected_rate_index || 1,
+          hourly_rate: data.hourly_rate,
         });
       }
       setIsLoadingStudent(false);
@@ -175,6 +181,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
         status: values.status,
         is_past_student: values.is_past_student,
         selected_rate_index: values.selected_rate_index,
+        hourly_rate: values.hourly_rate,
       })
       .eq("id", studentId)
       .eq("user_id", user.id);
@@ -269,6 +276,32 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
                     ))}
                   </RadioGroup>
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="hourly_rate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Manual Override (£)</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="Ignores price points" 
+                      className="pl-10 h-9 text-xs"
+                      {...field} 
+                      value={field.value === null ? "" : field.value}
+                      onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                    />
+                  </div>
+                </FormControl>
+                <FormDescription className="text-[10px]">Only use if you want a price not in your settings.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}

@@ -78,6 +78,10 @@ const formSchema = z.object({
     message: "Please select a valid status.",
   }),
   selected_rate_index: z.preprocess((val) => Number(val), z.number().min(1).max(3)),
+  hourly_rate: z.preprocess(
+    (val) => (val === "" ? null : Number(val)),
+    z.number().min(0).nullable().optional()
+  ),
 });
 
 interface AddStudentFormProps {
@@ -98,6 +102,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
       notes: "",
       status: "Beginner",
       selected_rate_index: 1,
+      hourly_rate: null,
     },
   });
 
@@ -123,6 +128,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
         notes: values.notes,
         status: values.status,
         selected_rate_index: values.selected_rate_index,
+        hourly_rate: values.hourly_rate,
       });
 
     if (error) {
@@ -205,6 +211,31 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onStudentAdded, onClose
                   </RadioGroup>
                 </FormControl>
                 <FormDescription className="text-[10px]">Uses rates defined in your settings.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="hourly_rate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Manual Override (£)</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <PoundSterling className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="Ignores price points" 
+                      className="pl-10 h-9 text-xs"
+                      {...field} 
+                      value={field.value === null ? "" : field.value}
+                      onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                    />
+                  </div>
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
