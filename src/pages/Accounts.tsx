@@ -127,17 +127,17 @@ const Accounts: React.FC = () => {
   const calculateLessonValue = useCallback((durationHours: number, profileData: any, studentRate?: number | null, rateIndex: number = 1) => {
     if (!profileData) return 0;
     
-    // 1. Manual absolute override
+    // 1. Manual absolute override (if set in student profile)
     if (studentRate !== undefined && studentRate !== null && studentRate > 0) {
       return durationHours * studentRate;
     }
 
-    // 2. Multi-Rate Logic
+    // 2. Select the base rate from the instructor's 3 tiered prices
     let baseRate = profileData.hourly_rate || 0;
     if (rateIndex === 2) baseRate = profileData.hourly_rate_2 || baseRate;
     else if (rateIndex === 3) baseRate = profileData.hourly_rate_3 || baseRate;
 
-    // 3. Global Duration Modifiers (Only apply if Rate Index is 1)
+    // 3. Apply global duration modifiers (Only if using the default Rate 1)
     if (rateIndex === 1) {
       if (durationHours === 1 && profileData.rate_1h) return profileData.rate_1h;
       if (durationHours === 1.5 && profileData.rate_1_5h) return profileData.rate_1_5h;
