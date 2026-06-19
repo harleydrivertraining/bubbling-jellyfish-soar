@@ -29,6 +29,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { KeyRound, Loader2 } from "lucide-react";
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
@@ -90,6 +91,9 @@ interface EditStudentFormProps {
 const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentUpdated, onStudentDeleted, onClose }) => {
   const { user } = useSession();
   const [isLoadingStudent, setIsLoadingStudent] = useState(true);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -111,7 +115,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
       setIsLoadingStudent(true);
       const { data, error } = await supabase
         .from("students")
-        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student")
+        .select("name, date_of_birth, driving_license_number, phone_number, full_address, notes, status, is_past_student, auth_user_id")
         .eq("id", studentId)
         .eq("user_id", user.id)
         .single();
@@ -140,6 +144,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
           status: studentStatus,
           is_past_student: data.is_past_student,
         });
+        setAuthUserId(data.auth_user_id);
       }
       setIsLoadingStudent(false);
     };
@@ -181,6 +186,36 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!authUserId) return;
+    if (newPassword.length < 6) {
+      showError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const { data, error } = await supabase.rpc("instructor_change_student_password", {
+        target_user_id: authUserId,
+        new_password: newPassword,
+      });
+
+      if (error) throw error;
+
+      if (data && data.success === false) {
+        throw new Error(data.error || "Failed to reset password.");
+      }
+
+      showSuccess("Student password updated successfully!");
+      setNewPassword("");
+    } catch (error: any) {
+      console.error("Error resetting student password:", error);
+      showError(error.message || "Failed to reset student password.");
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!user) {
       showError("You must be logged in to delete a student.");
@@ -218,166 +253,210 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Student Name</FormLabel>
-              <FormControl>
-                <Input placeholder="John Doe" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
             control={form.control}
-            name="date_of_birth"
+            name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Date of Birth</FormLabel>
+                <FormLabel>Student Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., 15/01/2000" {...field} value={field.value || ""} />
+                  <Input placeholder="John Doe" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <FormItem>
-            <FormLabel>Current Age</FormLabel>
-            <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-              {calculateAge(form.watch("date_of_birth")) !== null
-                ? `${calculateAge(form.watch("date_of_birth"))} years`
-                : "N/A"}
-            </div>
-          </FormItem>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="driving_license_number"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Driving License Number</FormLabel>
-                <FormControl>
-                  <Input placeholder="ABC12345DEF" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone_number"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone Number</FormLabel>
-                <FormControl>
-                  <Input placeholder="+1 (555) 123-4567" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="full_address"
-          render={({ field }) => (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="date_of_birth"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date of Birth</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., 15/01/2000" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormItem>
-              <FormLabel>Full Address</FormLabel>
-              <FormControl>
-                <Input placeholder="123 Main St, Anytown, USA" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Any Notes</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., prefers morning lessons" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Beginner">Beginner</SelectItem>
-                  <SelectItem value="Intermediate">Intermediate</SelectItem>
-                  <SelectItem value="Advanced">Advanced</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="is_past_student"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-              <div className="space-y-0.5">
-                <FormLabel>Mark as Past Student</FormLabel>
-                <FormDescription>
-                  Toggle to mark this student as a past student. Past students can be hidden from the main list.
-                </FormDescription>
+              <FormLabel>Current Age</FormLabel>
+              <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+                {calculateAge(form.watch("date_of_birth")) !== null
+                  ? `${calculateAge(form.watch("date_of_birth"))} years`
+                  : "N/A"}
               </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
             </FormItem>
-          )}
-        />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="driving_license_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Driving License Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="ABC12345DEF" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="+1 (555) 123-4567" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <FormField
+            control={form.control}
+            name="full_address"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Full Address</FormLabel>
+                <FormControl>
+                  <Input placeholder="123 Main St, Anytown, USA" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Any Notes</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="e.g., prefers morning lessons" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Status</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a status" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="Beginner">Beginner</SelectItem>
+                    <SelectItem value="Intermediate">Intermediate</SelectItem>
+                    <SelectItem value="Advanced">Advanced</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <div className="flex gap-2">
-          <Button type="submit" className="flex-1">Update Student</Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button type="button" variant="destructive" className="flex-1">Delete Student</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete this student and all associated data (lessons, progress, pre-paid hours, driving tests).
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <FormField
+            control={form.control}
+            name="is_past_student"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                <div className="space-y-0.5">
+                  <FormLabel>Mark as Past Student</FormLabel>
+                  <FormDescription>
+                    Toggle to mark this student as a past student. Past students can be hidden from the main list.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <div className="flex gap-2">
+            <Button type="submit" className="flex-1">Update Student</Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" className="flex-1 font-bold">Delete Student</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete this student.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </form>
+      </Form>
+
+      {authUserId && (
+        <div className="border-t pt-6 space-y-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <KeyRound className="h-5 w-5 text-primary" />
+            Reset Student Password
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            This student has an active login account. You can set a new password for them below.
+          </p>
+          <div className="space-y-2">
+            <FormLabel>New Password</FormLabel>
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                disabled={isResettingPassword}
+              />
+              <Button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={isResettingPassword || newPassword.length < 6}
+                className="font-bold shrink-0"
+              >
+                {isResettingPassword ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  "Reset Password"
+                )}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Must be at least 6 characters.
+            </p>
+          </div>
         </div>
-      </form>
-    </Form>
+      )}
+    </div>
   );
 };
 
