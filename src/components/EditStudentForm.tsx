@@ -25,11 +25,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/components/auth/SessionContextProvider";
-import { showSuccess, showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { KeyRound, Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 // Helper function to calculate age
 const calculateAge = (dobString: string | null | undefined): number | null => {
@@ -425,7 +426,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ studentId, onStudentU
             This student has an active login account. You can set a new password for them below.
           </p>
           <div className="space-y-2">
-            <FormLabel>New Password</FormLabel>
+            <Label>New Password</Label>
             <div className="flex gap-2">
               <Input
                 type="password"
