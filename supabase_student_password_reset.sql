@@ -1,3 +1,6 @@
+-- Ensure the pgcrypto extension is enabled (usually in the extensions schema in Supabase)
+CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA extensions;
+
 -- Create a secure function to allow instructors to change their students' passwords
 CREATE OR REPLACE FUNCTION public.instructor_change_student_password(
   target_user_id UUID,
@@ -6,7 +9,7 @@ CREATE OR REPLACE FUNCTION public.instructor_change_student_password(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER -- Runs with elevated privileges to update auth.users
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   is_instructor BOOLEAN;
@@ -26,7 +29,8 @@ BEGIN
   END IF;
 
   -- 2. Encrypt the new password using crypt (standard Supabase auth encryption)
-  encrypted_pw := crypt(new_password, gen_salt('bf'));
+  -- Explicitly referencing extensions schema to avoid search_path issues
+  encrypted_pw := extensions.crypt(new_password, extensions.gen_salt('bf'));
 
   -- 3. Update the password in auth.users
   UPDATE auth.users
